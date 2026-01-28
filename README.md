@@ -14,7 +14,7 @@ npm run dev
 ```
 
 ## Environment
-- `VITE_API_BASE_URL` (default: http://localhost:8000)
+- `VITE_API_BASE_URL` (default: current origin)
 - `VITE_AUTH_MODE` (dev|oidc) default dev
 
 ## Notes

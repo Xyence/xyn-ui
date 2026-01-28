@@ -1,6 +1,9 @@
 import type { BootstrapLogResponse, CreateInstancePayload, InstanceListResponse, ProvisionedInstance } from "./types";
 
-const DEFAULT_API_BASE = "http://localhost:8000";
+const DEFAULT_API_BASE =
+  typeof window !== "undefined" && window.location?.origin
+    ? window.location.origin
+    : "http://localhost:8000";
 
 export const apiBaseUrl =
   (import.meta.env.VITE_API_BASE_URL as string | undefined) || DEFAULT_API_BASE;
