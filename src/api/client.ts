@@ -1,12 +1,15 @@
 import type { BootstrapLogResponse, CreateInstancePayload, InstanceListResponse, ProvisionedInstance } from "./types";
 
-const DEFAULT_API_BASE =
-  (globalThis?.location && "origin" in globalThis.location
-    ? globalThis.location.origin
-    : undefined) || "http://localhost:8000";
-
-export const apiBaseUrl =
-  (import.meta.env.VITE_API_BASE_URL as string | undefined) || DEFAULT_API_BASE;
+function resolveApiBaseUrl() {
+  const envBase = import.meta.env.VITE_API_BASE_URL as string | undefined;
+  if (envBase && envBase.trim().length > 0) {
+    return envBase;
+  }
+  if (typeof window !== "undefined" && window.location?.origin) {
+    return window.location.origin;
+  }
+  return "http://localhost:8000";
+}
 
 export const authMode =
   (import.meta.env.VITE_AUTH_MODE as string | undefined) || "dev";
@@ -47,6 +50,7 @@ async function handle<T>(response: Response): Promise<T> {
 }
 
 export async function listInstances(): Promise<InstanceListResponse> {
+  const apiBaseUrl = resolveApiBaseUrl();
   const response = await fetch(`${apiBaseUrl}/xyn/api/provision/instances`, {
     credentials: "include",
   });
@@ -54,6 +58,7 @@ export async function listInstances(): Promise<InstanceListResponse> {
 }
 
 export async function createInstance(payload: CreateInstancePayload): Promise<ProvisionedInstance> {
+  const apiBaseUrl = resolveApiBaseUrl();
   const response = await fetch(`${apiBaseUrl}/xyn/api/provision/instances`, {
     method: "POST",
     headers: jsonHeaders,
@@ -64,6 +69,7 @@ export async function createInstance(payload: CreateInstancePayload): Promise<Pr
 }
 
 export async function getInstance(id: string, refresh = false): Promise<ProvisionedInstance> {
+  const apiBaseUrl = resolveApiBaseUrl();
   const url = new URL(`${apiBaseUrl}/xyn/api/provision/instances/${id}`);
   if (refresh) {
     url.searchParams.set("refresh", "true");
@@ -73,6 +79,7 @@ export async function getInstance(id: string, refresh = false): Promise<Provisio
 }
 
 export async function destroyInstance(id: string): Promise<ProvisionedInstance> {
+  const apiBaseUrl = resolveApiBaseUrl();
   const response = await fetch(`${apiBaseUrl}/xyn/api/provision/instances/${id}/destroy`, {
     method: "POST",
     credentials: "include",
@@ -81,6 +88,7 @@ export async function destroyInstance(id: string): Promise<ProvisionedInstance> 
 }
 
 export async function fetchBootstrapLog(id: string, tail = 200): Promise<BootstrapLogResponse> {
+  const apiBaseUrl = resolveApiBaseUrl();
   const url = new URL(`${apiBaseUrl}/xyn/api/provision/instances/${id}/bootstrap-log`);
   url.searchParams.set("tail", String(tail));
   const response = await fetch(url.toString(), { credentials: "include" });
