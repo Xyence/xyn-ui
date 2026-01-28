@@ -20,41 +20,46 @@ async function handle<T>(response: Response): Promise<T> {
     const message = await response.text();
     throw new Error(message || `Request failed (${response.status})`);
   }
-  return response.json() as Promise<T>;
+  return (await response.json()) as T;
 }
 
-export function listInstances(): Promise<InstanceListResponse> {
-  return fetch(`${apiBaseUrl}/xyn/api/provision/instances`, {
+export async function listInstances(): Promise<InstanceListResponse> {
+  const response = await fetch(`${apiBaseUrl}/xyn/api/provision/instances`, {
     credentials: "include",
-  }).then(handle);
+  });
+  return handle<InstanceListResponse>(response);
 }
 
-export function createInstance(payload: CreateInstancePayload): Promise<ProvisionedInstance> {
-  return fetch(`${apiBaseUrl}/xyn/api/provision/instances`, {
+export async function createInstance(payload: CreateInstancePayload): Promise<ProvisionedInstance> {
+  const response = await fetch(`${apiBaseUrl}/xyn/api/provision/instances`, {
     method: "POST",
     headers: jsonHeaders,
     credentials: "include",
     body: JSON.stringify(payload),
-  }).then(handle);
+  });
+  return handle<ProvisionedInstance>(response);
 }
 
-export function getInstance(id: string, refresh = false): Promise<ProvisionedInstance> {
+export async function getInstance(id: string, refresh = false): Promise<ProvisionedInstance> {
   const url = new URL(`${apiBaseUrl}/xyn/api/provision/instances/${id}`);
   if (refresh) {
     url.searchParams.set("refresh", "true");
   }
-  return fetch(url.toString(), { credentials: "include" }).then(handle);
+  const response = await fetch(url.toString(), { credentials: "include" });
+  return handle<ProvisionedInstance>(response);
 }
 
-export function destroyInstance(id: string): Promise<ProvisionedInstance> {
-  return fetch(`${apiBaseUrl}/xyn/api/provision/instances/${id}/destroy`, {
+export async function destroyInstance(id: string): Promise<ProvisionedInstance> {
+  const response = await fetch(`${apiBaseUrl}/xyn/api/provision/instances/${id}/destroy`, {
     method: "POST",
     credentials: "include",
-  }).then(handle);
+  });
+  return handle<ProvisionedInstance>(response);
 }
 
-export function fetchBootstrapLog(id: string, tail = 200): Promise<BootstrapLogResponse> {
+export async function fetchBootstrapLog(id: string, tail = 200): Promise<BootstrapLogResponse> {
   const url = new URL(`${apiBaseUrl}/xyn/api/provision/instances/${id}/bootstrap-log`);
   url.searchParams.set("tail", String(tail));
-  return fetch(url.toString(), { credentials: "include" }).then(handle);
+  const response = await fetch(url.toString(), { credentials: "include" });
+  return handle<BootstrapLogResponse>(response);
 }
