@@ -15,7 +15,23 @@ const jsonHeaders = {
   "Content-Type": "application/json",
 };
 
+function redirectToLogin() {
+  if (typeof window === "undefined") {
+    return;
+  }
+  const next = encodeURIComponent(window.location.pathname + window.location.search);
+  window.location.href = `/accounts/login/?next=${next}`;
+}
+
 async function handle<T>(response: Response): Promise<T> {
+  if (response.redirected && response.url.includes("/accounts/login")) {
+    redirectToLogin();
+    throw new Error("AUTH_REQUIRED");
+  }
+  if (response.status === 401 || response.status === 403) {
+    redirectToLogin();
+    throw new Error("AUTH_REQUIRED");
+  }
   if (!response.ok) {
     const message = await response.text();
     throw new Error(message || `Request failed (${response.status})`);
