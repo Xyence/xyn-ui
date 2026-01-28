@@ -24,6 +24,7 @@ function redirectToLogin() {
 }
 
 async function handle<T>(response: Response): Promise<T> {
+  const contentType = response.headers.get("content-type") || "";
   if (response.redirected && response.url.includes("/accounts/login")) {
     redirectToLogin();
     throw new Error("AUTH_REQUIRED");
@@ -31,6 +32,12 @@ async function handle<T>(response: Response): Promise<T> {
   if (response.status === 401 || response.status === 403) {
     redirectToLogin();
     throw new Error("AUTH_REQUIRED");
+  }
+  if (response.ok && !contentType.includes("application/json")) {
+    if (response.url.includes("/accounts/login")) {
+      redirectToLogin();
+      throw new Error("AUTH_REQUIRED");
+    }
   }
   if (!response.ok) {
     const message = await response.text();
