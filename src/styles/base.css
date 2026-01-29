@@ -354,35 +354,11 @@ button:disabled {
   flex-direction: column;
   background: radial-gradient(circle at top, #f9fbff 0%, #edf2f9 50%, #e6edf7 100%);
   color: var(--ink);
-  position: relative;
-  overflow-x: hidden;
-}
-
-.public-shell::before {
-  content: "";
-  position: absolute;
-  inset: -20% auto auto -10%;
-  width: 60vw;
-  height: 60vw;
-  background: radial-gradient(circle, rgba(42, 168, 255, 0.18), transparent 70%);
-  z-index: 0;
-}
-
-.public-shell::after {
-  content: "";
-  position: absolute;
-  inset: auto -20% -25% auto;
-  width: 55vw;
-  height: 55vw;
-  background: radial-gradient(circle, rgba(15, 76, 129, 0.15), transparent 70%);
-  z-index: 0;
 }
 
 .public-header {
   background: #ffffff;
   box-shadow: 0 6px 20px rgba(16, 32, 58, 0.06);
-  position: relative;
-  z-index: 1;
 }
 
 .public-nav {
@@ -446,25 +422,13 @@ button:disabled {
   padding: 40px 24px 60px;
   display: flex;
   flex-direction: column;
-  gap: 40px;
-  position: relative;
-  z-index: 1;
+  gap: 32px;
 }
 
 .public-section {
   display: flex;
   flex-direction: column;
   gap: 16px;
-  position: relative;
-}
-
-.public-section:not(.hero) {
-  background: rgba(255, 255, 255, 0.7);
-  border: 1px solid rgba(15, 76, 129, 0.08);
-  border-radius: 24px;
-  padding: 28px 32px;
-  box-shadow: 0 18px 40px rgba(15, 76, 129, 0.08);
-  backdrop-filter: blur(4px);
 }
 
 .section-head {
@@ -477,11 +441,6 @@ button:disabled {
   display: grid;
   gap: 32px;
   align-items: center;
-  padding: 28px 32px;
-  border-radius: 28px;
-  background: linear-gradient(135deg, rgba(15, 76, 129, 0.12), rgba(255, 255, 255, 0.7));
-  border: 1px solid rgba(15, 76, 129, 0.08);
-  box-shadow: 0 22px 50px rgba(15, 76, 129, 0.12);
 }
 
 .hero-content {
@@ -526,12 +485,6 @@ button:disabled {
   display: flex;
   flex-direction: column;
   gap: 10px;
-  transition: transform 0.2s ease, box-shadow 0.2s ease;
-}
-
-.feature-card:hover {
-  transform: translateY(-4px);
-  box-shadow: 0 16px 40px rgba(15, 76, 129, 0.15);
 }
 
 .service-grid {
@@ -547,13 +500,6 @@ button:disabled {
   display: flex;
   flex-direction: column;
   gap: 12px;
-  border: 1px solid rgba(15, 76, 129, 0.08);
-  transition: transform 0.2s ease, box-shadow 0.2s ease;
-}
-
-.service-card:hover {
-  transform: translateY(-4px);
-  box-shadow: 0 16px 40px rgba(15, 76, 129, 0.15);
 }
 
 .service-card ul {
@@ -608,12 +554,6 @@ button:disabled {
   display: flex;
   flex-direction: column;
   gap: 10px;
-  transition: transform 0.2s ease, box-shadow 0.2s ease;
-}
-
-.article-card:hover {
-  transform: translateY(-4px);
-  box-shadow: 0 16px 40px rgba(15, 76, 129, 0.15);
 }
 
 .article-detail {
