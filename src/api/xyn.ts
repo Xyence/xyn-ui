@@ -1,0 +1,286 @@
+import type {
+  BlueprintCreatePayload,
+  BlueprintDetail,
+  BlueprintListResponse,
+  BlueprintSummary,
+  ModuleCreatePayload,
+  ModuleDetail,
+  ModuleListResponse,
+  RegistryCreatePayload,
+  RegistryDetail,
+  RegistryListResponse,
+  ReleasePlanCreatePayload,
+  ReleasePlanDetail,
+  ReleasePlanListResponse,
+  RunArtifact,
+  RunDetail,
+  RunListResponse,
+  RunLogResponse,
+} from "./types";
+import { resolveApiBaseUrl } from "./client";
+
+const jsonHeaders = {
+  "Content-Type": "application/json",
+};
+
+async function handle<T>(response: Response): Promise<T> {
+  if (!response.ok) {
+    const message = await response.text();
+    throw new Error(message || `Request failed (${response.status})`);
+  }
+  return (await response.json()) as T;
+}
+
+export async function listBlueprints(query = ""): Promise<BlueprintListResponse> {
+  const apiBaseUrl = resolveApiBaseUrl();
+  const url = new URL(`${apiBaseUrl}/xyn/api/blueprints`);
+  if (query) {
+    url.searchParams.set("q", query);
+  }
+  url.searchParams.set("page_size", "200");
+  const response = await fetch(url.toString(), { credentials: "include" });
+  return handle<BlueprintListResponse>(response);
+}
+
+export async function getBlueprint(id: string): Promise<BlueprintDetail> {
+  const apiBaseUrl = resolveApiBaseUrl();
+  const response = await fetch(`${apiBaseUrl}/xyn/api/blueprints/${id}`, {
+    credentials: "include",
+  });
+  return handle<BlueprintDetail>(response);
+}
+
+export async function createBlueprint(payload: BlueprintCreatePayload): Promise<{ id: string }> {
+  const apiBaseUrl = resolveApiBaseUrl();
+  const response = await fetch(`${apiBaseUrl}/xyn/api/blueprints`, {
+    method: "POST",
+    headers: jsonHeaders,
+    credentials: "include",
+    body: JSON.stringify(payload),
+  });
+  return handle<{ id: string }>(response);
+}
+
+export async function updateBlueprint(id: string, payload: BlueprintCreatePayload): Promise<{ id: string }> {
+  const apiBaseUrl = resolveApiBaseUrl();
+  const response = await fetch(`${apiBaseUrl}/xyn/api/blueprints/${id}`, {
+    method: "PATCH",
+    headers: jsonHeaders,
+    credentials: "include",
+    body: JSON.stringify(payload),
+  });
+  return handle<{ id: string }>(response);
+}
+
+export async function deleteBlueprint(id: string): Promise<{ status: string }> {
+  const apiBaseUrl = resolveApiBaseUrl();
+  const response = await fetch(`${apiBaseUrl}/xyn/api/blueprints/${id}`, {
+    method: "DELETE",
+    credentials: "include",
+  });
+  return handle<{ status: string }>(response);
+}
+
+export async function submitBlueprint(id: string): Promise<{ run_id?: string; instance_id?: string }> {
+  const apiBaseUrl = resolveApiBaseUrl();
+  const response = await fetch(`${apiBaseUrl}/xyn/api/blueprints/${id}/submit`, {
+    method: "POST",
+    credentials: "include",
+  });
+  return handle<{ run_id?: string; instance_id?: string }>(response);
+}
+
+export async function listModules(query = ""): Promise<ModuleListResponse> {
+  const apiBaseUrl = resolveApiBaseUrl();
+  const url = new URL(`${apiBaseUrl}/xyn/api/modules`);
+  if (query) {
+    url.searchParams.set("q", query);
+  }
+  url.searchParams.set("page_size", "200");
+  const response = await fetch(url.toString(), { credentials: "include" });
+  return handle<ModuleListResponse>(response);
+}
+
+export async function getModule(ref: string): Promise<ModuleDetail> {
+  const apiBaseUrl = resolveApiBaseUrl();
+  const response = await fetch(`${apiBaseUrl}/xyn/api/modules/${ref}`, {
+    credentials: "include",
+  });
+  return handle<ModuleDetail>(response);
+}
+
+export async function createModule(payload: ModuleCreatePayload): Promise<{ id: string; fqn?: string }> {
+  const apiBaseUrl = resolveApiBaseUrl();
+  const response = await fetch(`${apiBaseUrl}/xyn/api/modules`, {
+    method: "POST",
+    headers: jsonHeaders,
+    credentials: "include",
+    body: JSON.stringify(payload),
+  });
+  return handle<{ id: string; fqn?: string }>(response);
+}
+
+export async function updateModule(id: string, payload: ModuleCreatePayload): Promise<{ id: string }> {
+  const apiBaseUrl = resolveApiBaseUrl();
+  const response = await fetch(`${apiBaseUrl}/xyn/api/modules/${id}`, {
+    method: "PATCH",
+    headers: jsonHeaders,
+    credentials: "include",
+    body: JSON.stringify(payload),
+  });
+  return handle<{ id: string }>(response);
+}
+
+export async function deleteModule(id: string): Promise<{ status: string }> {
+  const apiBaseUrl = resolveApiBaseUrl();
+  const response = await fetch(`${apiBaseUrl}/xyn/api/modules/${id}`, {
+    method: "DELETE",
+    credentials: "include",
+  });
+  return handle<{ status: string }>(response);
+}
+
+export async function listRegistries(): Promise<RegistryListResponse> {
+  const apiBaseUrl = resolveApiBaseUrl();
+  const url = new URL(`${apiBaseUrl}/xyn/api/registries`);
+  url.searchParams.set("page_size", "200");
+  const response = await fetch(url.toString(), { credentials: "include" });
+  return handle<RegistryListResponse>(response);
+}
+
+export async function getRegistry(id: string): Promise<RegistryDetail> {
+  const apiBaseUrl = resolveApiBaseUrl();
+  const response = await fetch(`${apiBaseUrl}/xyn/api/registries/${id}`, {
+    credentials: "include",
+  });
+  return handle<RegistryDetail>(response);
+}
+
+export async function createRegistry(payload: RegistryCreatePayload): Promise<{ id: string }> {
+  const apiBaseUrl = resolveApiBaseUrl();
+  const response = await fetch(`${apiBaseUrl}/xyn/api/registries`, {
+    method: "POST",
+    headers: jsonHeaders,
+    credentials: "include",
+    body: JSON.stringify(payload),
+  });
+  return handle<{ id: string }>(response);
+}
+
+export async function updateRegistry(id: string, payload: RegistryCreatePayload): Promise<{ id: string }> {
+  const apiBaseUrl = resolveApiBaseUrl();
+  const response = await fetch(`${apiBaseUrl}/xyn/api/registries/${id}`, {
+    method: "PATCH",
+    headers: jsonHeaders,
+    credentials: "include",
+    body: JSON.stringify(payload),
+  });
+  return handle<{ id: string }>(response);
+}
+
+export async function deleteRegistry(id: string): Promise<{ status: string }> {
+  const apiBaseUrl = resolveApiBaseUrl();
+  const response = await fetch(`${apiBaseUrl}/xyn/api/registries/${id}`, {
+    method: "DELETE",
+    credentials: "include",
+  });
+  return handle<{ status: string }>(response);
+}
+
+export async function syncRegistry(id: string): Promise<{ status: string; last_sync_at?: string }> {
+  const apiBaseUrl = resolveApiBaseUrl();
+  const response = await fetch(`${apiBaseUrl}/xyn/api/registries/${id}/sync`, {
+    method: "POST",
+    credentials: "include",
+  });
+  return handle<{ status: string; last_sync_at?: string }>(response);
+}
+
+export async function listReleasePlans(): Promise<ReleasePlanListResponse> {
+  const apiBaseUrl = resolveApiBaseUrl();
+  const url = new URL(`${apiBaseUrl}/xyn/api/release-plans`);
+  url.searchParams.set("page_size", "200");
+  const response = await fetch(url.toString(), { credentials: "include" });
+  return handle<ReleasePlanListResponse>(response);
+}
+
+export async function getReleasePlan(id: string): Promise<ReleasePlanDetail> {
+  const apiBaseUrl = resolveApiBaseUrl();
+  const response = await fetch(`${apiBaseUrl}/xyn/api/release-plans/${id}`, {
+    credentials: "include",
+  });
+  return handle<ReleasePlanDetail>(response);
+}
+
+export async function createReleasePlan(payload: ReleasePlanCreatePayload): Promise<{ id: string }> {
+  const apiBaseUrl = resolveApiBaseUrl();
+  const response = await fetch(`${apiBaseUrl}/xyn/api/release-plans`, {
+    method: "POST",
+    headers: jsonHeaders,
+    credentials: "include",
+    body: JSON.stringify(payload),
+  });
+  return handle<{ id: string }>(response);
+}
+
+export async function updateReleasePlan(id: string, payload: ReleasePlanCreatePayload): Promise<{ id: string }> {
+  const apiBaseUrl = resolveApiBaseUrl();
+  const response = await fetch(`${apiBaseUrl}/xyn/api/release-plans/${id}`, {
+    method: "PATCH",
+    headers: jsonHeaders,
+    credentials: "include",
+    body: JSON.stringify(payload),
+  });
+  return handle<{ id: string }>(response);
+}
+
+export async function deleteReleasePlan(id: string): Promise<{ status: string }> {
+  const apiBaseUrl = resolveApiBaseUrl();
+  const response = await fetch(`${apiBaseUrl}/xyn/api/release-plans/${id}`, {
+    method: "DELETE",
+    credentials: "include",
+  });
+  return handle<{ status: string }>(response);
+}
+
+export async function generateReleasePlan(id: string): Promise<{ run_id: string }> {
+  const apiBaseUrl = resolveApiBaseUrl();
+  const response = await fetch(`${apiBaseUrl}/xyn/api/release-plans/${id}/generate`, {
+    method: "POST",
+    credentials: "include",
+  });
+  return handle<{ run_id: string }>(response);
+}
+
+export async function listRuns(): Promise<RunListResponse> {
+  const apiBaseUrl = resolveApiBaseUrl();
+  const url = new URL(`${apiBaseUrl}/xyn/api/runs`);
+  url.searchParams.set("page_size", "200");
+  const response = await fetch(url.toString(), { credentials: "include" });
+  return handle<RunListResponse>(response);
+}
+
+export async function getRun(id: string): Promise<RunDetail> {
+  const apiBaseUrl = resolveApiBaseUrl();
+  const response = await fetch(`${apiBaseUrl}/xyn/api/runs/${id}`, {
+    credentials: "include",
+  });
+  return handle<RunDetail>(response);
+}
+
+export async function getRunLogs(id: string): Promise<RunLogResponse> {
+  const apiBaseUrl = resolveApiBaseUrl();
+  const response = await fetch(`${apiBaseUrl}/xyn/api/runs/${id}/logs`, {
+    credentials: "include",
+  });
+  return handle<RunLogResponse>(response);
+}
+
+export async function getRunArtifacts(id: string): Promise<RunArtifact[]> {
+  const apiBaseUrl = resolveApiBaseUrl();
+  const response = await fetch(`${apiBaseUrl}/xyn/api/runs/${id}/artifacts`, {
+    credentials: "include",
+  });
+  const data = await handle<{ artifacts: RunArtifact[] }>(response);
+  return data.artifacts;
+}
