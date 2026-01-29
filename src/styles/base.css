@@ -377,10 +377,6 @@ button:disabled {
   flex-wrap: wrap;
 }
 
-.brand-mark img {
-  height: 42px;
-}
-
 .brand-mark {
   display: inline-flex;
   align-items: center;
@@ -389,9 +385,10 @@ button:disabled {
 }
 
 .brand-mark img {
+  height: 42px;
   background: #fff;
-  padding: 6px;
-  border-radius: 16px;
+  padding: 5px;
+  border-radius: 10px;
   box-shadow: 0 12px 24px rgba(15, 76, 129, 0.2);
 }
 
