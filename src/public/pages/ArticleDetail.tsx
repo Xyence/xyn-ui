@@ -51,6 +51,9 @@ export default function ArticleDetail() {
         className="rich-text"
         dangerouslySetInnerHTML={{ __html: article.body_html || article.body_md || "" }}
       />
+      <Link className="ghost" to="/articles">
+        ← Back to articles
+      </Link>
     </article>
   );
 }
