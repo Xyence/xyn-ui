@@ -395,6 +395,11 @@ button:disabled {
   box-shadow: 0 12px 24px rgba(15, 76, 129, 0.2);
 }
 
+.brand-mark img {
+  transform: scale(1.1);
+  transform-origin: left center;
+}
+
 .site-name {
   font-family: "Space Grotesk", "Source Sans 3", sans-serif;
   font-weight: 600;
@@ -582,7 +587,7 @@ button:disabled {
 
 .markdown img:first-child {
   float: right;
-  width: min(260px, 34vw);
+  width: min(208px, 27vw);
   margin: 4px 0 16px 24px;
 }
 
