@@ -1,6 +1,6 @@
 import type { BootstrapLogResponse, CreateInstancePayload, InstanceListResponse, ProvisionedInstance } from "./types";
 
-function resolveApiBaseUrl() {
+export function resolveApiBaseUrl() {
   const envBase = import.meta.env.VITE_API_BASE_URL as string | undefined;
   if (envBase && envBase.trim().length > 0) {
     return envBase;

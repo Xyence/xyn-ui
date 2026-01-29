@@ -18,4 +18,15 @@ npm run dev
 - `VITE_AUTH_MODE` (dev|oidc) default dev
 
 ## Notes
-This UI relies on existing xyence-web staff session cookies in dev mode.
+This UI relies on existing xyn-api staff session cookies in dev mode.
+
+## SPA routing fallback
+When deploying behind a reverse proxy, ensure all public routes (e.g. `/about`, `/articles`, `/articles/:slug`) resolve to `index.html`. The provided `nginx.conf` already includes:
+
+```
+location / {
+  try_files $uri /index.html;
+}
+```
+
+If using a different proxy, replicate that behavior.
