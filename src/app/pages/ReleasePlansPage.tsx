@@ -1,14 +1,21 @@
 import { useCallback, useEffect, useState } from "react";
 import InlineMessage from "../../components/InlineMessage";
 import {
+  createDevTask,
   createReleasePlan,
   deleteReleasePlan,
-  generateReleasePlan,
   getReleasePlan,
   listReleasePlans,
+  runDevTask,
   updateReleasePlan,
 } from "../../api/xyn";
-import type { ReleasePlanCreatePayload, ReleasePlanDetail, ReleasePlanSummary } from "../../api/types";
+import { listInstances } from "../../api/client";
+import type {
+  ProvisionedInstance,
+  ReleasePlanCreatePayload,
+  ReleasePlanDetail,
+  ReleasePlanSummary,
+} from "../../api/types";
 
 const emptyForm: ReleasePlanCreatePayload = {
   name: "",
@@ -16,9 +23,10 @@ const emptyForm: ReleasePlanCreatePayload = {
   target_fqn: "",
   from_version: "",
   to_version: "",
+  blueprint_id: "",
 };
 
-const TARGET_KINDS = ["module", "bundle", "release"];
+const TARGET_KINDS = ["module", "bundle", "release", "blueprint"];
 
 export default function ReleasePlansPage() {
   const [items, setItems] = useState<ReleasePlanSummary[]>([]);
@@ -28,6 +36,8 @@ export default function ReleasePlansPage() {
   const [loading, setLoading] = useState(false);
   const [message, setMessage] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
+  const [instances, setInstances] = useState<ProvisionedInstance[]>([]);
+  const [targetInstanceId, setTargetInstanceId] = useState<string>("");
 
   const load = useCallback(async () => {
     try {
@@ -47,6 +57,17 @@ export default function ReleasePlansPage() {
   }, [load]);
 
   useEffect(() => {
+    (async () => {
+      try {
+        const data = await listInstances();
+        setInstances(data.instances);
+      } catch (err) {
+        setError((err as Error).message);
+      }
+    })();
+  }, []);
+
+  useEffect(() => {
     if (!selectedId) {
       setSelected(null);
       return;
@@ -61,6 +82,7 @@ export default function ReleasePlansPage() {
           target_fqn: detail.target_fqn,
           from_version: detail.from_version ?? "",
           to_version: detail.to_version ?? "",
+          blueprint_id: detail.blueprint_id ?? "",
         });
       } catch (err) {
         setError((err as Error).message);
@@ -120,12 +142,50 @@ export default function ReleasePlansPage() {
   };
 
   const handleGenerate = async () => {
-    if (!selectedId) return;
+    if (!selectedId || !selected) return;
     try {
       setLoading(true);
       setError(null);
-      const result = await generateReleasePlan(selectedId);
-      setMessage(`Release plan generation queued. Run: ${result.run_id}`);
+      const payload = {
+        title: `Generate release plan for ${selected.target_fqn || selected.name}`,
+        task_type: "release_plan_generate",
+        source_entity_type: "blueprint",
+        source_entity_id: selected.blueprint_id ?? selected.id,
+        input_artifact_key: "implementation_plan.json",
+        context_purpose: "planner",
+      };
+      const created = await createDevTask(payload);
+      const run = await runDevTask(created.id);
+      setMessage(`Release plan generation queued. Run: ${run.run_id}`);
+    } catch (err) {
+      setError((err as Error).message);
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const handleDeploy = async () => {
+    if (!selectedId || !selected) return;
+    if (!targetInstanceId) {
+      setError("Select a target instance before deploying.");
+      return;
+    }
+    try {
+      setLoading(true);
+      setError(null);
+      const payload = {
+        title: `Deploy ${selected.name}`,
+        task_type: "deploy_release_plan",
+        source_entity_type: "release_plan",
+        source_entity_id: selected.id,
+        source_run_id: selected.last_run ?? null,
+        input_artifact_key: "release_plan.json",
+        context_purpose: "deployer",
+        target_instance_id: targetInstanceId,
+      };
+      const created = await createDevTask(payload);
+      const run = await runDevTask(created.id);
+      setMessage(`Deploy queued. Run: ${run.run_id}`);
     } catch (err) {
       setError((err as Error).message);
     } finally {
@@ -217,6 +277,13 @@ export default function ReleasePlansPage() {
                 onChange={(event) => setForm({ ...form, to_version: event.target.value })}
               />
             </label>
+            <label>
+              Blueprint ID
+              <input
+                value={form.blueprint_id ?? ""}
+                onChange={(event) => setForm({ ...form, blueprint_id: event.target.value })}
+              />
+            </label>
           </div>
           <div className="form-actions">
             <button className="primary" onClick={selected ? handleUpdate : handleCreate} disabled={loading}>
@@ -225,7 +292,10 @@ export default function ReleasePlansPage() {
             {selected && (
               <>
                 <button className="ghost" onClick={handleGenerate} disabled={loading}>
-                  Generate
+                  Generate via DevTask
+                </button>
+                <button className="ghost" onClick={handleDeploy} disabled={loading || !targetInstanceId}>
+                  Deploy (SSM)
                 </button>
                 <button className="danger" onClick={handleDelete} disabled={loading}>
                   Delete
@@ -242,6 +312,27 @@ export default function ReleasePlansPage() {
               <div>
                 <div className="label">Updated</div>
                 <span className="muted">{selected.updated_at ?? "—"}</span>
+              </div>
+              <div>
+                <div className="label">Last run</div>
+                {selected.last_run ? (
+                  <a className="link" href={`/app/runs?run=${selected.last_run}`}>
+                    {selected.last_run}
+                  </a>
+                ) : (
+                  <span className="muted">—</span>
+                )}
+              </div>
+              <div>
+                <div className="label">Target instance</div>
+                <select value={targetInstanceId} onChange={(event) => setTargetInstanceId(event.target.value)}>
+                  <option value="">Select instance</option>
+                  {instances.map((instance) => (
+                    <option key={instance.id} value={instance.id}>
+                      {instance.name} ({instance.aws_region})
+                    </option>
+                  ))}
+                </select>
               </div>
             </div>
           )}

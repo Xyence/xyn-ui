@@ -143,6 +143,10 @@ export default function DevTasksPage() {
                   <StatusPill status={selected.status} />
                 </div>
                 <div>
+                  <div className="label">Target instance</div>
+                  <span className="muted">{selected.target_instance_id ?? "—"}</span>
+                </div>
+                <div>
                   <div className="label">Attempts</div>
                   <span className="muted">
                     {selected.attempts}/{selected.max_attempts}
@@ -151,6 +155,16 @@ export default function DevTasksPage() {
                 <div>
                   <div className="label">Context purpose</div>
                   <span className="muted">{selected.context_purpose}</span>
+                </div>
+                <div>
+                  <div className="label">Result run</div>
+                  {selected.result_run ? (
+                    <a className="link" href={`/app/runs?run=${selected.result_run}`}>
+                      {selected.result_run}
+                    </a>
+                  ) : (
+                    <span className="muted">—</span>
+                  )}
                 </div>
               </div>
               {selected.last_error && (

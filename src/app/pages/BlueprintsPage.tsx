@@ -5,10 +5,11 @@ import {
   deleteBlueprint,
   getBlueprint,
   listBlueprints,
+  listBlueprintDevTasks,
+  runDevTask,
   submitBlueprint,
   submitBlueprintWithDevTasks,
   updateBlueprint,
-  listBlueprintDevTasks,
 } from "../../api/xyn";
 import type { BlueprintCreatePayload, BlueprintDetail, BlueprintSummary, DevTaskSummary } from "../../api/types";
 
@@ -148,6 +149,20 @@ export default function BlueprintsPage() {
     }
   };
 
+  const handleRunDevTask = async (taskId: string) => {
+    try {
+      setLoading(true);
+      setError(null);
+      await runDevTask(taskId);
+      const tasks = await listBlueprintDevTasks(selectedId ?? "");
+      setDevTasks(tasks.dev_tasks);
+    } catch (err) {
+      setError((err as Error).message);
+    } finally {
+      setLoading(false);
+    }
+  };
+
   return (
     <>
       <div className="page-header">
@@ -259,7 +274,17 @@ export default function BlueprintsPage() {
                       <strong>{task.title}</strong>
                       <span className="muted small">{task.task_type}</span>
                     </div>
-                    <span className="muted small">{task.status}</span>
+                    <div className="inline-actions">
+                      {task.result_run && (
+                        <a className="link small" href={`/app/runs?run=${task.result_run}`}>
+                          Run
+                        </a>
+                      )}
+                      <button className="ghost small" onClick={() => handleRunDevTask(task.id)} disabled={loading}>
+                        Run task
+                      </button>
+                      <span className="muted small">{task.status}</span>
+                    </div>
                   </div>
                 ))}
               </div>

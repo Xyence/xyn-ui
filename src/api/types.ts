@@ -140,6 +140,8 @@ export type ReleasePlanSummary = {
   target_fqn: string;
   from_version?: string;
   to_version?: string;
+  blueprint_id?: string | null;
+  last_run?: string | null;
   created_at?: string;
   updated_at?: string;
 };
@@ -155,6 +157,7 @@ export type ReleasePlanCreatePayload = {
   from_version?: string;
   to_version?: string;
   milestones_json?: Record<string, unknown>;
+  blueprint_id?: string | null;
 };
 
 export type ReleasePlanListResponse = PaginatedResponse<ReleasePlanSummary, "release_plans">;
@@ -205,6 +208,7 @@ export type DevTaskSummary = {
   source_run?: string | null;
   result_run?: string | null;
   context_purpose?: string;
+  target_instance_id?: string | null;
   created_at?: string;
   updated_at?: string;
 };
@@ -222,3 +226,18 @@ export type DevTaskDetail = DevTaskSummary & {
 };
 
 export type DevTaskListResponse = PaginatedResponse<DevTaskSummary, "dev_tasks">;
+
+export type DevTaskCreatePayload = {
+  title: string;
+  task_type: string;
+  status?: string;
+  priority?: number;
+  max_attempts?: number;
+  source_entity_type?: string;
+  source_entity_id?: string;
+  source_run_id?: string | null;
+  input_artifact_key?: string;
+  context_purpose?: string;
+  target_instance_id?: string | null;
+  context_pack_ids?: string[];
+};

@@ -6,6 +6,7 @@ import type {
   DevTaskDetail,
   DevTaskListResponse,
   DevTaskSummary,
+  DevTaskCreatePayload,
   ModuleCreatePayload,
   ModuleDetail,
   ModuleListResponse,
@@ -309,6 +310,17 @@ export async function listDevTasks(status?: string): Promise<DevTaskListResponse
   }
   const response = await fetch(url.toString(), { credentials: "include" });
   return handle<DevTaskListResponse>(response);
+}
+
+export async function createDevTask(payload: DevTaskCreatePayload): Promise<{ id: string }> {
+  const apiBaseUrl = resolveApiBaseUrl();
+  const response = await fetch(`${apiBaseUrl}/xyn/api/dev-tasks`, {
+    method: "POST",
+    headers: jsonHeaders,
+    credentials: "include",
+    body: JSON.stringify(payload),
+  });
+  return handle<{ id: string }>(response);
 }
 
 export async function getDevTask(id: string): Promise<DevTaskDetail> {
