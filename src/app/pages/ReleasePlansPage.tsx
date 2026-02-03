@@ -96,15 +96,16 @@ export default function ReleasePlansPage() {
   }, [selectedId]);
 
   useEffect(() => {
-    if (!selected?.last_run) {
+    const lastRun = selected?.last_run;
+    if (!lastRun) {
       setRunLogs("");
       setRunArtifacts([]);
       return;
     }
     (async () => {
       try {
-        const logs = await getRunLogs(selected.last_run);
-        const artifacts = await getRunArtifacts(selected.last_run);
+        const logs = await getRunLogs(lastRun);
+        const artifacts = await getRunArtifacts(lastRun);
         setRunLogs(logs.log || "");
         setRunArtifacts(artifacts);
       } catch (err) {
