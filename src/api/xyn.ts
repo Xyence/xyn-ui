@@ -17,6 +17,7 @@ import type {
   ReleasePlanDetail,
   ReleasePlanListResponse,
   RunArtifact,
+  RunCommandExecution,
   RunDetail,
   RunListResponse,
   RunLogResponse,
@@ -265,12 +266,15 @@ export async function generateReleasePlan(id: string): Promise<{ run_id: string 
   return handle<{ run_id: string }>(response);
 }
 
-export async function listRuns(entity?: string): Promise<RunListResponse> {
+export async function listRuns(entity?: string, status?: string): Promise<RunListResponse> {
   const apiBaseUrl = resolveApiBaseUrl();
   const url = new URL(`${apiBaseUrl}/xyn/api/runs`);
   url.searchParams.set("page_size", "200");
   if (entity) {
     url.searchParams.set("entity", entity);
+  }
+  if (status) {
+    url.searchParams.set("status", status);
   }
   const response = await fetch(url.toString(), { credentials: "include" });
   return handle<RunListResponse>(response);
@@ -299,6 +303,15 @@ export async function getRunArtifacts(id: string): Promise<RunArtifact[]> {
   });
   const data = await handle<{ artifacts: RunArtifact[] }>(response);
   return data.artifacts;
+}
+
+export async function getRunCommands(id: string): Promise<RunCommandExecution[]> {
+  const apiBaseUrl = resolveApiBaseUrl();
+  const response = await fetch(`${apiBaseUrl}/xyn/api/runs/${id}/commands`, {
+    credentials: "include",
+  });
+  const data = await handle<{ commands: RunCommandExecution[] }>(response);
+  return data.commands;
 }
 
 export async function listDevTasks(status?: string): Promise<DevTaskListResponse> {
@@ -331,9 +344,22 @@ export async function getDevTask(id: string): Promise<DevTaskDetail> {
   return handle<DevTaskDetail>(response);
 }
 
-export async function runDevTask(id: string): Promise<{ run_id: string; status: string }> {
+export async function runDevTask(id: string, force = false): Promise<{ run_id: string; status: string }> {
   const apiBaseUrl = resolveApiBaseUrl();
-  const response = await fetch(`${apiBaseUrl}/xyn/api/dev-tasks/${id}/run`, {
+  const url = new URL(`${apiBaseUrl}/xyn/api/dev-tasks/${id}/run`);
+  if (force) {
+    url.searchParams.set("force", "1");
+  }
+  const response = await fetch(url.toString(), {
+    method: "POST",
+    credentials: "include",
+  });
+  return handle<{ run_id: string; status: string }>(response);
+}
+
+export async function retryDevTask(id: string): Promise<{ run_id: string; status: string }> {
+  const apiBaseUrl = resolveApiBaseUrl();
+  const response = await fetch(`${apiBaseUrl}/xyn/api/dev-tasks/${id}/retry`, {
     method: "POST",
     credentials: "include",
   });

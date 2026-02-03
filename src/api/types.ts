@@ -193,6 +193,20 @@ export type RunArtifact = {
   created_at?: string;
 };
 
+export type RunCommandExecution = {
+  id: string;
+  step_name?: string;
+  command_index?: number;
+  shell?: string;
+  status?: string;
+  exit_code?: number | null;
+  started_at?: string | null;
+  finished_at?: string | null;
+  ssm_command_id?: string | null;
+  stdout?: string;
+  stderr?: string;
+};
+
 export type DevTaskSummary = {
   id: string;
   title: string;
@@ -209,6 +223,7 @@ export type DevTaskSummary = {
   result_run?: string | null;
   context_purpose?: string;
   target_instance_id?: string | null;
+  force?: boolean;
   created_at?: string;
   updated_at?: string;
 };
@@ -223,6 +238,7 @@ export type DevTaskDetail = DevTaskSummary & {
     scope: string;
     version: string;
   }>;
+  force?: boolean;
 };
 
 export type DevTaskListResponse = PaginatedResponse<DevTaskSummary, "dev_tasks">;
@@ -240,4 +256,5 @@ export type DevTaskCreatePayload = {
   context_purpose?: string;
   target_instance_id?: string | null;
   context_pack_ids?: string[];
+  force?: boolean;
 };

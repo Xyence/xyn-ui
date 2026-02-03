@@ -1,9 +1,12 @@
 import { useCallback, useEffect, useState } from "react";
 import { useSearchParams } from "react-router-dom";
 import InlineMessage from "../../components/InlineMessage";
-import { getRun, getRunArtifacts, getRunLogs, listRuns } from "../../api/xyn";
-import type { RunArtifact, RunDetail, RunSummary } from "../../api/types";
+import { getRun, getRunArtifacts, getRunCommands, getRunLogs, listRuns } from "../../api/xyn";
+import type { RunArtifact, RunCommandExecution, RunDetail, RunSummary } from "../../api/types";
 import StatusPill from "../../components/StatusPill";
+
+const ENTITY_OPTIONS = ["", "blueprint", "registry", "module", "release_plan", "dev_task"];
+const STATUS_OPTIONS = ["", "pending", "running", "succeeded", "failed"];
 
 export default function RunsPage() {
   const [items, setItems] = useState<RunSummary[]>([]);
@@ -11,6 +14,10 @@ export default function RunsPage() {
   const [selected, setSelected] = useState<RunDetail | null>(null);
   const [logs, setLogs] = useState<string | null>(null);
   const [artifacts, setArtifacts] = useState<RunArtifact[]>([]);
+  const [commands, setCommands] = useState<RunCommandExecution[]>([]);
+  const [entityFilter, setEntityFilter] = useState("");
+  const [statusFilter, setStatusFilter] = useState("");
+  const [autoRefresh, setAutoRefresh] = useState(true);
   const [loading, setLoading] = useState(false);
   const [message, setMessage] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
@@ -20,7 +27,7 @@ export default function RunsPage() {
   const load = useCallback(async () => {
     try {
       setError(null);
-      const data = await listRuns();
+      const data = await listRuns(entityFilter || undefined, statusFilter || undefined);
       setItems(data.runs);
       if (!selectedId && data.runs[0]) {
         setSelectedId(data.runs[0].id);
@@ -28,7 +35,7 @@ export default function RunsPage() {
     } catch (err) {
       setError((err as Error).message);
     }
-  }, [selectedId]);
+  }, [entityFilter, statusFilter, selectedId]);
 
   useEffect(() => {
     load();
@@ -45,6 +52,7 @@ export default function RunsPage() {
       setSelected(null);
       setLogs(null);
       setArtifacts([]);
+      setCommands([]);
       return;
     }
     (async () => {
@@ -55,11 +63,30 @@ export default function RunsPage() {
         setLogs(log.log ?? "");
         const artifactList = await getRunArtifacts(selectedId);
         setArtifacts(artifactList);
+        const commandList = await getRunCommands(selectedId);
+        setCommands(commandList);
       } catch (err) {
         setError((err as Error).message);
       }
     })();
   }, [selectedId]);
+
+  useEffect(() => {
+    if (!autoRefresh || !selectedId) return;
+    const interval = setInterval(async () => {
+      try {
+        const log = await getRunLogs(selectedId);
+        setLogs(log.log ?? "");
+        const artifactList = await getRunArtifacts(selectedId);
+        setArtifacts(artifactList);
+        const commandList = await getRunCommands(selectedId);
+        setCommands(commandList);
+      } catch (err) {
+        setError((err as Error).message);
+      }
+    }, 5000);
+    return () => clearInterval(interval);
+  }, [autoRefresh, selectedId]);
 
   const handleRefresh = async () => {
     try {
@@ -89,9 +116,35 @@ export default function RunsPage() {
           <h2>Runs</h2>
           <p className="muted">Inspect submission runs and artifacts.</p>
         </div>
-        <button className="ghost" onClick={handleRefresh} disabled={loading}>
-          Refresh
-        </button>
+        <div className="inline-actions">
+          <label className="muted small">Entity</label>
+          <select value={entityFilter} onChange={(event) => setEntityFilter(event.target.value)}>
+            {ENTITY_OPTIONS.map((opt) => (
+              <option key={opt} value={opt}>
+                {opt || "All"}
+              </option>
+            ))}
+          </select>
+          <label className="muted small">Status</label>
+          <select value={statusFilter} onChange={(event) => setStatusFilter(event.target.value)}>
+            {STATUS_OPTIONS.map((opt) => (
+              <option key={opt} value={opt}>
+                {opt || "All"}
+              </option>
+            ))}
+          </select>
+          <label className="muted small">
+            <input
+              type="checkbox"
+              checked={autoRefresh}
+              onChange={(event) => setAutoRefresh(event.target.checked)}
+            />
+            Auto-refresh
+          </label>
+          <button className="ghost" onClick={handleRefresh} disabled={loading}>
+            Refresh
+          </button>
+        </div>
       </div>
 
       {error && <InlineMessage tone="error" title="Request failed" body={error} />}
@@ -164,6 +217,29 @@ export default function RunsPage() {
             </div>
           ) : (
             <p className="muted">No logs captured.</p>
+          )}
+        </section>
+
+        <section className="card">
+          <div className="card-header">
+            <h3>Command executions</h3>
+          </div>
+          {commands.length === 0 ? (
+            <p className="muted">No command executions recorded.</p>
+          ) : (
+            <div className="stack">
+              {commands.map((cmd) => (
+                <div key={cmd.id} className="item-row">
+                  <div>
+                    <strong>{cmd.step_name || "step"}</strong>
+                    <span className="muted small">
+                      #{cmd.command_index} · {cmd.shell} · {cmd.status}
+                    </span>
+                  </div>
+                  <div className="muted small">exit {cmd.exit_code ?? "—"}</div>
+                </div>
+              ))}
+            </div>
           )}
         </section>
 

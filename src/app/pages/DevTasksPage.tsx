@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useState } from "react";
 import InlineMessage from "../../components/InlineMessage";
 import StatusPill from "../../components/StatusPill";
-import { cancelDevTask, getDevTask, listDevTasks, runDevTask } from "../../api/xyn";
+import { cancelDevTask, getDevTask, listDevTasks, retryDevTask, runDevTask } from "../../api/xyn";
 import type { DevTaskDetail, DevTaskSummary } from "../../api/types";
 
 const STATUS_OPTIONS = ["", "queued", "running", "succeeded", "failed", "canceled"];
@@ -69,6 +69,21 @@ export default function DevTasksPage() {
       setError(null);
       await cancelDevTask(selectedId);
       setMessage("Task canceled.");
+      await load();
+    } catch (err) {
+      setError((err as Error).message);
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const handleRetry = async () => {
+    if (!selectedId) return;
+    try {
+      setLoading(true);
+      setError(null);
+      const result = await retryDevTask(selectedId);
+      setMessage(`Retry queued: ${result.run_id}`);
       await load();
     } catch (err) {
       setError((err as Error).message);
@@ -173,6 +188,13 @@ export default function DevTasksPage() {
               <div className="form-actions">
                 <button className="primary" onClick={handleRun} disabled={loading}>
                   Run task
+                </button>
+                <button
+                  className="ghost"
+                  onClick={handleRetry}
+                  disabled={loading || !["failed", "canceled"].includes(selected.status)}
+                >
+                  Retry
                 </button>
                 <button className="danger" onClick={handleCancel} disabled={loading}>
                   Cancel

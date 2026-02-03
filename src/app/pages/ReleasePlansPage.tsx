@@ -41,6 +41,7 @@ export default function ReleasePlansPage() {
   const [error, setError] = useState<string | null>(null);
   const [instances, setInstances] = useState<ProvisionedInstance[]>([]);
   const [targetInstanceId, setTargetInstanceId] = useState<string>("");
+  const [forceDeploy, setForceDeploy] = useState(false);
   const [runLogs, setRunLogs] = useState<string>("");
   const [runArtifacts, setRunArtifacts] = useState<RunArtifact[]>([]);
 
@@ -206,9 +207,10 @@ export default function ReleasePlansPage() {
         input_artifact_key: "release_plan.json",
         context_purpose: "deployer",
         target_instance_id: targetInstanceId,
+        force: forceDeploy,
       };
       const created = await createDevTask(payload);
-      const run = await runDevTask(created.id);
+      const run = await runDevTask(created.id, forceDeploy);
       setMessage(`Deploy queued. Run: ${run.run_id}`);
     } catch (err) {
       setError((err as Error).message);
@@ -357,6 +359,17 @@ export default function ReleasePlansPage() {
                     </option>
                   ))}
                 </select>
+              </div>
+              <div>
+                <div className="label">Force deploy</div>
+                <label className="muted small">
+                  <input
+                    type="checkbox"
+                    checked={forceDeploy}
+                    onChange={(event) => setForceDeploy(event.target.checked)}
+                  />
+                  Run even if already applied
+                </label>
               </div>
             </div>
           )}
