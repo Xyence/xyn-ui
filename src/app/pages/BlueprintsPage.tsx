@@ -223,7 +223,7 @@ export default function BlueprintsPage() {
                   Submit
                 </button>
                 <button className="ghost" onClick={handleQueueDevTasks} disabled={loading}>
-                  Queue DevTasks
+                  Submit &amp; Queue DevTasks
                 </button>
                 <button className="danger" onClick={handleDelete} disabled={loading}>
                   Delete
