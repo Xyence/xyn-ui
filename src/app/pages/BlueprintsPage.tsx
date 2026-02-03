@@ -6,9 +6,11 @@ import {
   getBlueprint,
   listBlueprints,
   submitBlueprint,
+  submitBlueprintWithDevTasks,
   updateBlueprint,
+  listBlueprintDevTasks,
 } from "../../api/xyn";
-import type { BlueprintCreatePayload, BlueprintDetail, BlueprintSummary } from "../../api/types";
+import type { BlueprintCreatePayload, BlueprintDetail, BlueprintSummary, DevTaskSummary } from "../../api/types";
 
 const emptyForm: BlueprintCreatePayload = {
   name: "",
@@ -21,6 +23,7 @@ export default function BlueprintsPage() {
   const [selectedId, setSelectedId] = useState<string | null>(null);
   const [selected, setSelected] = useState<BlueprintDetail | null>(null);
   const [form, setForm] = useState<BlueprintCreatePayload>(emptyForm);
+  const [devTasks, setDevTasks] = useState<DevTaskSummary[]>([]);
   const [loading, setLoading] = useState(false);
   const [message, setMessage] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
@@ -56,6 +59,8 @@ export default function BlueprintsPage() {
           namespace: detail.namespace,
           description: detail.description ?? "",
         });
+        const tasks = await listBlueprintDevTasks(selectedId);
+        setDevTasks(tasks.dev_tasks);
       } catch (err) {
         setError((err as Error).message);
       }
@@ -120,6 +125,22 @@ export default function BlueprintsPage() {
       setError(null);
       const result = await submitBlueprint(selectedId);
       setMessage(`Submit queued. Run: ${result.run_id ?? "n/a"}`);
+    } catch (err) {
+      setError((err as Error).message);
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const handleQueueDevTasks = async () => {
+    if (!selectedId) return;
+    try {
+      setLoading(true);
+      setError(null);
+      const result = await submitBlueprintWithDevTasks(selectedId);
+      setMessage(`Dev tasks queued. Run: ${result.run_id ?? "n/a"}`);
+      const tasks = await listBlueprintDevTasks(selectedId);
+      setDevTasks(tasks.dev_tasks);
     } catch (err) {
       setError((err as Error).message);
     } finally {
@@ -201,6 +222,9 @@ export default function BlueprintsPage() {
                 <button className="ghost" onClick={handleSubmit} disabled={loading}>
                   Submit
                 </button>
+                <button className="ghost" onClick={handleQueueDevTasks} disabled={loading}>
+                  Queue DevTasks
+                </button>
                 <button className="danger" onClick={handleDelete} disabled={loading}>
                   Delete
                 </button>
@@ -220,6 +244,28 @@ export default function BlueprintsPage() {
             </div>
           )}
         </section>
+        {selected && (
+          <section className="card">
+            <div className="card-header">
+              <h3>Dev Tasks</h3>
+            </div>
+            {devTasks.length === 0 ? (
+              <p className="muted">No dev tasks yet.</p>
+            ) : (
+              <div className="stack">
+                {devTasks.map((task) => (
+                  <div key={task.id} className="item-row">
+                    <div>
+                      <strong>{task.title}</strong>
+                      <span className="muted small">{task.task_type}</span>
+                    </div>
+                    <span className="muted small">{task.status}</span>
+                  </div>
+                ))}
+              </div>
+            )}
+          </section>
+        )}
       </div>
     </>
   );

@@ -8,6 +8,7 @@ import RegistriesPage from "./pages/RegistriesPage";
 import ReleasePlansPage from "./pages/ReleasePlansPage";
 import RunsPage from "./pages/RunsPage";
 import ActivityPage from "./pages/ActivityPage";
+import DevTasksPage from "./pages/DevTasksPage";
 
 export default function AppShell() {
   return (
@@ -72,6 +73,12 @@ export default function AppShell() {
           </NavLink>
           <NavLink
             className={({ isActive }) => (isActive ? "app-nav-link active" : "app-nav-link")}
+            to="/app/dev-tasks"
+          >
+            Dev Tasks
+          </NavLink>
+          <NavLink
+            className={({ isActive }) => (isActive ? "app-nav-link active" : "app-nav-link")}
             to="/app/activity"
           >
             Activity
@@ -86,6 +93,7 @@ export default function AppShell() {
             <Route path="modules" element={<ModulesPage />} />
             <Route path="release-plans" element={<ReleasePlansPage />} />
             <Route path="runs" element={<RunsPage />} />
+            <Route path="dev-tasks" element={<DevTasksPage />} />
             <Route path="activity" element={<ActivityPage />} />
           </Routes>
         </main>

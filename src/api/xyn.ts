@@ -3,6 +3,9 @@ import type {
   BlueprintDetail,
   BlueprintListResponse,
   BlueprintSummary,
+  DevTaskDetail,
+  DevTaskListResponse,
+  DevTaskSummary,
   ModuleCreatePayload,
   ModuleDetail,
   ModuleListResponse,
@@ -84,6 +87,15 @@ export async function deleteBlueprint(id: string): Promise<{ status: string }> {
 export async function submitBlueprint(id: string): Promise<{ run_id?: string; instance_id?: string }> {
   const apiBaseUrl = resolveApiBaseUrl();
   const response = await fetch(`${apiBaseUrl}/xyn/api/blueprints/${id}/submit`, {
+    method: "POST",
+    credentials: "include",
+  });
+  return handle<{ run_id?: string; instance_id?: string }>(response);
+}
+
+export async function submitBlueprintWithDevTasks(id: string): Promise<{ run_id?: string; instance_id?: string }> {
+  const apiBaseUrl = resolveApiBaseUrl();
+  const response = await fetch(`${apiBaseUrl}/xyn/api/blueprints/${id}/submit?queue_dev_tasks=1`, {
     method: "POST",
     credentials: "include",
   });
@@ -286,4 +298,49 @@ export async function getRunArtifacts(id: string): Promise<RunArtifact[]> {
   });
   const data = await handle<{ artifacts: RunArtifact[] }>(response);
   return data.artifacts;
+}
+
+export async function listDevTasks(status?: string): Promise<DevTaskListResponse> {
+  const apiBaseUrl = resolveApiBaseUrl();
+  const url = new URL(`${apiBaseUrl}/xyn/api/dev-tasks`);
+  url.searchParams.set("page_size", "200");
+  if (status) {
+    url.searchParams.set("status", status);
+  }
+  const response = await fetch(url.toString(), { credentials: "include" });
+  return handle<DevTaskListResponse>(response);
+}
+
+export async function getDevTask(id: string): Promise<DevTaskDetail> {
+  const apiBaseUrl = resolveApiBaseUrl();
+  const response = await fetch(`${apiBaseUrl}/xyn/api/dev-tasks/${id}`, {
+    credentials: "include",
+  });
+  return handle<DevTaskDetail>(response);
+}
+
+export async function runDevTask(id: string): Promise<{ run_id: string; status: string }> {
+  const apiBaseUrl = resolveApiBaseUrl();
+  const response = await fetch(`${apiBaseUrl}/xyn/api/dev-tasks/${id}/run`, {
+    method: "POST",
+    credentials: "include",
+  });
+  return handle<{ run_id: string; status: string }>(response);
+}
+
+export async function cancelDevTask(id: string): Promise<{ status: string }> {
+  const apiBaseUrl = resolveApiBaseUrl();
+  const response = await fetch(`${apiBaseUrl}/xyn/api/dev-tasks/${id}/cancel`, {
+    method: "POST",
+    credentials: "include",
+  });
+  return handle<{ status: string }>(response);
+}
+
+export async function listBlueprintDevTasks(id: string): Promise<{ dev_tasks: DevTaskSummary[] }> {
+  const apiBaseUrl = resolveApiBaseUrl();
+  const response = await fetch(`${apiBaseUrl}/xyn/api/blueprints/${id}/dev-tasks`, {
+    credentials: "include",
+  });
+  return handle<{ dev_tasks: DevTaskSummary[] }>(response);
 }

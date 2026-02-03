@@ -189,3 +189,36 @@ export type RunArtifact = {
   metadata?: Record<string, unknown>;
   created_at?: string;
 };
+
+export type DevTaskSummary = {
+  id: string;
+  title: string;
+  task_type: string;
+  status: string;
+  priority: number;
+  attempts: number;
+  max_attempts: number;
+  locked_by?: string | null;
+  locked_at?: string | null;
+  source_entity_type?: string;
+  source_entity_id?: string;
+  source_run?: string | null;
+  result_run?: string | null;
+  context_purpose?: string;
+  created_at?: string;
+  updated_at?: string;
+};
+
+export type DevTaskDetail = DevTaskSummary & {
+  input_artifact_key?: string;
+  last_error?: string;
+  context_packs?: Array<{
+    id: string;
+    name: string;
+    purpose: string;
+    scope: string;
+    version: string;
+  }>;
+};
+
+export type DevTaskListResponse = PaginatedResponse<DevTaskSummary, "dev_tasks">;
