@@ -5,6 +5,8 @@ import {
   createReleasePlan,
   deleteReleasePlan,
   getReleasePlan,
+  getRunArtifacts,
+  getRunLogs,
   listReleasePlans,
   runDevTask,
   updateReleasePlan,
@@ -15,6 +17,7 @@ import type {
   ReleasePlanCreatePayload,
   ReleasePlanDetail,
   ReleasePlanSummary,
+  RunArtifact,
 } from "../../api/types";
 
 const emptyForm: ReleasePlanCreatePayload = {
@@ -38,6 +41,8 @@ export default function ReleasePlansPage() {
   const [error, setError] = useState<string | null>(null);
   const [instances, setInstances] = useState<ProvisionedInstance[]>([]);
   const [targetInstanceId, setTargetInstanceId] = useState<string>("");
+  const [runLogs, setRunLogs] = useState<string>("");
+  const [runArtifacts, setRunArtifacts] = useState<RunArtifact[]>([]);
 
   const load = useCallback(async () => {
     try {
@@ -89,6 +94,24 @@ export default function ReleasePlansPage() {
       }
     })();
   }, [selectedId]);
+
+  useEffect(() => {
+    if (!selected?.last_run) {
+      setRunLogs("");
+      setRunArtifacts([]);
+      return;
+    }
+    (async () => {
+      try {
+        const logs = await getRunLogs(selected.last_run);
+        const artifacts = await getRunArtifacts(selected.last_run);
+        setRunLogs(logs.log || "");
+        setRunArtifacts(artifacts);
+      } catch (err) {
+        setError((err as Error).message);
+      }
+    })();
+  }, [selected?.last_run]);
 
   const handleCreate = async () => {
     try {
@@ -334,6 +357,30 @@ export default function ReleasePlansPage() {
                   ))}
                 </select>
               </div>
+            </div>
+          )}
+          {selected?.last_run && (
+            <div className="stack">
+              <strong>Run artifacts</strong>
+              {runArtifacts.length === 0 ? (
+                <span className="muted">No artifacts yet.</span>
+              ) : (
+                runArtifacts.map((artifact) => (
+                  <div key={artifact.id} className="item-row">
+                    <div>
+                      <strong>{artifact.name}</strong>
+                      <span className="muted small">{artifact.kind ?? "artifact"}</span>
+                    </div>
+                    {artifact.url && (
+                      <a className="link small" href={artifact.url} target="_blank" rel="noreferrer">
+                        Open
+                      </a>
+                    )}
+                  </div>
+                ))
+              )}
+              <strong>Run logs</strong>
+              <pre className="code-block">{runLogs || "No logs yet."}</pre>
             </div>
           )}
         </section>
