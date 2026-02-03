@@ -1,6 +1,8 @@
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { Link, useParams } from "react-router-dom";
 import { fetchPublicArticle } from "../../api/public";
+import { renderMermaidIn } from "../mermaid";
+import { renderMarkdown } from "../markdown";
 import type { PublicArticleDetail } from "../types";
 
 export default function ArticleDetail() {
@@ -8,6 +10,7 @@ export default function ArticleDetail() {
   const [article, setArticle] = useState<PublicArticleDetail | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+  const contentRef = useRef<HTMLDivElement | null>(null);
 
   useEffect(() => {
     if (!slug) return;
@@ -19,6 +22,11 @@ export default function ArticleDetail() {
       .catch((err) => setError((err as Error).message))
       .finally(() => setLoading(false));
   }, [slug]);
+
+  useEffect(() => {
+    if (!article) return;
+    void renderMermaidIn(contentRef.current);
+  }, [article?.body_html, article?.body_md]);
 
   if (loading) {
     return <p className="muted">Loading article...</p>;
@@ -48,8 +56,11 @@ export default function ArticleDetail() {
       )}
       {article.summary && <p className="lead">{article.summary}</p>}
       <div
+        ref={contentRef}
         className="rich-text"
-        dangerouslySetInnerHTML={{ __html: article.body_html || article.body_md || "" }}
+        dangerouslySetInnerHTML={{
+          __html: article.body_html || renderMarkdown(article.body_md),
+        }}
       />
       <Link className="ghost" to="/articles">
         ← Back to articles

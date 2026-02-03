@@ -415,6 +415,40 @@ button:disabled {
   background: #f8fbff;
 }
 
+.table {
+  display: grid;
+  gap: 8px;
+}
+
+.table-row {
+  display: grid;
+  grid-template-columns: 120px 120px 120px 1fr 1fr 100px;
+  gap: 12px;
+  align-items: center;
+  padding: 10px 12px;
+  border-radius: 12px;
+  border: 1px solid var(--border);
+  background: #f8fbff;
+}
+
+.table-head {
+  background: #eef4ff;
+  font-weight: 700;
+  color: var(--accent);
+}
+
+.table-link {
+  text-decoration: none;
+  color: var(--accent);
+  font-weight: 600;
+}
+
+@media (max-width: 900px) {
+  .table-row {
+    grid-template-columns: 1fr 1fr;
+  }
+}
+
 @media (max-width: 900px) {
   .app-body {
     grid-template-columns: 1fr;
@@ -655,6 +689,16 @@ button:disabled {
 
 .rich-text {
   line-height: 1.7;
+}
+
+.rich-text .mermaid {
+  margin: 18px 0;
+  overflow-x: auto;
+}
+
+.rich-text .mermaid svg {
+  max-width: 100%;
+  height: auto;
 }
 
 .markdown {

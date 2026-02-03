@@ -1,4 +1,5 @@
 import { useCallback, useEffect, useState } from "react";
+import { useSearchParams } from "react-router-dom";
 import InlineMessage from "../../components/InlineMessage";
 import { getRun, getRunArtifacts, getRunLogs, listRuns } from "../../api/xyn";
 import type { RunArtifact, RunDetail, RunSummary } from "../../api/types";
@@ -13,6 +14,8 @@ export default function RunsPage() {
   const [loading, setLoading] = useState(false);
   const [message, setMessage] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
+  const [searchParams, setSearchParams] = useSearchParams();
+  const runParam = searchParams.get("run");
 
   const load = useCallback(async () => {
     try {
@@ -30,6 +33,12 @@ export default function RunsPage() {
   useEffect(() => {
     load();
   }, [load]);
+
+  useEffect(() => {
+    if (runParam) {
+      setSelectedId(runParam);
+    }
+  }, [runParam]);
 
   useEffect(() => {
     if (!selectedId) {
@@ -98,7 +107,10 @@ export default function RunsPage() {
               <button
                 key={item.id}
                 className={`instance-row ${selectedId === item.id ? "active" : ""}`}
-                onClick={() => setSelectedId(item.id)}
+                onClick={() => {
+                  setSelectedId(item.id);
+                  setSearchParams({ run: item.id });
+                }}
               >
                 <div>
                   <strong>{item.entity_type}</strong>

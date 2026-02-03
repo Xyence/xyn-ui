@@ -252,10 +252,13 @@ export async function generateReleasePlan(id: string): Promise<{ run_id: string 
   return handle<{ run_id: string }>(response);
 }
 
-export async function listRuns(): Promise<RunListResponse> {
+export async function listRuns(entity?: string): Promise<RunListResponse> {
   const apiBaseUrl = resolveApiBaseUrl();
   const url = new URL(`${apiBaseUrl}/xyn/api/runs`);
   url.searchParams.set("page_size", "200");
+  if (entity) {
+    url.searchParams.set("entity", entity);
+  }
   const response = await fetch(url.toString(), { credentials: "include" });
   return handle<RunListResponse>(response);
 }
