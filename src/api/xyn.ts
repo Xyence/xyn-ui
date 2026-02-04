@@ -16,6 +16,10 @@ import type {
   ReleasePlanCreatePayload,
   ReleasePlanDetail,
   ReleasePlanListResponse,
+  ReleaseCreatePayload,
+  ReleaseDetail,
+  ReleaseListResponse,
+  ReleaseSummary,
   RunArtifact,
   RunCommandExecution,
   RunDetail,
@@ -278,6 +282,47 @@ export async function listRuns(entity?: string, status?: string): Promise<RunLis
   }
   const response = await fetch(url.toString(), { credentials: "include" });
   return handle<RunListResponse>(response);
+}
+
+export async function listReleases(blueprintId?: string): Promise<ReleaseListResponse> {
+  const apiBaseUrl = resolveApiBaseUrl();
+  const url = new URL(`${apiBaseUrl}/xyn/api/releases`);
+  url.searchParams.set("page_size", "200");
+  if (blueprintId) {
+    url.searchParams.set("blueprint_id", blueprintId);
+  }
+  const response = await fetch(url.toString(), { credentials: "include" });
+  return handle<ReleaseListResponse>(response);
+}
+
+export async function getRelease(id: string): Promise<ReleaseDetail> {
+  const apiBaseUrl = resolveApiBaseUrl();
+  const response = await fetch(`${apiBaseUrl}/xyn/api/releases/${id}`, {
+    credentials: "include",
+  });
+  return handle<ReleaseDetail>(response);
+}
+
+export async function createRelease(payload: ReleaseCreatePayload): Promise<{ id: string }> {
+  const apiBaseUrl = resolveApiBaseUrl();
+  const response = await fetch(`${apiBaseUrl}/xyn/api/releases`, {
+    method: "POST",
+    headers: jsonHeaders,
+    credentials: "include",
+    body: JSON.stringify(payload),
+  });
+  return handle<{ id: string }>(response);
+}
+
+export async function updateRelease(id: string, payload: Partial<ReleaseSummary>): Promise<{ id: string }> {
+  const apiBaseUrl = resolveApiBaseUrl();
+  const response = await fetch(`${apiBaseUrl}/xyn/api/releases/${id}`, {
+    method: "PATCH",
+    headers: jsonHeaders,
+    credentials: "include",
+    body: JSON.stringify(payload),
+  });
+  return handle<{ id: string }>(response);
 }
 
 export async function getRun(id: string): Promise<RunDetail> {

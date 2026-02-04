@@ -162,6 +162,32 @@ export type ReleasePlanCreatePayload = {
 
 export type ReleasePlanListResponse = PaginatedResponse<ReleasePlanSummary, "release_plans">;
 
+export type ReleaseSummary = {
+  id: string;
+  version: string;
+  status: string;
+  blueprint_id?: string | null;
+  release_plan_id?: string | null;
+  created_from_run_id?: string | null;
+  created_at?: string;
+  updated_at?: string;
+};
+
+export type ReleaseDetail = ReleaseSummary & {
+  artifacts_json?: Array<{ name: string; url: string }> | null;
+};
+
+export type ReleaseCreatePayload = {
+  version: string;
+  status?: string;
+  blueprint_id?: string | null;
+  release_plan_id?: string | null;
+  created_from_run_id?: string | null;
+  artifacts_json?: Array<{ name: string; url: string }>;
+};
+
+export type ReleaseListResponse = PaginatedResponse<ReleaseSummary, "releases">;
+
 export type RunSummary = {
   id: string;
   entity_type: string;
