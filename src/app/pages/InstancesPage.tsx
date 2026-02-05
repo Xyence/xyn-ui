@@ -6,7 +6,13 @@ import {
   getInstance,
   listInstances,
 } from "../../api/client";
-import type { BootstrapLogResponse, CreateInstancePayload, ProvisionedInstance } from "../../api/types";
+import { createDevTask, getRelease, listReleases } from "../../api/xyn";
+import type {
+  BootstrapLogResponse,
+  CreateInstancePayload,
+  ProvisionedInstance,
+  ReleaseSummary,
+} from "../../api/types";
 import StatusPill from "../../components/StatusPill";
 import InlineMessage from "../../components/InlineMessage";
 
@@ -33,6 +39,9 @@ export default function InstancesPage() {
   const [error, setError] = useState<string | null>(null);
   const [logTail, setLogTail] = useState(200);
   const [bootstrapLog, setBootstrapLog] = useState<BootstrapLogResponse | null>(null);
+  const [releases, setReleases] = useState<ReleaseSummary[]>([]);
+  const [releaseMap, setReleaseMap] = useState<Record<string, ReleaseSummary>>({});
+  const [deployMessage, setDeployMessage] = useState<string | null>(null);
 
   const selectedInstance = useMemo(
     () => instances.find((item) => item.id === selectedId) ?? selected,
@@ -66,6 +75,22 @@ export default function InstancesPage() {
   useEffect(() => {
     loadInstances();
   }, [loadInstances]);
+
+  useEffect(() => {
+    (async () => {
+      try {
+        const data = await listReleases();
+        setReleases(data.releases);
+        const map: Record<string, ReleaseSummary> = {};
+        data.releases.forEach((item) => {
+          map[item.id] = item;
+        });
+        setReleaseMap(map);
+      } catch (err) {
+        setError((err as Error).message);
+      }
+    })();
+  }, []);
 
   useEffect(() => {
     if (!selectedId) return;
@@ -124,6 +149,40 @@ export default function InstancesPage() {
     }
   };
 
+  const handleDeployDesired = async () => {
+    if (!selectedInstance) return;
+    if (!selectedInstance.desired_release_id) {
+      setError("No desired release set for this instance.");
+      return;
+    }
+    try {
+      setLoading(true);
+      setError(null);
+      const release = await getRelease(selectedInstance.desired_release_id);
+      if (!release.release_plan_id) {
+        setError("Release has no release plan attached.");
+        return;
+      }
+      const result = await createDevTask({
+        title: `Deploy ${release.version}`,
+        task_type: "deploy_release_plan",
+        source_entity_type: "release_plan",
+        source_entity_id: release.release_plan_id,
+        source_run_id: release.created_from_run_id ?? null,
+        input_artifact_key: "release_plan.json",
+        context_purpose: "deployer",
+        target_instance_id: selectedInstance.id,
+        release_id: release.id,
+      });
+      setDeployMessage(`Deploy queued: ${result.id}`);
+      await refreshSelected();
+    } catch (err) {
+      setError((err as Error).message);
+    } finally {
+      setLoading(false);
+    }
+  };
+
   return (
     <>
       <div className="page-header">
@@ -137,6 +196,7 @@ export default function InstancesPage() {
       </div>
 
       {error && <InlineMessage tone="error" title="Request failed" body={error} />}
+      {deployMessage && <InlineMessage tone="info" title="Deploy" body={deployMessage} />}
 
       <div className="layout">
         <section className="card">
@@ -158,8 +218,14 @@ export default function InstancesPage() {
                 <div>
                   <strong>{instance.name}</strong>
                   <span className="muted small">{instance.id}</span>
+                  <span className="muted small">
+                    Desired: {releaseMap[instance.desired_release_id ?? ""]?.version ?? "—"}
+                  </span>
+                  <span className="muted small">
+                    Observed: {releaseMap[instance.observed_release_id ?? ""]?.version ?? "—"}
+                  </span>
                 </div>
-                <StatusPill status={instance.status} />
+                <StatusPill status={instance.health_status ?? instance.status} />
               </button>
             ))}
           </div>
@@ -255,6 +321,56 @@ export default function InstancesPage() {
               Destroy instance
             </button>
           </div>
+        </section>
+
+        <section className="card">
+          <div className="card-header">
+            <h3>Release state</h3>
+          </div>
+          {!selectedInstance ? (
+            <p className="muted">Select an instance to view release state.</p>
+          ) : (
+            <>
+              <div className="detail-grid">
+                <div>
+                  <div className="label">Desired release</div>
+                  <span className="muted">
+                    {releaseMap[selectedInstance.desired_release_id ?? ""]?.version ??
+                      selectedInstance.desired_release_id ??
+                      "—"}
+                  </span>
+                </div>
+                <div>
+                  <div className="label">Observed release</div>
+                  <span className="muted">
+                    {releaseMap[selectedInstance.observed_release_id ?? ""]?.version ??
+                      selectedInstance.observed_release_id ??
+                      "—"}
+                  </span>
+                </div>
+                <div>
+                  <div className="label">Observed at</div>
+                  <span className="muted">{selectedInstance.observed_at ?? "—"}</span>
+                </div>
+                <div>
+                  <div className="label">Last deploy run</div>
+                  {selectedInstance.last_deploy_run_id ? (
+                    <a className="link" href={`/app/runs?run=${selectedInstance.last_deploy_run_id}`}>
+                      {selectedInstance.last_deploy_run_id}
+                    </a>
+                  ) : (
+                    <span className="muted">—</span>
+                  )}
+                </div>
+              </div>
+              {selectedInstance.desired_release_id &&
+                selectedInstance.desired_release_id !== selectedInstance.observed_release_id && (
+                  <button className="primary" onClick={handleDeployDesired} disabled={loading}>
+                    Deploy desired
+                  </button>
+                )}
+            </>
+          )}
         </section>
 
         <section className="card">

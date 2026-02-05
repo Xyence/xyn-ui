@@ -7,6 +7,7 @@ import {
   getReleasePlan,
   getRunArtifacts,
   getRunLogs,
+  listReleases,
   listReleasePlans,
   runDevTask,
   updateReleasePlan,
@@ -17,6 +18,7 @@ import type {
   ReleasePlanCreatePayload,
   ReleasePlanDetail,
   ReleasePlanSummary,
+  ReleaseSummary,
   RunArtifact,
 } from "../../api/types";
 
@@ -44,6 +46,7 @@ export default function ReleasePlansPage() {
   const [forceDeploy, setForceDeploy] = useState(false);
   const [runLogs, setRunLogs] = useState<string>("");
   const [runArtifacts, setRunArtifacts] = useState<RunArtifact[]>([]);
+  const [releases, setReleases] = useState<ReleaseSummary[]>([]);
 
   const load = useCallback(async () => {
     try {
@@ -67,6 +70,17 @@ export default function ReleasePlansPage() {
       try {
         const data = await listInstances();
         setInstances(data.instances);
+      } catch (err) {
+        setError((err as Error).message);
+      }
+    })();
+  }, []);
+
+  useEffect(() => {
+    (async () => {
+      try {
+        const data = await listReleases();
+        setReleases(data.releases);
       } catch (err) {
         setError((err as Error).message);
       }
@@ -198,6 +212,7 @@ export default function ReleasePlansPage() {
     try {
       setLoading(true);
       setError(null);
+      const release = releases.find((item) => item.release_plan_id === selected.id);
       const payload = {
         title: `Deploy ${selected.name}`,
         task_type: "deploy_release_plan",
@@ -208,6 +223,7 @@ export default function ReleasePlansPage() {
         context_purpose: "deployer",
         target_instance_id: targetInstanceId,
         force: forceDeploy,
+        release_id: release?.id,
       };
       const created = await createDevTask(payload);
       const run = await runDevTask(created.id, forceDeploy);

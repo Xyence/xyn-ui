@@ -22,6 +22,11 @@ export type ProvisionedInstance = {
   ssm_status: string | null;
   status: ProvisionStatus;
   last_error: string | null;
+  desired_release_id?: string | null;
+  observed_release_id?: string | null;
+  observed_at?: string | null;
+  last_deploy_run_id?: string | null;
+  health_status?: "unknown" | "healthy" | "degraded" | "failed";
   tags?: Record<string, string>;
   created_at?: string;
   updated_at?: string;
@@ -283,4 +288,5 @@ export type DevTaskCreatePayload = {
   target_instance_id?: string | null;
   context_pack_ids?: string[];
   force?: boolean;
+  release_id?: string | null;
 };
