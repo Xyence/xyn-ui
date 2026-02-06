@@ -99,6 +99,31 @@ export type BlueprintDraftSession = {
   updated_at?: string;
 };
 
+export type BlueprintDraftSessionDetail = {
+  id: string;
+  blueprint_kind: string;
+  status: string;
+  draft?: Record<string, unknown> | null;
+  requirements_summary?: string | null;
+  validation_errors?: string[];
+  suggested_fixes?: string[];
+  job_id?: string | null;
+  last_error?: string | null;
+  diff_summary?: string | null;
+  context_pack_refs?: Array<{
+    id: string;
+    name: string;
+    purpose: string;
+    scope: string;
+    version: string;
+    content_hash?: string;
+    is_active?: boolean;
+  }>;
+  context_pack_ids?: string[];
+  effective_context_hash?: string | null;
+  effective_context_preview?: string | null;
+};
+
 export type BlueprintVoiceNote = {
   id: string;
   title?: string;

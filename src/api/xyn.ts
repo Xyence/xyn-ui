@@ -4,6 +4,7 @@ import type {
   BlueprintListResponse,
   BlueprintSummary,
   BlueprintDraftSession,
+  BlueprintDraftSessionDetail,
   BlueprintVoiceNote,
   DevTaskDetail,
   DevTaskListResponse,
@@ -110,6 +111,88 @@ export async function createBlueprintDraftSession(
     body: JSON.stringify(payload),
   });
   return handle<{ session_id: string }>(response);
+}
+
+export async function getDraftSession(sessionId: string): Promise<BlueprintDraftSessionDetail> {
+  const apiBaseUrl = resolveApiBaseUrl();
+  const response = await fetch(`${apiBaseUrl}/xyn/api/draft-sessions/${sessionId}`, {
+    credentials: "include",
+  });
+  return handle<BlueprintDraftSessionDetail>(response);
+}
+
+export async function enqueueDraftGeneration(
+  sessionId: string
+): Promise<{ status: string; job_id: string }> {
+  const apiBaseUrl = resolveApiBaseUrl();
+  const response = await fetch(
+    `${apiBaseUrl}/xyn/api/draft-sessions/${sessionId}/enqueue-draft-generation`,
+    {
+      method: "POST",
+      credentials: "include",
+    }
+  );
+  return handle<{ status: string; job_id: string }>(response);
+}
+
+export async function enqueueDraftRevision(
+  sessionId: string,
+  payload: { instruction?: string }
+): Promise<{ status: string; job_id: string }> {
+  const apiBaseUrl = resolveApiBaseUrl();
+  const response = await fetch(
+    `${apiBaseUrl}/xyn/api/draft-sessions/${sessionId}/enqueue-draft-revision`,
+    {
+      method: "POST",
+      headers: jsonHeaders,
+      credentials: "include",
+      body: JSON.stringify(payload ?? {}),
+    }
+  );
+  return handle<{ status: string; job_id: string }>(response);
+}
+
+export async function resolveDraftSessionContext(
+  sessionId: string,
+  payload: { context_pack_ids?: string[] } = {}
+): Promise<{ context_pack_refs: unknown[]; effective_context_hash?: string; effective_context_preview?: string }> {
+  const apiBaseUrl = resolveApiBaseUrl();
+  const response = await fetch(`${apiBaseUrl}/xyn/api/draft-sessions/${sessionId}/resolve-context`, {
+    method: "POST",
+    headers: jsonHeaders,
+    credentials: "include",
+    body: JSON.stringify(payload),
+  });
+  return handle<{
+    context_pack_refs: unknown[];
+    effective_context_hash?: string;
+    effective_context_preview?: string;
+  }>(response);
+}
+
+export async function saveDraftSession(
+  sessionId: string,
+  payload: { draft_json: Record<string, unknown> }
+): Promise<{ status: string; validation_errors: string[] }> {
+  const apiBaseUrl = resolveApiBaseUrl();
+  const response = await fetch(`${apiBaseUrl}/xyn/api/draft-sessions/${sessionId}/save`, {
+    method: "POST",
+    headers: jsonHeaders,
+    credentials: "include",
+    body: JSON.stringify(payload),
+  });
+  return handle<{ status: string; validation_errors: string[] }>(response);
+}
+
+export async function publishDraftSession(
+  sessionId: string
+): Promise<{ ok: boolean; entity_type?: string; entity_id?: string; revision?: number }> {
+  const apiBaseUrl = resolveApiBaseUrl();
+  const response = await fetch(`${apiBaseUrl}/xyn/api/draft-sessions/${sessionId}/publish`, {
+    method: "POST",
+    credentials: "include",
+  });
+  return handle<{ ok: boolean; entity_type?: string; entity_id?: string; revision?: number }>(response);
 }
 
 export async function listBlueprintVoiceNotes(

@@ -9,6 +9,12 @@ import {
   listBlueprints,
   listBlueprintDevTasks,
   listContextPacks,
+  getDraftSession,
+  enqueueDraftGeneration,
+  enqueueDraftRevision,
+  resolveDraftSessionContext,
+  saveDraftSession,
+  publishDraftSession,
   runDevTask,
   createBlueprintDraftSession,
   uploadVoiceNote,
@@ -21,6 +27,7 @@ import type {
   BlueprintCreatePayload,
   BlueprintDetail,
   BlueprintDraftSession,
+  BlueprintDraftSessionDetail,
   BlueprintSummary,
   BlueprintVoiceNote,
   ContextPackSummary,
@@ -44,6 +51,11 @@ export default function BlueprintsPage() {
   const [devTasks, setDevTasks] = useState<DevTaskSummary[]>([]);
   const [voiceNotes, setVoiceNotes] = useState<BlueprintVoiceNote[]>([]);
   const [draftSessions, setDraftSessions] = useState<BlueprintDraftSession[]>([]);
+  const [selectedSessionId, setSelectedSessionId] = useState<string | null>(null);
+  const [selectedSession, setSelectedSession] = useState<BlueprintDraftSessionDetail | null>(null);
+  const [draftJsonText, setDraftJsonText] = useState<string>("");
+  const [revisionInstruction, setRevisionInstruction] = useState<string>("");
+  const [sessionContextPackIds, setSessionContextPackIds] = useState<string[]>([]);
   const [contextPacks, setContextPacks] = useState<ContextPackSummary[]>([]);
   const [selectedContextPackIds, setSelectedContextPackIds] = useState<string[]>([]);
   const [uploading, setUploading] = useState(false);
@@ -108,6 +120,32 @@ export default function BlueprintsPage() {
       }
     })();
   }, [selectedId]);
+
+  useEffect(() => {
+    if (!selectedSessionId && draftSessions.length > 0) {
+      setSelectedSessionId(draftSessions[0].id);
+    }
+  }, [draftSessions, selectedSessionId]);
+
+  useEffect(() => {
+    if (!selectedSessionId) {
+      setSelectedSession(null);
+      setDraftJsonText("");
+      setRevisionInstruction("");
+      setSessionContextPackIds([]);
+      return;
+    }
+    (async () => {
+      try {
+        const detail = await getDraftSession(selectedSessionId);
+        setSelectedSession(detail);
+        setDraftJsonText(detail.draft ? JSON.stringify(detail.draft, null, 2) : "");
+        setSessionContextPackIds(detail.context_pack_ids ?? []);
+      } catch (err) {
+        setError((err as Error).message);
+      }
+    })();
+  }, [selectedSessionId]);
 
   const handleCreate = async () => {
     try {
@@ -231,6 +269,9 @@ export default function BlueprintsPage() {
 
   const ensureDraftSession = async () => {
     if (!selectedId) return null;
+    if (selectedSessionId) {
+      return selectedSessionId;
+    }
     if (draftSessions.length > 0) {
       return draftSessions[0].id;
     }
@@ -239,6 +280,7 @@ export default function BlueprintsPage() {
       context_pack_ids: selectedContextPackIds,
     });
     await refreshVoiceNotes();
+    setSelectedSessionId(created.session_id);
     return created.session_id;
   };
 
@@ -252,6 +294,7 @@ export default function BlueprintsPage() {
         context_pack_ids: selectedContextPackIds,
       });
       await refreshVoiceNotes();
+      setSelectedSessionId(created.session_id);
       setMessage(`Draft session created: ${created.session_id}`);
     } catch (err) {
       setError((err as Error).message);
@@ -286,6 +329,101 @@ export default function BlueprintsPage() {
   const handleContextPackSelect = (event: React.ChangeEvent<HTMLSelectElement>) => {
     const ids = Array.from(event.target.selectedOptions).map((opt) => opt.value);
     setSelectedContextPackIds(ids);
+  };
+
+  const handleSessionContextPackSelect = (event: React.ChangeEvent<HTMLSelectElement>) => {
+    const ids = Array.from(event.target.selectedOptions).map((opt) => opt.value);
+    setSessionContextPackIds(ids);
+  };
+
+  const refreshSelectedSession = async () => {
+    if (!selectedSessionId) return;
+    try {
+      const detail = await getDraftSession(selectedSessionId);
+      setSelectedSession(detail);
+      setDraftJsonText(detail.draft ? JSON.stringify(detail.draft, null, 2) : "");
+      setSessionContextPackIds(detail.context_pack_ids ?? []);
+    } catch (err) {
+      setError((err as Error).message);
+    }
+  };
+
+  const handleGenerateDraft = async () => {
+    if (!selectedSessionId) return;
+    try {
+      setLoading(true);
+      setError(null);
+      await enqueueDraftGeneration(selectedSessionId);
+      setMessage("Draft generation queued.");
+      await refreshSelectedSession();
+    } catch (err) {
+      setError((err as Error).message);
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const handleReviseDraft = async () => {
+    if (!selectedSessionId) return;
+    try {
+      setLoading(true);
+      setError(null);
+      await enqueueDraftRevision(selectedSessionId, { instruction: revisionInstruction });
+      setMessage("Draft revision queued.");
+      setRevisionInstruction("");
+      await refreshSelectedSession();
+    } catch (err) {
+      setError((err as Error).message);
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const handleResolveContext = async () => {
+    if (!selectedSessionId) return;
+    try {
+      setLoading(true);
+      setError(null);
+      await resolveDraftSessionContext(selectedSessionId, { context_pack_ids: sessionContextPackIds });
+      setMessage("Context resolved.");
+      await refreshSelectedSession();
+    } catch (err) {
+      setError((err as Error).message);
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const handleSaveDraft = async () => {
+    if (!selectedSessionId) return;
+    try {
+      setLoading(true);
+      setError(null);
+      const parsed = draftJsonText.trim().length > 0 ? JSON.parse(draftJsonText) : {};
+      await saveDraftSession(selectedSessionId, { draft_json: parsed });
+      setMessage("Draft saved.");
+      await refreshSelectedSession();
+    } catch (err) {
+      setError((err as Error).message);
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const handlePublishDraft = async () => {
+    if (!selectedSessionId) return;
+    try {
+      setLoading(true);
+      setError(null);
+      const result = await publishDraftSession(selectedSessionId);
+      setMessage(`Draft published: ${result.entity_type ?? "entity"} ${result.entity_id ?? ""}`.trim());
+      await refreshSelectedSession();
+      await load();
+    } catch (err) {
+      setError((err as Error).message);
+    } finally {
+      setLoading(false);
+    }
   };
 
   return (
@@ -429,6 +567,149 @@ export default function BlueprintsPage() {
                     </div>
                   </div>
                 ))}
+              </div>
+            )}
+          </section>
+        )}
+        {selected && (
+          <section className="card">
+            <div className="card-header">
+              <h3>Draft Sessions</h3>
+              <div className="inline-actions">
+                <button className="ghost" onClick={refreshSelectedSession} disabled={loading || !selectedSessionId}>
+                  Refresh
+                </button>
+                <button className="ghost" onClick={handleCreateSession} disabled={creatingSession || loading}>
+                  New draft session
+                </button>
+              </div>
+            </div>
+            {draftSessions.length === 0 ? (
+              <p className="muted">No draft sessions yet.</p>
+            ) : (
+              <div className="stack">
+                <div className="instance-list">
+                  {draftSessions.map((session) => (
+                    <button
+                      key={session.id}
+                      className={`instance-row ${selectedSessionId === session.id ? "active" : ""}`}
+                      onClick={() => setSelectedSessionId(session.id)}
+                    >
+                      <div>
+                        <strong>{session.name}</strong>
+                        <span className="muted small">{session.blueprint_kind}</span>
+                      </div>
+                      <span className="muted small">{session.status}</span>
+                    </button>
+                  ))}
+                </div>
+                {!selectedSession ? (
+                  <p className="muted">Select a draft session to view details.</p>
+                ) : (
+                  <div className="stack">
+                    <div className="detail-grid">
+                      <div>
+                        <div className="label">Status</div>
+                        <span className="muted">{selectedSession.status}</span>
+                      </div>
+                      <div>
+                        <div className="label">Job ID</div>
+                        <span className="muted">{selectedSession.job_id ?? "—"}</span>
+                      </div>
+                      <div>
+                        <div className="label">Context Hash</div>
+                        <span className="muted">{selectedSession.effective_context_hash ?? "—"}</span>
+                      </div>
+                      <div>
+                        <div className="label">Blueprint Kind</div>
+                        <span className="muted">{selectedSession.blueprint_kind}</span>
+                      </div>
+                    </div>
+                    {selectedSession.last_error && (
+                      <InlineMessage tone="error" title="Last error" body={selectedSession.last_error} />
+                    )}
+                    <label>
+                      Context packs for session
+                      <select
+                        multiple
+                        size={Math.min(Math.max(contextPacks.length, 3), 8)}
+                        value={sessionContextPackIds}
+                        onChange={handleSessionContextPackSelect}
+                      >
+                        {contextPacks.map((pack) => (
+                          <option key={pack.id} value={pack.id}>
+                            {pack.name} ({pack.scope}) v{pack.version}
+                          </option>
+                        ))}
+                      </select>
+                    </label>
+                    <div className="inline-actions">
+                      <button className="ghost" onClick={handleResolveContext} disabled={loading}>
+                        Resolve context
+                      </button>
+                      <button className="ghost" onClick={handleGenerateDraft} disabled={loading}>
+                        Generate draft
+                      </button>
+                      <button className="ghost" onClick={handlePublishDraft} disabled={loading}>
+                        Publish draft
+                      </button>
+                    </div>
+                    <label>
+                      Revision instruction
+                      <textarea
+                        rows={4}
+                        value={revisionInstruction}
+                        onChange={(event) => setRevisionInstruction(event.target.value)}
+                      />
+                    </label>
+                    <button className="ghost" onClick={handleReviseDraft} disabled={loading}>
+                      Revise draft
+                    </button>
+                    <label>
+                      Draft JSON
+                      <textarea
+                        rows={12}
+                        value={draftJsonText}
+                        onChange={(event) => setDraftJsonText(event.target.value)}
+                      />
+                    </label>
+                    <div className="inline-actions">
+                      <button className="ghost" onClick={handleSaveDraft} disabled={loading}>
+                        Save draft
+                      </button>
+                    </div>
+                    {selectedSession.requirements_summary && (
+                      <div className="stack">
+                        <strong>Requirements summary</strong>
+                        <pre style={{ whiteSpace: "pre-wrap" }}>{selectedSession.requirements_summary}</pre>
+                      </div>
+                    )}
+                    {selectedSession.diff_summary && (
+                      <div className="stack">
+                        <strong>Diff summary</strong>
+                        <pre style={{ whiteSpace: "pre-wrap" }}>{selectedSession.diff_summary}</pre>
+                      </div>
+                    )}
+                    <div className="stack">
+                      <strong>Validation errors</strong>
+                      {(selectedSession.validation_errors ?? []).length === 0 ? (
+                        <span className="muted">No validation errors.</span>
+                      ) : (
+                        (selectedSession.validation_errors ?? []).map((err) => (
+                          <span key={err} className="muted">
+                            {err}
+                          </span>
+                        ))
+                      )}
+                    </div>
+                    <div className="stack">
+                      <strong>Effective context preview</strong>
+                      <pre style={{ whiteSpace: "pre-wrap" }}>
+                        {selectedSession.effective_context_preview ?? "No context preview."}
+                      </pre>
+                    </div>
+                  </div>
+                )}
               </div>
             )}
           </section>
