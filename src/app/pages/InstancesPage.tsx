@@ -250,7 +250,13 @@ export default function InstancesPage() {
                     Observed: {releaseMap[instance.observed_release_id ?? ""]?.version ?? "—"}
                   </span>
                 </div>
-                <StatusPill status={instance.health_status ?? instance.status} />
+                <StatusPill
+                  status={
+                    instance.health_status && instance.health_status !== "unknown"
+                      ? instance.health_status
+                      : instance.status
+                  }
+                />
               </button>
             ))}
           </div>
