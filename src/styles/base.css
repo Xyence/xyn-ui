@@ -249,6 +249,15 @@ input {
   border: 1px solid var(--border);
 }
 
+textarea {
+  padding: 10px 12px;
+  border-radius: 10px;
+  border: 1px solid var(--border);
+  font: inherit;
+  resize: vertical;
+  min-height: 120px;
+}
+
 select {
   padding: 10px 12px;
   border-radius: 10px;
@@ -278,6 +287,25 @@ button.primary {
 button.ghost {
   background: #f1f5fb;
   color: var(--ink);
+}
+
+.file-input {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+
+.file-input input {
+  display: none;
+}
+
+.button-like {
+  padding: 10px 14px;
+  border-radius: 10px;
+  background: var(--accent);
+  color: #fff;
+  font-weight: 600;
+  cursor: pointer;
 }
 
 button.danger {

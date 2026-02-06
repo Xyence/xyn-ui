@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useState } from "react";
 import InlineMessage from "../../components/InlineMessage";
-import { getRelease, listReleases } from "../../api/xyn";
-import type { ReleaseDetail, ReleaseSummary } from "../../api/types";
+import { getRelease, listEnvironments, listReleases } from "../../api/xyn";
+import type { EnvironmentSummary, ReleaseDetail, ReleaseSummary } from "../../api/types";
 
 export default function ReleasesPage() {
   const [items, setItems] = useState<ReleaseSummary[]>([]);
@@ -10,11 +10,13 @@ export default function ReleasesPage() {
   const [loading, setLoading] = useState(false);
   const [message, setMessage] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
+  const [environments, setEnvironments] = useState<EnvironmentSummary[]>([]);
+  const [environmentId, setEnvironmentId] = useState<string>("");
 
   const load = useCallback(async () => {
     try {
       setError(null);
-      const data = await listReleases();
+      const data = await listReleases(undefined, environmentId || undefined);
       setItems(data.releases);
       if (!selectedId && data.releases[0]) {
         setSelectedId(data.releases[0].id);
@@ -22,11 +24,22 @@ export default function ReleasesPage() {
     } catch (err) {
       setError((err as Error).message);
     }
-  }, [selectedId]);
+  }, [environmentId, selectedId]);
 
   useEffect(() => {
     load();
   }, [load]);
+
+  useEffect(() => {
+    (async () => {
+      try {
+        const data = await listEnvironments();
+        setEnvironments(data.environments);
+      } catch (err) {
+        setError((err as Error).message);
+      }
+    })();
+  }, []);
 
   useEffect(() => {
     if (!selectedId) {
@@ -62,9 +75,23 @@ export default function ReleasesPage() {
           <h2>Releases</h2>
           <p className="muted">Generated releases and artifacts.</p>
         </div>
-        <button className="ghost" onClick={handleRefresh} disabled={loading}>
-          Refresh
-        </button>
+        <div className="inline-actions">
+          <select
+            className="input"
+            value={environmentId}
+            onChange={(event) => setEnvironmentId(event.target.value)}
+          >
+            <option value="">All environments</option>
+            {environments.map((env) => (
+              <option key={env.id} value={env.id}>
+                {env.name}
+              </option>
+            ))}
+          </select>
+          <button className="ghost" onClick={handleRefresh} disabled={loading}>
+            Refresh
+          </button>
+        </div>
       </div>
 
       {error && <InlineMessage tone="error" title="Request failed" body={error} />}

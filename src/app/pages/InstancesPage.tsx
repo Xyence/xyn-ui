@@ -6,10 +6,11 @@ import {
   getInstance,
   listInstances,
 } from "../../api/client";
-import { createDevTask, getRelease, listReleases } from "../../api/xyn";
+import { createDevTask, getRelease, listEnvironments, listReleases } from "../../api/xyn";
 import type {
   BootstrapLogResponse,
   CreateInstancePayload,
+  EnvironmentSummary,
   ProvisionedInstance,
   ReleaseSummary,
 } from "../../api/types";
@@ -28,6 +29,7 @@ const emptyPayload: CreateInstancePayload = {
   repo_url: "",
   iam_instance_profile_arn: "",
   iam_instance_profile_name: "",
+  environment_id: "",
 };
 
 export default function InstancesPage() {
@@ -39,9 +41,10 @@ export default function InstancesPage() {
   const [error, setError] = useState<string | null>(null);
   const [logTail, setLogTail] = useState(200);
   const [bootstrapLog, setBootstrapLog] = useState<BootstrapLogResponse | null>(null);
-  const [releases, setReleases] = useState<ReleaseSummary[]>([]);
   const [releaseMap, setReleaseMap] = useState<Record<string, ReleaseSummary>>({});
   const [deployMessage, setDeployMessage] = useState<string | null>(null);
+  const [environments, setEnvironments] = useState<EnvironmentSummary[]>([]);
+  const [environmentId, setEnvironmentId] = useState<string>("");
 
   const selectedInstance = useMemo(
     () => instances.find((item) => item.id === selectedId) ?? selected,
@@ -51,7 +54,7 @@ export default function InstancesPage() {
   const loadInstances = useCallback(async () => {
     try {
       setError(null);
-      const data = await listInstances();
+      const data = await listInstances(environmentId || undefined);
       setInstances(data.instances);
       if (!selectedId && data.instances[0]) {
         setSelectedId(data.instances[0].id);
@@ -59,7 +62,7 @@ export default function InstancesPage() {
     } catch (err) {
       setError((err as Error).message);
     }
-  }, [selectedId]);
+  }, [environmentId, selectedId]);
 
   const refreshSelected = useCallback(async () => {
     if (!selectedId) return;
@@ -79,13 +82,23 @@ export default function InstancesPage() {
   useEffect(() => {
     (async () => {
       try {
-        const data = await listReleases();
-        setReleases(data.releases);
+        const data = await listReleases(undefined, environmentId || undefined);
         const map: Record<string, ReleaseSummary> = {};
         data.releases.forEach((item) => {
           map[item.id] = item;
         });
         setReleaseMap(map);
+      } catch (err) {
+        setError((err as Error).message);
+      }
+    })();
+  }, [environmentId]);
+
+  useEffect(() => {
+    (async () => {
+      try {
+        const data = await listEnvironments();
+        setEnvironments(data.environments);
       } catch (err) {
         setError((err as Error).message);
       }
@@ -191,6 +204,18 @@ export default function InstancesPage() {
           <p className="muted">Provision and monitor Xyn Seed instances.</p>
         </div>
         <div className="inline-actions">
+          <select
+            className="input"
+            value={environmentId}
+            onChange={(event) => setEnvironmentId(event.target.value)}
+          >
+            <option value="">All environments</option>
+            {environments.map((env) => (
+              <option key={env.id} value={env.id}>
+                {env.name}
+              </option>
+            ))}
+          </select>
           <span className="meta-pill">Polling: {POLL_INTERVAL_MS / 1000}s</span>
         </div>
       </div>
@@ -311,6 +336,23 @@ export default function InstancesPage() {
                 }
                 placeholder="instance-profile-name"
               />
+            </label>
+            <label>
+              Environment
+              <select
+                className="input"
+                value={payload.environment_id ?? ""}
+                onChange={(event) =>
+                  setPayload((prev) => ({ ...prev, environment_id: event.target.value }))
+                }
+              >
+                <option value="">None</option>
+                {environments.map((env) => (
+                  <option key={env.id} value={env.id}>
+                    {env.name}
+                  </option>
+                ))}
+              </select>
             </label>
           </div>
           <div className="form-actions">

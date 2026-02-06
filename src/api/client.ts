@@ -26,9 +26,13 @@ async function handle<T>(response: Response): Promise<T> {
   return (await response.json()) as T;
 }
 
-export async function listInstances(): Promise<InstanceListResponse> {
+export async function listInstances(environmentId?: string): Promise<InstanceListResponse> {
   const apiBaseUrl = resolveApiBaseUrl();
-  const response = await fetch(`${apiBaseUrl}/xyn/api/provision/instances`, {
+  const url = new URL(`${apiBaseUrl}/xyn/api/provision/instances`);
+  if (environmentId) {
+    url.searchParams.set("environment_id", environmentId);
+  }
+  const response = await fetch(url.toString(), {
     credentials: "include",
   });
   return handle<InstanceListResponse>(response);
