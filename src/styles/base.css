@@ -243,6 +243,10 @@ input {
   font-size: 0.9rem;
 }
 
+.form-grid .span-full {
+  grid-column: 1 / -1;
+}
+
 input {
   padding: 10px 12px;
   border-radius: 10px;
@@ -355,6 +359,10 @@ button:disabled {
   display: grid;
   grid-template-columns: repeat(auto-fit, minmax(160px, 1fr));
   gap: 12px;
+}
+
+.detail-grid select {
+  width: 100%;
 }
 
 .label {

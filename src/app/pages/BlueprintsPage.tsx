@@ -483,7 +483,7 @@ export default function BlueprintsPage() {
                 onChange={(event) => setForm({ ...form, namespace: event.target.value })}
               />
             </label>
-            <label>
+            <label className="span-full">
               Description
               <input
                 value={form.description ?? ""}

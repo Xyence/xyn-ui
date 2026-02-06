@@ -115,6 +115,16 @@ export async function destroyInstance(id: string): Promise<ProvisionedInstance> 
   return handle<ProvisionedInstance>(response);
 }
 
+export async function retryProvisionInstance(id: string): Promise<ProvisionedInstance> {
+  const apiBaseUrl = resolveApiBaseUrl();
+  const response = await apiFetch(`${apiBaseUrl}/xyn/api/provision/instances/${id}/retry`, {
+    method: "POST",
+    credentials: "include",
+    headers: { ...authHeaders() },
+  });
+  return handle<ProvisionedInstance>(response);
+}
+
 export async function fetchBootstrapLog(id: string, tail = 200): Promise<BootstrapLogResponse> {
   const apiBaseUrl = resolveApiBaseUrl();
   const url = new URL(`${apiBaseUrl}/xyn/api/provision/instances/${id}/bootstrap-log`);

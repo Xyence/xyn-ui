@@ -5,6 +5,7 @@ import {
   fetchBootstrapLog,
   getInstance,
   listInstances,
+  retryProvisionInstance,
 } from "../../api/client";
 import { createDevTask, getRelease, listEnvironments, listReleases } from "../../api/xyn";
 import type {
@@ -144,6 +145,22 @@ export default function InstancesPage() {
       const updated = await destroyInstance(selectedId);
       setInstances((prev) => prev.map((item) => (item.id === updated.id ? updated : item)));
       setSelected(updated);
+    } catch (err) {
+      setError((err as Error).message);
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const handleRetryProvision = async () => {
+    if (!selectedId) return;
+    try {
+      setLoading(true);
+      setError(null);
+      const updated = await retryProvisionInstance(selectedId);
+      setInstances((prev) => prev.map((item) => (item.id === updated.id ? updated : item)));
+      setSelected(updated);
+      setBootstrapLog(null);
     } catch (err) {
       setError((err as Error).message);
     } finally {
@@ -457,6 +474,11 @@ export default function InstancesPage() {
               </div>
               {selectedInstance.last_error && (
                 <InlineMessage tone="error" title="Instance error" body={selectedInstance.last_error} />
+              )}
+              {(selectedInstance.status === "error" || !selectedInstance.instance_id) && (
+                <button className="ghost" onClick={handleRetryProvision} disabled={loading}>
+                  Retry provisioning
+                </button>
               )}
             </>
           )}
