@@ -12,11 +12,24 @@ export function resolveApiBaseUrl() {
 }
 
 export const authMode =
-  (import.meta.env.VITE_AUTH_MODE as string | undefined) || "dev";
+  (import.meta.env.VITE_AUTH_MODE as string | undefined) || "token";
+
+export function authHeaders(): Record<string, string> {
+  const token = import.meta.env.VITE_API_TOKEN as string | undefined;
+  if (token && token.trim().length > 0) {
+    return { Authorization: `Bearer ${token}` };
+  }
+  return {};
+}
 
 const jsonHeaders = {
   "Content-Type": "application/json",
 };
+
+function apiFetch(input: RequestInfo | URL, init: RequestInit = {}) {
+  const headers = { ...authHeaders(), ...(init.headers || {}) } as Record<string, string>;
+  return apiFetch(input, { ...init, headers });
+}
 
 async function handle<T>(response: Response): Promise<T> {
   if (!response.ok) {
@@ -32,17 +45,18 @@ export async function listInstances(environmentId?: string): Promise<InstanceLis
   if (environmentId) {
     url.searchParams.set("environment_id", environmentId);
   }
-  const response = await fetch(url.toString(), {
+  const response = await apiFetch(url.toString(), {
     credentials: "include",
+    headers: { ...authHeaders() },
   });
   return handle<InstanceListResponse>(response);
 }
 
 export async function createInstance(payload: CreateInstancePayload): Promise<ProvisionedInstance> {
   const apiBaseUrl = resolveApiBaseUrl();
-  const response = await fetch(`${apiBaseUrl}/xyn/api/provision/instances`, {
+  const response = await apiFetch(`${apiBaseUrl}/xyn/api/provision/instances`, {
     method: "POST",
-    headers: jsonHeaders,
+    headers: { ...jsonHeaders, ...authHeaders() },
     credentials: "include",
     body: JSON.stringify(payload),
   });
@@ -55,15 +69,16 @@ export async function getInstance(id: string, refresh = false): Promise<Provisio
   if (refresh) {
     url.searchParams.set("refresh", "true");
   }
-  const response = await fetch(url.toString(), { credentials: "include" });
+  const response = await apiFetch(url.toString(), { credentials: "include", headers: { ...authHeaders() } });
   return handle<ProvisionedInstance>(response);
 }
 
 export async function destroyInstance(id: string): Promise<ProvisionedInstance> {
   const apiBaseUrl = resolveApiBaseUrl();
-  const response = await fetch(`${apiBaseUrl}/xyn/api/provision/instances/${id}/destroy`, {
+  const response = await apiFetch(`${apiBaseUrl}/xyn/api/provision/instances/${id}/destroy`, {
     method: "POST",
     credentials: "include",
+    headers: { ...authHeaders() },
   });
   return handle<ProvisionedInstance>(response);
 }
@@ -72,6 +87,6 @@ export async function fetchBootstrapLog(id: string, tail = 200): Promise<Bootstr
   const apiBaseUrl = resolveApiBaseUrl();
   const url = new URL(`${apiBaseUrl}/xyn/api/provision/instances/${id}/bootstrap-log`);
   url.searchParams.set("tail", String(tail));
-  const response = await fetch(url.toString(), { credentials: "include" });
+  const response = await apiFetch(url.toString(), { credentials: "include", headers: { ...authHeaders() } });
   return handle<BootstrapLogResponse>(response);
 }

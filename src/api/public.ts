@@ -1,4 +1,4 @@
-import { resolveApiBaseUrl } from "./client";
+import { authHeaders, resolveApiBaseUrl } from "./client";
 import type {
   Page,
   PublicArticleDetail,
@@ -72,6 +72,7 @@ export async function checkAuthenticated(): Promise<boolean> {
   const apiBaseUrl = resolveApiBaseUrl();
   const response = await fetch(`${apiBaseUrl}/xyn/api/provision/instances`, {
     credentials: "include",
+    headers: { ...authHeaders() },
   });
   return response.ok;
 }

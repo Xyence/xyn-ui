@@ -34,11 +34,22 @@ import type {
   ContextPackDetail,
   ContextPackListResponse,
 } from "./types";
-import { resolveApiBaseUrl } from "./client";
+import { authHeaders, resolveApiBaseUrl } from "./client";
 
 const jsonHeaders = {
   "Content-Type": "application/json",
 };
+
+const buildHeaders = (extra?: Record<string, string>) => ({
+  ...jsonHeaders,
+  ...authHeaders(),
+  ...(extra || {}),
+});
+
+function apiFetch(input: RequestInfo | URL, init: RequestInit = {}) {
+  const headers = { ...authHeaders(), ...(init.headers || {}) } as Record<string, string>;
+  return apiFetch(input, { ...init, headers });
+}
 
 async function handle<T>(response: Response): Promise<T> {
   if (!response.ok) {
@@ -55,13 +66,13 @@ export async function listBlueprints(query = ""): Promise<BlueprintListResponse>
     url.searchParams.set("q", query);
   }
   url.searchParams.set("page_size", "200");
-  const response = await fetch(url.toString(), { credentials: "include" });
+  const response = await apiFetch(url.toString(), { credentials: "include" });
   return handle<BlueprintListResponse>(response);
 }
 
 export async function getBlueprint(id: string): Promise<BlueprintDetail> {
   const apiBaseUrl = resolveApiBaseUrl();
-  const response = await fetch(`${apiBaseUrl}/xyn/api/blueprints/${id}`, {
+  const response = await apiFetch(`${apiBaseUrl}/xyn/api/blueprints/${id}`, {
     credentials: "include",
   });
   return handle<BlueprintDetail>(response);
@@ -69,9 +80,9 @@ export async function getBlueprint(id: string): Promise<BlueprintDetail> {
 
 export async function createBlueprint(payload: BlueprintCreatePayload): Promise<{ id: string }> {
   const apiBaseUrl = resolveApiBaseUrl();
-  const response = await fetch(`${apiBaseUrl}/xyn/api/blueprints`, {
+  const response = await apiFetch(`${apiBaseUrl}/xyn/api/blueprints`, {
     method: "POST",
-    headers: jsonHeaders,
+    headers: buildHeaders(),
     credentials: "include",
     body: JSON.stringify(payload),
   });
@@ -80,9 +91,9 @@ export async function createBlueprint(payload: BlueprintCreatePayload): Promise<
 
 export async function updateBlueprint(id: string, payload: BlueprintCreatePayload): Promise<{ id: string }> {
   const apiBaseUrl = resolveApiBaseUrl();
-  const response = await fetch(`${apiBaseUrl}/xyn/api/blueprints/${id}`, {
+  const response = await apiFetch(`${apiBaseUrl}/xyn/api/blueprints/${id}`, {
     method: "PATCH",
-    headers: jsonHeaders,
+    headers: buildHeaders(),
     credentials: "include",
     body: JSON.stringify(payload),
   });
@@ -93,7 +104,7 @@ export async function listBlueprintDraftSessions(
   blueprintId: string
 ): Promise<{ sessions: BlueprintDraftSession[] }> {
   const apiBaseUrl = resolveApiBaseUrl();
-  const response = await fetch(`${apiBaseUrl}/xyn/api/blueprints/${blueprintId}/draft-sessions`, {
+  const response = await apiFetch(`${apiBaseUrl}/xyn/api/blueprints/${blueprintId}/draft-sessions`, {
     credentials: "include",
   });
   return handle<{ sessions: BlueprintDraftSession[] }>(response);
@@ -104,9 +115,9 @@ export async function createBlueprintDraftSession(
   payload: { name?: string; blueprint_kind?: string; context_pack_ids?: string[] }
 ): Promise<{ session_id: string }> {
   const apiBaseUrl = resolveApiBaseUrl();
-  const response = await fetch(`${apiBaseUrl}/xyn/api/blueprints/${blueprintId}/draft-sessions`, {
+  const response = await apiFetch(`${apiBaseUrl}/xyn/api/blueprints/${blueprintId}/draft-sessions`, {
     method: "POST",
-    headers: jsonHeaders,
+    headers: buildHeaders(),
     credentials: "include",
     body: JSON.stringify(payload),
   });
@@ -115,7 +126,7 @@ export async function createBlueprintDraftSession(
 
 export async function getDraftSession(sessionId: string): Promise<BlueprintDraftSessionDetail> {
   const apiBaseUrl = resolveApiBaseUrl();
-  const response = await fetch(`${apiBaseUrl}/xyn/api/draft-sessions/${sessionId}`, {
+  const response = await apiFetch(`${apiBaseUrl}/xyn/api/draft-sessions/${sessionId}`, {
     credentials: "include",
   });
   return handle<BlueprintDraftSessionDetail>(response);
@@ -125,7 +136,7 @@ export async function enqueueDraftGeneration(
   sessionId: string
 ): Promise<{ status: string; job_id: string }> {
   const apiBaseUrl = resolveApiBaseUrl();
-  const response = await fetch(
+  const response = await apiFetch(
     `${apiBaseUrl}/xyn/api/draft-sessions/${sessionId}/enqueue-draft-generation`,
     {
       method: "POST",
@@ -140,11 +151,11 @@ export async function enqueueDraftRevision(
   payload: { instruction?: string }
 ): Promise<{ status: string; job_id: string }> {
   const apiBaseUrl = resolveApiBaseUrl();
-  const response = await fetch(
+  const response = await apiFetch(
     `${apiBaseUrl}/xyn/api/draft-sessions/${sessionId}/enqueue-draft-revision`,
     {
       method: "POST",
-      headers: jsonHeaders,
+      headers: buildHeaders(),
       credentials: "include",
       body: JSON.stringify(payload ?? {}),
     }
@@ -157,9 +168,9 @@ export async function resolveDraftSessionContext(
   payload: { context_pack_ids?: string[] } = {}
 ): Promise<{ context_pack_refs: unknown[]; effective_context_hash?: string; effective_context_preview?: string }> {
   const apiBaseUrl = resolveApiBaseUrl();
-  const response = await fetch(`${apiBaseUrl}/xyn/api/draft-sessions/${sessionId}/resolve-context`, {
+  const response = await apiFetch(`${apiBaseUrl}/xyn/api/draft-sessions/${sessionId}/resolve-context`, {
     method: "POST",
-    headers: jsonHeaders,
+    headers: buildHeaders(),
     credentials: "include",
     body: JSON.stringify(payload),
   });
@@ -175,9 +186,9 @@ export async function saveDraftSession(
   payload: { draft_json: Record<string, unknown> }
 ): Promise<{ status: string; validation_errors: string[] }> {
   const apiBaseUrl = resolveApiBaseUrl();
-  const response = await fetch(`${apiBaseUrl}/xyn/api/draft-sessions/${sessionId}/save`, {
+  const response = await apiFetch(`${apiBaseUrl}/xyn/api/draft-sessions/${sessionId}/save`, {
     method: "POST",
-    headers: jsonHeaders,
+    headers: buildHeaders(),
     credentials: "include",
     body: JSON.stringify(payload),
   });
@@ -188,7 +199,7 @@ export async function publishDraftSession(
   sessionId: string
 ): Promise<{ ok: boolean; entity_type?: string; entity_id?: string; revision?: number }> {
   const apiBaseUrl = resolveApiBaseUrl();
-  const response = await fetch(`${apiBaseUrl}/xyn/api/draft-sessions/${sessionId}/publish`, {
+  const response = await apiFetch(`${apiBaseUrl}/xyn/api/draft-sessions/${sessionId}/publish`, {
     method: "POST",
     credentials: "include",
   });
@@ -199,7 +210,7 @@ export async function listBlueprintVoiceNotes(
   blueprintId: string
 ): Promise<{ voice_notes: BlueprintVoiceNote[] }> {
   const apiBaseUrl = resolveApiBaseUrl();
-  const response = await fetch(`${apiBaseUrl}/xyn/api/blueprints/${blueprintId}/voice-notes`, {
+  const response = await apiFetch(`${apiBaseUrl}/xyn/api/blueprints/${blueprintId}/voice-notes`, {
     credentials: "include",
   });
   return handle<{ voice_notes: BlueprintVoiceNote[] }>(response);
@@ -215,7 +226,7 @@ export async function uploadVoiceNote(
   if (payload.session_id) form.append("session_id", payload.session_id);
   if (payload.title) form.append("title", payload.title);
   if (payload.language_code) form.append("language_code", payload.language_code);
-  const response = await fetch(`${apiBaseUrl}/xyn/api/voice-notes`, {
+  const response = await apiFetch(`${apiBaseUrl}/xyn/api/voice-notes`, {
     method: "POST",
     credentials: "include",
     body: form,
@@ -227,7 +238,7 @@ export async function enqueueVoiceNoteTranscription(
   voiceNoteId: string
 ): Promise<{ status: string; job_id: string }> {
   const apiBaseUrl = resolveApiBaseUrl();
-  const response = await fetch(`${apiBaseUrl}/xyn/api/voice-notes/${voiceNoteId}/enqueue-transcription`, {
+  const response = await apiFetch(`${apiBaseUrl}/xyn/api/voice-notes/${voiceNoteId}/enqueue-transcription`, {
     method: "POST",
     credentials: "include",
   });
@@ -236,7 +247,7 @@ export async function enqueueVoiceNoteTranscription(
 
 export async function deleteBlueprint(id: string): Promise<{ status: string }> {
   const apiBaseUrl = resolveApiBaseUrl();
-  const response = await fetch(`${apiBaseUrl}/xyn/api/blueprints/${id}`, {
+  const response = await apiFetch(`${apiBaseUrl}/xyn/api/blueprints/${id}`, {
     method: "DELETE",
     credentials: "include",
   });
@@ -245,7 +256,7 @@ export async function deleteBlueprint(id: string): Promise<{ status: string }> {
 
 export async function submitBlueprint(id: string): Promise<{ run_id?: string; instance_id?: string }> {
   const apiBaseUrl = resolveApiBaseUrl();
-  const response = await fetch(`${apiBaseUrl}/xyn/api/blueprints/${id}/submit`, {
+  const response = await apiFetch(`${apiBaseUrl}/xyn/api/blueprints/${id}/submit`, {
     method: "POST",
     credentials: "include",
   });
@@ -254,7 +265,7 @@ export async function submitBlueprint(id: string): Promise<{ run_id?: string; in
 
 export async function submitBlueprintWithDevTasks(id: string): Promise<{ run_id?: string; instance_id?: string }> {
   const apiBaseUrl = resolveApiBaseUrl();
-  const response = await fetch(`${apiBaseUrl}/xyn/api/blueprints/${id}/submit?queue_dev_tasks=1`, {
+  const response = await apiFetch(`${apiBaseUrl}/xyn/api/blueprints/${id}/submit?queue_dev_tasks=1`, {
     method: "POST",
     credentials: "include",
   });
@@ -275,13 +286,13 @@ export async function listContextPacks(params: {
   if (params.namespace) url.searchParams.set("namespace", params.namespace);
   if (params.project_key) url.searchParams.set("project_key", params.project_key);
   if (params.active !== undefined) url.searchParams.set("active", params.active ? "1" : "0");
-  const response = await fetch(url.toString(), { credentials: "include" });
+  const response = await apiFetch(url.toString(), { credentials: "include" });
   return handle<ContextPackListResponse>(response);
 }
 
 export async function getContextPack(id: string): Promise<ContextPackDetail> {
   const apiBaseUrl = resolveApiBaseUrl();
-  const response = await fetch(`${apiBaseUrl}/xyn/api/context-packs/${id}`, {
+  const response = await apiFetch(`${apiBaseUrl}/xyn/api/context-packs/${id}`, {
     credentials: "include",
   });
   return handle<ContextPackDetail>(response);
@@ -289,9 +300,9 @@ export async function getContextPack(id: string): Promise<ContextPackDetail> {
 
 export async function createContextPack(payload: ContextPackCreatePayload): Promise<{ id: string }> {
   const apiBaseUrl = resolveApiBaseUrl();
-  const response = await fetch(`${apiBaseUrl}/xyn/api/context-packs`, {
+  const response = await apiFetch(`${apiBaseUrl}/xyn/api/context-packs`, {
     method: "POST",
-    headers: jsonHeaders,
+    headers: buildHeaders(),
     credentials: "include",
     body: JSON.stringify(payload),
   });
@@ -303,9 +314,9 @@ export async function updateContextPack(
   payload: Partial<ContextPackCreatePayload>
 ): Promise<ContextPackDetail> {
   const apiBaseUrl = resolveApiBaseUrl();
-  const response = await fetch(`${apiBaseUrl}/xyn/api/context-packs/${id}`, {
+  const response = await apiFetch(`${apiBaseUrl}/xyn/api/context-packs/${id}`, {
     method: "PUT",
-    headers: jsonHeaders,
+    headers: buildHeaders(),
     credentials: "include",
     body: JSON.stringify(payload),
   });
@@ -314,7 +325,7 @@ export async function updateContextPack(
 
 export async function activateContextPack(id: string): Promise<{ status: string }> {
   const apiBaseUrl = resolveApiBaseUrl();
-  const response = await fetch(`${apiBaseUrl}/xyn/api/context-packs/${id}/activate`, {
+  const response = await apiFetch(`${apiBaseUrl}/xyn/api/context-packs/${id}/activate`, {
     method: "POST",
     credentials: "include",
   });
@@ -323,7 +334,7 @@ export async function activateContextPack(id: string): Promise<{ status: string 
 
 export async function deactivateContextPack(id: string): Promise<{ status: string }> {
   const apiBaseUrl = resolveApiBaseUrl();
-  const response = await fetch(`${apiBaseUrl}/xyn/api/context-packs/${id}/deactivate`, {
+  const response = await apiFetch(`${apiBaseUrl}/xyn/api/context-packs/${id}/deactivate`, {
     method: "POST",
     credentials: "include",
   });
@@ -337,13 +348,13 @@ export async function listModules(query = ""): Promise<ModuleListResponse> {
     url.searchParams.set("q", query);
   }
   url.searchParams.set("page_size", "200");
-  const response = await fetch(url.toString(), { credentials: "include" });
+  const response = await apiFetch(url.toString(), { credentials: "include" });
   return handle<ModuleListResponse>(response);
 }
 
 export async function getModule(ref: string): Promise<ModuleDetail> {
   const apiBaseUrl = resolveApiBaseUrl();
-  const response = await fetch(`${apiBaseUrl}/xyn/api/modules/${ref}`, {
+  const response = await apiFetch(`${apiBaseUrl}/xyn/api/modules/${ref}`, {
     credentials: "include",
   });
   return handle<ModuleDetail>(response);
@@ -351,9 +362,9 @@ export async function getModule(ref: string): Promise<ModuleDetail> {
 
 export async function createModule(payload: ModuleCreatePayload): Promise<{ id: string; fqn?: string }> {
   const apiBaseUrl = resolveApiBaseUrl();
-  const response = await fetch(`${apiBaseUrl}/xyn/api/modules`, {
+  const response = await apiFetch(`${apiBaseUrl}/xyn/api/modules`, {
     method: "POST",
-    headers: jsonHeaders,
+    headers: buildHeaders(),
     credentials: "include",
     body: JSON.stringify(payload),
   });
@@ -362,9 +373,9 @@ export async function createModule(payload: ModuleCreatePayload): Promise<{ id: 
 
 export async function updateModule(id: string, payload: ModuleCreatePayload): Promise<{ id: string }> {
   const apiBaseUrl = resolveApiBaseUrl();
-  const response = await fetch(`${apiBaseUrl}/xyn/api/modules/${id}`, {
+  const response = await apiFetch(`${apiBaseUrl}/xyn/api/modules/${id}`, {
     method: "PATCH",
-    headers: jsonHeaders,
+    headers: buildHeaders(),
     credentials: "include",
     body: JSON.stringify(payload),
   });
@@ -373,7 +384,7 @@ export async function updateModule(id: string, payload: ModuleCreatePayload): Pr
 
 export async function deleteModule(id: string): Promise<{ status: string }> {
   const apiBaseUrl = resolveApiBaseUrl();
-  const response = await fetch(`${apiBaseUrl}/xyn/api/modules/${id}`, {
+  const response = await apiFetch(`${apiBaseUrl}/xyn/api/modules/${id}`, {
     method: "DELETE",
     credentials: "include",
   });
@@ -384,13 +395,13 @@ export async function listRegistries(): Promise<RegistryListResponse> {
   const apiBaseUrl = resolveApiBaseUrl();
   const url = new URL(`${apiBaseUrl}/xyn/api/registries`);
   url.searchParams.set("page_size", "200");
-  const response = await fetch(url.toString(), { credentials: "include" });
+  const response = await apiFetch(url.toString(), { credentials: "include" });
   return handle<RegistryListResponse>(response);
 }
 
 export async function getRegistry(id: string): Promise<RegistryDetail> {
   const apiBaseUrl = resolveApiBaseUrl();
-  const response = await fetch(`${apiBaseUrl}/xyn/api/registries/${id}`, {
+  const response = await apiFetch(`${apiBaseUrl}/xyn/api/registries/${id}`, {
     credentials: "include",
   });
   return handle<RegistryDetail>(response);
@@ -398,9 +409,9 @@ export async function getRegistry(id: string): Promise<RegistryDetail> {
 
 export async function createRegistry(payload: RegistryCreatePayload): Promise<{ id: string }> {
   const apiBaseUrl = resolveApiBaseUrl();
-  const response = await fetch(`${apiBaseUrl}/xyn/api/registries`, {
+  const response = await apiFetch(`${apiBaseUrl}/xyn/api/registries`, {
     method: "POST",
-    headers: jsonHeaders,
+    headers: buildHeaders(),
     credentials: "include",
     body: JSON.stringify(payload),
   });
@@ -409,9 +420,9 @@ export async function createRegistry(payload: RegistryCreatePayload): Promise<{ 
 
 export async function updateRegistry(id: string, payload: RegistryCreatePayload): Promise<{ id: string }> {
   const apiBaseUrl = resolveApiBaseUrl();
-  const response = await fetch(`${apiBaseUrl}/xyn/api/registries/${id}`, {
+  const response = await apiFetch(`${apiBaseUrl}/xyn/api/registries/${id}`, {
     method: "PATCH",
-    headers: jsonHeaders,
+    headers: buildHeaders(),
     credentials: "include",
     body: JSON.stringify(payload),
   });
@@ -420,7 +431,7 @@ export async function updateRegistry(id: string, payload: RegistryCreatePayload)
 
 export async function deleteRegistry(id: string): Promise<{ status: string }> {
   const apiBaseUrl = resolveApiBaseUrl();
-  const response = await fetch(`${apiBaseUrl}/xyn/api/registries/${id}`, {
+  const response = await apiFetch(`${apiBaseUrl}/xyn/api/registries/${id}`, {
     method: "DELETE",
     credentials: "include",
   });
@@ -429,7 +440,7 @@ export async function deleteRegistry(id: string): Promise<{ status: string }> {
 
 export async function syncRegistry(id: string): Promise<{ status: string; last_sync_at?: string }> {
   const apiBaseUrl = resolveApiBaseUrl();
-  const response = await fetch(`${apiBaseUrl}/xyn/api/registries/${id}/sync`, {
+  const response = await apiFetch(`${apiBaseUrl}/xyn/api/registries/${id}/sync`, {
     method: "POST",
     credentials: "include",
   });
@@ -440,13 +451,13 @@ export async function listReleasePlans(): Promise<ReleasePlanListResponse> {
   const apiBaseUrl = resolveApiBaseUrl();
   const url = new URL(`${apiBaseUrl}/xyn/api/release-plans`);
   url.searchParams.set("page_size", "200");
-  const response = await fetch(url.toString(), { credentials: "include" });
+  const response = await apiFetch(url.toString(), { credentials: "include" });
   return handle<ReleasePlanListResponse>(response);
 }
 
 export async function getReleasePlan(id: string): Promise<ReleasePlanDetail> {
   const apiBaseUrl = resolveApiBaseUrl();
-  const response = await fetch(`${apiBaseUrl}/xyn/api/release-plans/${id}`, {
+  const response = await apiFetch(`${apiBaseUrl}/xyn/api/release-plans/${id}`, {
     credentials: "include",
   });
   return handle<ReleasePlanDetail>(response);
@@ -454,9 +465,9 @@ export async function getReleasePlan(id: string): Promise<ReleasePlanDetail> {
 
 export async function createReleasePlan(payload: ReleasePlanCreatePayload): Promise<{ id: string }> {
   const apiBaseUrl = resolveApiBaseUrl();
-  const response = await fetch(`${apiBaseUrl}/xyn/api/release-plans`, {
+  const response = await apiFetch(`${apiBaseUrl}/xyn/api/release-plans`, {
     method: "POST",
-    headers: jsonHeaders,
+    headers: buildHeaders(),
     credentials: "include",
     body: JSON.stringify(payload),
   });
@@ -465,9 +476,9 @@ export async function createReleasePlan(payload: ReleasePlanCreatePayload): Prom
 
 export async function updateReleasePlan(id: string, payload: ReleasePlanCreatePayload): Promise<{ id: string }> {
   const apiBaseUrl = resolveApiBaseUrl();
-  const response = await fetch(`${apiBaseUrl}/xyn/api/release-plans/${id}`, {
+  const response = await apiFetch(`${apiBaseUrl}/xyn/api/release-plans/${id}`, {
     method: "PATCH",
-    headers: jsonHeaders,
+    headers: buildHeaders(),
     credentials: "include",
     body: JSON.stringify(payload),
   });
@@ -476,7 +487,7 @@ export async function updateReleasePlan(id: string, payload: ReleasePlanCreatePa
 
 export async function deleteReleasePlan(id: string): Promise<{ status: string }> {
   const apiBaseUrl = resolveApiBaseUrl();
-  const response = await fetch(`${apiBaseUrl}/xyn/api/release-plans/${id}`, {
+  const response = await apiFetch(`${apiBaseUrl}/xyn/api/release-plans/${id}`, {
     method: "DELETE",
     credentials: "include",
   });
@@ -485,7 +496,7 @@ export async function deleteReleasePlan(id: string): Promise<{ status: string }>
 
 export async function generateReleasePlan(id: string): Promise<{ run_id: string }> {
   const apiBaseUrl = resolveApiBaseUrl();
-  const response = await fetch(`${apiBaseUrl}/xyn/api/release-plans/${id}/generate`, {
+  const response = await apiFetch(`${apiBaseUrl}/xyn/api/release-plans/${id}/generate`, {
     method: "POST",
     credentials: "include",
   });
@@ -502,7 +513,7 @@ export async function listRuns(entity?: string, status?: string): Promise<RunLis
   if (status) {
     url.searchParams.set("status", status);
   }
-  const response = await fetch(url.toString(), { credentials: "include" });
+  const response = await apiFetch(url.toString(), { credentials: "include" });
   return handle<RunListResponse>(response);
 }
 
@@ -519,7 +530,7 @@ export async function listReleases(
   if (environmentId) {
     url.searchParams.set("environment_id", environmentId);
   }
-  const response = await fetch(url.toString(), { credentials: "include" });
+  const response = await apiFetch(url.toString(), { credentials: "include" });
   return handle<ReleaseListResponse>(response);
 }
 
@@ -527,7 +538,7 @@ export async function listEnvironments(): Promise<EnvironmentListResponse> {
   const apiBaseUrl = resolveApiBaseUrl();
   const url = new URL(`${apiBaseUrl}/xyn/api/environments`);
   url.searchParams.set("page_size", "200");
-  const response = await fetch(url.toString(), { credentials: "include" });
+  const response = await apiFetch(url.toString(), { credentials: "include" });
   return handle<EnvironmentListResponse>(response);
 }
 
@@ -535,9 +546,9 @@ export async function createEnvironment(
   payload: EnvironmentCreatePayload
 ): Promise<{ id: string }> {
   const apiBaseUrl = resolveApiBaseUrl();
-  const response = await fetch(`${apiBaseUrl}/xyn/api/environments`, {
+  const response = await apiFetch(`${apiBaseUrl}/xyn/api/environments`, {
     method: "POST",
-    headers: jsonHeaders,
+    headers: buildHeaders(),
     credentials: "include",
     body: JSON.stringify(payload),
   });
@@ -546,7 +557,7 @@ export async function createEnvironment(
 
 export async function getRelease(id: string): Promise<ReleaseDetail> {
   const apiBaseUrl = resolveApiBaseUrl();
-  const response = await fetch(`${apiBaseUrl}/xyn/api/releases/${id}`, {
+  const response = await apiFetch(`${apiBaseUrl}/xyn/api/releases/${id}`, {
     credentials: "include",
   });
   return handle<ReleaseDetail>(response);
@@ -554,9 +565,9 @@ export async function getRelease(id: string): Promise<ReleaseDetail> {
 
 export async function createRelease(payload: ReleaseCreatePayload): Promise<{ id: string }> {
   const apiBaseUrl = resolveApiBaseUrl();
-  const response = await fetch(`${apiBaseUrl}/xyn/api/releases`, {
+  const response = await apiFetch(`${apiBaseUrl}/xyn/api/releases`, {
     method: "POST",
-    headers: jsonHeaders,
+    headers: buildHeaders(),
     credentials: "include",
     body: JSON.stringify(payload),
   });
@@ -565,9 +576,9 @@ export async function createRelease(payload: ReleaseCreatePayload): Promise<{ id
 
 export async function updateRelease(id: string, payload: Partial<ReleaseSummary>): Promise<{ id: string }> {
   const apiBaseUrl = resolveApiBaseUrl();
-  const response = await fetch(`${apiBaseUrl}/xyn/api/releases/${id}`, {
+  const response = await apiFetch(`${apiBaseUrl}/xyn/api/releases/${id}`, {
     method: "PATCH",
-    headers: jsonHeaders,
+    headers: buildHeaders(),
     credentials: "include",
     body: JSON.stringify(payload),
   });
@@ -576,7 +587,7 @@ export async function updateRelease(id: string, payload: Partial<ReleaseSummary>
 
 export async function getRun(id: string): Promise<RunDetail> {
   const apiBaseUrl = resolveApiBaseUrl();
-  const response = await fetch(`${apiBaseUrl}/xyn/api/runs/${id}`, {
+  const response = await apiFetch(`${apiBaseUrl}/xyn/api/runs/${id}`, {
     credentials: "include",
   });
   return handle<RunDetail>(response);
@@ -584,7 +595,7 @@ export async function getRun(id: string): Promise<RunDetail> {
 
 export async function getRunLogs(id: string): Promise<RunLogResponse> {
   const apiBaseUrl = resolveApiBaseUrl();
-  const response = await fetch(`${apiBaseUrl}/xyn/api/runs/${id}/logs`, {
+  const response = await apiFetch(`${apiBaseUrl}/xyn/api/runs/${id}/logs`, {
     credentials: "include",
   });
   return handle<RunLogResponse>(response);
@@ -592,7 +603,7 @@ export async function getRunLogs(id: string): Promise<RunLogResponse> {
 
 export async function getRunArtifacts(id: string): Promise<RunArtifact[]> {
   const apiBaseUrl = resolveApiBaseUrl();
-  const response = await fetch(`${apiBaseUrl}/xyn/api/runs/${id}/artifacts`, {
+  const response = await apiFetch(`${apiBaseUrl}/xyn/api/runs/${id}/artifacts`, {
     credentials: "include",
   });
   const data = await handle<{ artifacts: RunArtifact[] }>(response);
@@ -601,7 +612,7 @@ export async function getRunArtifacts(id: string): Promise<RunArtifact[]> {
 
 export async function getRunCommands(id: string): Promise<RunCommandExecution[]> {
   const apiBaseUrl = resolveApiBaseUrl();
-  const response = await fetch(`${apiBaseUrl}/xyn/api/runs/${id}/commands`, {
+  const response = await apiFetch(`${apiBaseUrl}/xyn/api/runs/${id}/commands`, {
     credentials: "include",
   });
   const data = await handle<{ commands: RunCommandExecution[] }>(response);
@@ -615,15 +626,15 @@ export async function listDevTasks(status?: string): Promise<DevTaskListResponse
   if (status) {
     url.searchParams.set("status", status);
   }
-  const response = await fetch(url.toString(), { credentials: "include" });
+  const response = await apiFetch(url.toString(), { credentials: "include" });
   return handle<DevTaskListResponse>(response);
 }
 
 export async function createDevTask(payload: DevTaskCreatePayload): Promise<{ id: string }> {
   const apiBaseUrl = resolveApiBaseUrl();
-  const response = await fetch(`${apiBaseUrl}/xyn/api/dev-tasks`, {
+  const response = await apiFetch(`${apiBaseUrl}/xyn/api/dev-tasks`, {
     method: "POST",
-    headers: jsonHeaders,
+    headers: buildHeaders(),
     credentials: "include",
     body: JSON.stringify(payload),
   });
@@ -632,7 +643,7 @@ export async function createDevTask(payload: DevTaskCreatePayload): Promise<{ id
 
 export async function getDevTask(id: string): Promise<DevTaskDetail> {
   const apiBaseUrl = resolveApiBaseUrl();
-  const response = await fetch(`${apiBaseUrl}/xyn/api/dev-tasks/${id}`, {
+  const response = await apiFetch(`${apiBaseUrl}/xyn/api/dev-tasks/${id}`, {
     credentials: "include",
   });
   return handle<DevTaskDetail>(response);
@@ -644,7 +655,7 @@ export async function runDevTask(id: string, force = false): Promise<{ run_id: s
   if (force) {
     url.searchParams.set("force", "1");
   }
-  const response = await fetch(url.toString(), {
+  const response = await apiFetch(url.toString(), {
     method: "POST",
     credentials: "include",
   });
@@ -653,7 +664,7 @@ export async function runDevTask(id: string, force = false): Promise<{ run_id: s
 
 export async function retryDevTask(id: string): Promise<{ run_id: string; status: string }> {
   const apiBaseUrl = resolveApiBaseUrl();
-  const response = await fetch(`${apiBaseUrl}/xyn/api/dev-tasks/${id}/retry`, {
+  const response = await apiFetch(`${apiBaseUrl}/xyn/api/dev-tasks/${id}/retry`, {
     method: "POST",
     credentials: "include",
   });
@@ -662,7 +673,7 @@ export async function retryDevTask(id: string): Promise<{ run_id: string; status
 
 export async function cancelDevTask(id: string): Promise<{ status: string }> {
   const apiBaseUrl = resolveApiBaseUrl();
-  const response = await fetch(`${apiBaseUrl}/xyn/api/dev-tasks/${id}/cancel`, {
+  const response = await apiFetch(`${apiBaseUrl}/xyn/api/dev-tasks/${id}/cancel`, {
     method: "POST",
     credentials: "include",
   });
@@ -671,7 +682,7 @@ export async function cancelDevTask(id: string): Promise<{ status: string }> {
 
 export async function listBlueprintDevTasks(id: string): Promise<{ dev_tasks: DevTaskSummary[] }> {
   const apiBaseUrl = resolveApiBaseUrl();
-  const response = await fetch(`${apiBaseUrl}/xyn/api/blueprints/${id}/dev-tasks`, {
+  const response = await apiFetch(`${apiBaseUrl}/xyn/api/blueprints/${id}/dev-tasks`, {
     credentials: "include",
   });
   return handle<{ dev_tasks: DevTaskSummary[] }>(response);

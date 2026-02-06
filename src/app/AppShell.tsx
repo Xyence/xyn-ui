@@ -28,12 +28,7 @@ export default function AppShell() {
         </div>
       </header>
 
-      {authMode === "dev" && (
-        <InlineMessage
-          title="Dev auth mode"
-          body="Make sure you are logged into the admin in this browser so cookies are available."
-        />
-      )}
+
 
       <div className="app-body">
         <aside className="app-sidebar">
