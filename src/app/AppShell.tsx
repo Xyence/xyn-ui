@@ -1,6 +1,6 @@
+import { useEffect, useState } from "react";
 import { NavLink, Navigate, Route, Routes } from "react-router-dom";
-import { authMode } from "../api/client";
-import InlineMessage from "../components/InlineMessage";
+import { getStoredIdToken } from "../api/client";
 import BlueprintsPage from "./pages/BlueprintsPage";
 import InstancesPage from "./pages/InstancesPage";
 import ModulesPage from "./pages/ModulesPage";
@@ -11,8 +11,18 @@ import RunsPage from "./pages/RunsPage";
 import ActivityPage from "./pages/ActivityPage";
 import DevTasksPage from "./pages/DevTasksPage";
 import ContextPacksPage from "./pages/ContextPacksPage";
+import AuthCallbackPage from "./pages/AuthCallbackPage";
+import { isOidcConfigured, logout, startLogin } from "./auth/oidc";
 
 export default function AppShell() {
+  const [authed, setAuthed] = useState(Boolean(getStoredIdToken()));
+
+  useEffect(() => {
+    const onStorage = () => setAuthed(Boolean(getStoredIdToken()));
+    window.addEventListener("storage", onStorage);
+    return () => window.removeEventListener("storage", onStorage);
+  }, []);
+
   return (
     <div className="app-shell">
       <header className="app-header">
@@ -24,11 +34,21 @@ export default function AppShell() {
           </div>
         </div>
         <div className="header-meta">
-          <span className="meta-pill">AUTH_MODE: {authMode}</span>
+          {isOidcConfigured() ? (
+            authed ? (
+              <button className="ghost" onClick={() => logout()}>
+                Sign out
+              </button>
+            ) : (
+              <button className="ghost" onClick={() => startLogin(window.location.pathname)}>
+                Sign in
+              </button>
+            )
+          ) : (
+            <span className="meta-pill">Auth not configured</span>
+          )}
         </div>
       </header>
-
-
 
       <div className="app-body">
         <aside className="app-sidebar">
@@ -96,6 +116,7 @@ export default function AppShell() {
         <main className="app-content">
           <Routes>
             <Route path="/" element={<Navigate to="instances" replace />} />
+            <Route path="auth/callback" element={<AuthCallbackPage />} />
             <Route path="instances" element={<InstancesPage />} />
             <Route path="blueprints" element={<BlueprintsPage />} />
             <Route path="registries" element={<RegistriesPage />} />

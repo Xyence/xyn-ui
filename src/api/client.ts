@@ -14,7 +14,39 @@ export function resolveApiBaseUrl() {
 export const authMode =
   (import.meta.env.VITE_AUTH_MODE as string | undefined) || "token";
 
+const ID_TOKEN_KEY = "xyn_id_token";
+
+export function getStoredIdToken(): string | null {
+  if (typeof window === "undefined") return null;
+  const token = window.localStorage.getItem(ID_TOKEN_KEY);
+  if (!token) return null;
+  try {
+    const payload = JSON.parse(atob(token.split(".")[1] || ""));
+    if (payload?.exp && Date.now() / 1000 > payload.exp) {
+      window.localStorage.removeItem(ID_TOKEN_KEY);
+      return null;
+    }
+  } catch {
+    return null;
+  }
+  return token;
+}
+
+export function setStoredIdToken(token: string) {
+  if (typeof window === "undefined") return;
+  window.localStorage.setItem(ID_TOKEN_KEY, token);
+}
+
+export function clearStoredIdToken() {
+  if (typeof window === "undefined") return;
+  window.localStorage.removeItem(ID_TOKEN_KEY);
+}
+
 export function authHeaders(): Record<string, string> {
+  const runtimeToken = getStoredIdToken();
+  if (runtimeToken) {
+    return { Authorization: `Bearer ${runtimeToken}` };
+  }
   const token = import.meta.env.VITE_API_TOKEN as string | undefined;
   if (token && token.trim().length > 0) {
     return { Authorization: `Bearer ${token}` };
