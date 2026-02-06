@@ -1,4 +1,4 @@
-import { clearStoredIdToken, setStoredIdToken } from "../../api/client";
+import { clearStoredIdToken, resolveApiBaseUrl, setStoredIdToken } from "../../api/client";
 
 const OIDC_ISSUER = (import.meta.env.VITE_OIDC_ISSUER as string | undefined) || "https://accounts.google.com";
 const OIDC_CLIENT_ID = (import.meta.env.VITE_OIDC_CLIENT_ID as string | undefined) || "";
@@ -46,16 +46,13 @@ export async function handleCallback() {
   if (!code || !state || !expected || state !== expected || !verifier) {
     throw new Error("Invalid login response.");
   }
-  const config = await getConfig();
-  const tokenResponse = await fetch(config.token_endpoint, {
+  const tokenResponse = await fetch(`${resolveApiBaseUrl()}/xyn/api/auth/oidc/exchange`, {
     method: "POST",
-    headers: { "Content-Type": "application/x-www-form-urlencoded" },
-    body: new URLSearchParams({
-      grant_type: "authorization_code",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({
       code,
-      client_id: OIDC_CLIENT_ID,
-      redirect_uri: OIDC_REDIRECT_URI,
       code_verifier: verifier,
+      redirect_uri: OIDC_REDIRECT_URI,
     }),
   });
   if (!tokenResponse.ok) {
