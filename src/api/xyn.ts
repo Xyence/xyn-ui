@@ -48,7 +48,7 @@ const buildHeaders = (extra?: Record<string, string>) => ({
 
 function apiFetch(input: RequestInfo | URL, init: RequestInit = {}) {
   const headers = { ...authHeaders(), ...(init.headers || {}) } as Record<string, string>;
-  return apiFetch(input, { ...init, headers });
+  return fetch(input, { ...init, headers });
 }
 
 async function handle<T>(response: Response): Promise<T> {
