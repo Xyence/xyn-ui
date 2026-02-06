@@ -1,13 +1,108 @@
+import { useCallback, useEffect, useState } from "react";
 import { Link } from "react-router-dom";
 
+type Device = { id: string; name: string };
+
 export default function DeviceList() {
+  const [devices, setDevices] = useState<Device[]>([]);
+  const [roles, setRoles] = useState<string[]>([]);
+  const [token, setToken] = useState("");
+  const [newName, setNewName] = useState("");
+  const isAdmin = roles.includes("admin");
+
+  const fetchMe = useCallback(async () => {
+    if (!token) return;
+    const response = await fetch("/api/me", {
+      headers: { Authorization: `Bearer ${token}` },
+    });
+    if (!response.ok) return;
+    const payload = await response.json();
+    setRoles(payload?.roles ?? []);
+  }, [token]);
+
+  const fetchDevices = useCallback(async () => {
+    if (!token) return;
+    const response = await fetch("/api/devices", {
+      headers: { Authorization: `Bearer ${token}` },
+    });
+    if (!response.ok) return;
+    const payload = await response.json();
+    setDevices(Array.isArray(payload) ? payload : []);
+  }, [token]);
+
+  const createDevice = useCallback(async () => {
+    if (!token || !newName) return;
+    const response = await fetch("/api/devices", {
+      method: "POST",
+      headers: {
+        Authorization: `Bearer ${token}`,
+        "Content-Type": "application/json",
+      },
+      body: JSON.stringify({ name: newName }),
+    });
+    if (!response.ok) return;
+    setNewName("");
+    fetchDevices();
+  }, [token, newName, fetchDevices]);
+
+  const deleteDevice = useCallback(
+    async (id: string) => {
+      if (!token) return;
+      const response = await fetch(`/api/devices/${id}`, {
+        method: "DELETE",
+        headers: { Authorization: `Bearer ${token}` },
+      });
+      if (!response.ok) return;
+      fetchDevices();
+    },
+    [token, fetchDevices]
+  );
+
+  useEffect(() => {
+    fetchMe();
+    fetchDevices();
+  }, [fetchMe, fetchDevices]);
+
   return (
     <section>
       <h2>Devices</h2>
+      <p>Paste a token to load devices.</p>
+      <input
+        type="text"
+        placeholder="JWT token"
+        value={token}
+        onChange={(event) => setToken(event.target.value)}
+      />
+      <button type="button" onClick={fetchDevices}>
+        Refresh
+      </button>
       <ul>
-        <li>OLT-001 (stub)</li>
-        <li>ONU-042 (stub)</li>
+        {devices.map((device) => (
+          <li key={device.id}>
+            {device.name}
+            {isAdmin ? (
+              <button type="button" onClick={() => deleteDevice(device.id)}>
+                Delete
+              </button>
+            ) : null}
+          </li>
+        ))}
       </ul>
+      {isAdmin ? (
+        <div>
+          <input
+            type="text"
+            placeholder="Device name"
+            value={newName}
+            onChange={(event) => setNewName(event.target.value)}
+          />
+          <button type="button" onClick={createDevice}>
+            Create device
+          </button>
+        </div>
+      ) : (
+        <p>Viewer role: create/delete disabled.</p>
+      )}
       <Link to="/reports">View Reports</Link>
     </section>
   );

@@ -46,6 +46,13 @@ export default function ModulesPage() {
   }, [load]);
 
   useEffect(() => {
+    const interval = window.setInterval(() => {
+      load();
+    }, 15000);
+    return () => window.clearInterval(interval);
+  }, [load]);
+
+  useEffect(() => {
     if (!selectedId) {
       setSelected(null);
       return;
