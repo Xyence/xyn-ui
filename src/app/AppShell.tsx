@@ -10,6 +10,7 @@ import ReleasesPage from "./pages/ReleasesPage";
 import RunsPage from "./pages/RunsPage";
 import ActivityPage from "./pages/ActivityPage";
 import DevTasksPage from "./pages/DevTasksPage";
+import ContextPacksPage from "./pages/ContextPacksPage";
 
 export default function AppShell() {
   return (
@@ -86,6 +87,12 @@ export default function AppShell() {
           </NavLink>
           <NavLink
             className={({ isActive }) => (isActive ? "app-nav-link active" : "app-nav-link")}
+            to="/app/context-packs"
+          >
+            Context Packs
+          </NavLink>
+          <NavLink
+            className={({ isActive }) => (isActive ? "app-nav-link active" : "app-nav-link")}
             to="/app/activity"
           >
             Activity
@@ -102,6 +109,7 @@ export default function AppShell() {
             <Route path="releases" element={<ReleasesPage />} />
             <Route path="runs" element={<RunsPage />} />
             <Route path="dev-tasks" element={<DevTasksPage />} />
+            <Route path="context-packs" element={<ContextPacksPage />} />
             <Route path="activity" element={<ActivityPage />} />
           </Routes>
         </main>

@@ -4,19 +4,35 @@ import {
   createBlueprint,
   deleteBlueprint,
   getBlueprint,
+  listBlueprintDraftSessions,
+  listBlueprintVoiceNotes,
   listBlueprints,
   listBlueprintDevTasks,
+  listContextPacks,
   runDevTask,
+  createBlueprintDraftSession,
+  uploadVoiceNote,
+  enqueueVoiceNoteTranscription,
   submitBlueprint,
   submitBlueprintWithDevTasks,
   updateBlueprint,
 } from "../../api/xyn";
-import type { BlueprintCreatePayload, BlueprintDetail, BlueprintSummary, DevTaskSummary } from "../../api/types";
+import type {
+  BlueprintCreatePayload,
+  BlueprintDetail,
+  BlueprintDraftSession,
+  BlueprintSummary,
+  BlueprintVoiceNote,
+  ContextPackSummary,
+  DevTaskSummary,
+} from "../../api/types";
 
 const emptyForm: BlueprintCreatePayload = {
   name: "",
   namespace: "core",
   description: "",
+  spec_text: "",
+  metadata_json: null,
 };
 
 export default function BlueprintsPage() {
@@ -24,7 +40,14 @@ export default function BlueprintsPage() {
   const [selectedId, setSelectedId] = useState<string | null>(null);
   const [selected, setSelected] = useState<BlueprintDetail | null>(null);
   const [form, setForm] = useState<BlueprintCreatePayload>(emptyForm);
+  const [metadataText, setMetadataText] = useState<string>("");
   const [devTasks, setDevTasks] = useState<DevTaskSummary[]>([]);
+  const [voiceNotes, setVoiceNotes] = useState<BlueprintVoiceNote[]>([]);
+  const [draftSessions, setDraftSessions] = useState<BlueprintDraftSession[]>([]);
+  const [contextPacks, setContextPacks] = useState<ContextPackSummary[]>([]);
+  const [selectedContextPackIds, setSelectedContextPackIds] = useState<string[]>([]);
+  const [uploading, setUploading] = useState(false);
+  const [creatingSession, setCreatingSession] = useState(false);
   const [loading, setLoading] = useState(false);
   const [message, setMessage] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
@@ -47,6 +70,17 @@ export default function BlueprintsPage() {
   }, [load]);
 
   useEffect(() => {
+    (async () => {
+      try {
+        const packs = await listContextPacks({ active: true });
+        setContextPacks(packs.context_packs);
+      } catch (err) {
+        setError((err as Error).message);
+      }
+    })();
+  }, []);
+
+  useEffect(() => {
     if (!selectedId) {
       setSelected(null);
       return;
@@ -59,9 +93,16 @@ export default function BlueprintsPage() {
           name: detail.name,
           namespace: detail.namespace,
           description: detail.description ?? "",
+          spec_text: detail.spec_text ?? "",
+          metadata_json: detail.metadata_json ?? null,
         });
+        setMetadataText(detail.metadata_json ? JSON.stringify(detail.metadata_json, null, 2) : "");
         const tasks = await listBlueprintDevTasks(selectedId);
         setDevTasks(tasks.dev_tasks);
+        const sessions = await listBlueprintDraftSessions(selectedId);
+        setDraftSessions(sessions.sessions);
+        const notes = await listBlueprintVoiceNotes(selectedId);
+        setVoiceNotes(notes.voice_notes);
       } catch (err) {
         setError((err as Error).message);
       }
@@ -73,8 +114,15 @@ export default function BlueprintsPage() {
       setLoading(true);
       setError(null);
       setMessage(null);
-      await createBlueprint(form);
+      const payload = { ...form };
+      if (metadataText.trim().length > 0) {
+        payload.metadata_json = JSON.parse(metadataText);
+      } else {
+        payload.metadata_json = null;
+      }
+      await createBlueprint(payload);
       setForm(emptyForm);
+      setMetadataText("");
       await load();
       setMessage("Blueprint created.");
     } catch (err) {
@@ -90,7 +138,13 @@ export default function BlueprintsPage() {
       setLoading(true);
       setError(null);
       setMessage(null);
-      await updateBlueprint(selectedId, form);
+      const payload = { ...form };
+      if (metadataText.trim().length > 0) {
+        payload.metadata_json = JSON.parse(metadataText);
+      } else {
+        payload.metadata_json = null;
+      }
+      await updateBlueprint(selectedId, payload);
       await load();
       setMessage("Blueprint updated.");
     } catch (err) {
@@ -163,6 +217,77 @@ export default function BlueprintsPage() {
     }
   };
 
+  const refreshVoiceNotes = async () => {
+    if (!selectedId) return;
+    try {
+      const sessions = await listBlueprintDraftSessions(selectedId);
+      setDraftSessions(sessions.sessions);
+      const notes = await listBlueprintVoiceNotes(selectedId);
+      setVoiceNotes(notes.voice_notes);
+    } catch (err) {
+      setError((err as Error).message);
+    }
+  };
+
+  const ensureDraftSession = async () => {
+    if (!selectedId) return null;
+    if (draftSessions.length > 0) {
+      return draftSessions[0].id;
+    }
+    const created = await createBlueprintDraftSession(selectedId, {
+      blueprint_kind: "solution",
+      context_pack_ids: selectedContextPackIds,
+    });
+    await refreshVoiceNotes();
+    return created.session_id;
+  };
+
+  const handleCreateSession = async () => {
+    if (!selectedId) return;
+    try {
+      setCreatingSession(true);
+      setError(null);
+      const created = await createBlueprintDraftSession(selectedId, {
+        blueprint_kind: "solution",
+        context_pack_ids: selectedContextPackIds,
+      });
+      await refreshVoiceNotes();
+      setMessage(`Draft session created: ${created.session_id}`);
+    } catch (err) {
+      setError((err as Error).message);
+    } finally {
+      setCreatingSession(false);
+    }
+  };
+
+  const handleVoiceUpload = async (event: React.ChangeEvent<HTMLInputElement>) => {
+    if (!event.target.files || event.target.files.length === 0 || !selectedId) return;
+    try {
+      setUploading(true);
+      setError(null);
+      const file = event.target.files[0];
+      const sessionId = await ensureDraftSession();
+      if (!sessionId) {
+        setError("No draft session available.");
+        return;
+      }
+      const uploaded = await uploadVoiceNote(file, { session_id: sessionId, language_code: "en-US" });
+      await enqueueVoiceNoteTranscription(uploaded.voice_note_id);
+      await refreshVoiceNotes();
+      setMessage("Recording uploaded and queued for transcription.");
+    } catch (err) {
+      setError((err as Error).message);
+    } finally {
+      setUploading(false);
+      event.target.value = "";
+    }
+  };
+
+  const handleContextPackSelect = (event: React.ChangeEvent<HTMLSelectElement>) => {
+    const ids = Array.from(event.target.selectedOptions).map((opt) => opt.value);
+    setSelectedContextPackIds(ids);
+  };
+
   return (
     <>
       <div className="page-header">
@@ -227,6 +352,23 @@ export default function BlueprintsPage() {
                 onChange={(event) => setForm({ ...form, description: event.target.value })}
               />
             </label>
+            <label>
+              Blueprint specification
+              <textarea
+                rows={10}
+                value={form.spec_text ?? ""}
+                onChange={(event) => setForm({ ...form, spec_text: event.target.value })}
+              />
+            </label>
+            <label>
+              Blueprint metadata (JSON)
+              <textarea
+                rows={10}
+                value={metadataText}
+                onChange={(event) => setMetadataText(event.target.value)}
+                placeholder='{\n  "product": "EMS"\n}'
+              />
+            </label>
           </div>
           <div className="form-actions">
             <button className="primary" onClick={selected ? handleUpdate : handleCreate} disabled={loading}>
@@ -289,6 +431,65 @@ export default function BlueprintsPage() {
                 ))}
               </div>
             )}
+          </section>
+        )}
+        {selected && (
+          <section className="card">
+            <div className="card-header">
+              <h3>Voice recordings</h3>
+              <div className="inline-actions">
+                <button
+                  className="ghost"
+                  onClick={handleCreateSession}
+                  disabled={creatingSession || loading}
+                >
+                  New draft session
+                </button>
+                <button className="ghost" onClick={refreshVoiceNotes} disabled={uploading || loading}>
+                  Refresh
+                </button>
+              </div>
+            </div>
+            <div className="stack">
+              <label>
+                Context packs for new draft sessions
+                <select
+                  multiple
+                  size={Math.min(Math.max(contextPacks.length, 3), 8)}
+                  value={selectedContextPackIds}
+                  onChange={handleContextPackSelect}
+                >
+                  {contextPacks.map((pack) => (
+                    <option key={pack.id} value={pack.id}>
+                      {pack.name} ({pack.scope}) v{pack.version}
+                    </option>
+                  ))}
+                </select>
+              </label>
+              {contextPacks.length === 0 && (
+                <span className="muted small">No active context packs available.</span>
+              )}
+              <label className="file-input">
+                <input type="file" accept="audio/*" onChange={handleVoiceUpload} disabled={uploading} />
+                <span className="button-like">{uploading ? "Uploading..." : "Upload recording"}</span>
+              </label>
+              {voiceNotes.length === 0 ? (
+                <p className="muted">No recordings yet.</p>
+              ) : (
+                voiceNotes.map((note) => (
+                  <div key={note.id} className="item-row">
+                    <div>
+                      <strong>{note.title || "Recording"}</strong>
+                      <span className="muted small">{note.status}</span>
+                      {note.transcript_text && <span className="muted small">{note.transcript_text}</span>}
+                    </div>
+                    <div className="inline-actions">
+                      <span className="muted small">{note.created_at ?? "—"}</span>
+                    </div>
+                  </div>
+                ))
+              )}
+            </div>
           </section>
         )}
       </div>

@@ -3,10 +3,14 @@ import type {
   BlueprintDetail,
   BlueprintListResponse,
   BlueprintSummary,
+  BlueprintDraftSession,
+  BlueprintVoiceNote,
   DevTaskDetail,
   DevTaskListResponse,
   DevTaskSummary,
   DevTaskCreatePayload,
+  EnvironmentCreatePayload,
+  EnvironmentListResponse,
   ModuleCreatePayload,
   ModuleDetail,
   ModuleListResponse,
@@ -25,6 +29,9 @@ import type {
   RunDetail,
   RunListResponse,
   RunLogResponse,
+  ContextPackCreatePayload,
+  ContextPackDetail,
+  ContextPackListResponse,
 } from "./types";
 import { resolveApiBaseUrl } from "./client";
 
@@ -81,6 +88,69 @@ export async function updateBlueprint(id: string, payload: BlueprintCreatePayloa
   return handle<{ id: string }>(response);
 }
 
+export async function listBlueprintDraftSessions(
+  blueprintId: string
+): Promise<{ sessions: BlueprintDraftSession[] }> {
+  const apiBaseUrl = resolveApiBaseUrl();
+  const response = await fetch(`${apiBaseUrl}/xyn/api/blueprints/${blueprintId}/draft-sessions`, {
+    credentials: "include",
+  });
+  return handle<{ sessions: BlueprintDraftSession[] }>(response);
+}
+
+export async function createBlueprintDraftSession(
+  blueprintId: string,
+  payload: { name?: string; blueprint_kind?: string; context_pack_ids?: string[] }
+): Promise<{ session_id: string }> {
+  const apiBaseUrl = resolveApiBaseUrl();
+  const response = await fetch(`${apiBaseUrl}/xyn/api/blueprints/${blueprintId}/draft-sessions`, {
+    method: "POST",
+    headers: jsonHeaders,
+    credentials: "include",
+    body: JSON.stringify(payload),
+  });
+  return handle<{ session_id: string }>(response);
+}
+
+export async function listBlueprintVoiceNotes(
+  blueprintId: string
+): Promise<{ voice_notes: BlueprintVoiceNote[] }> {
+  const apiBaseUrl = resolveApiBaseUrl();
+  const response = await fetch(`${apiBaseUrl}/xyn/api/blueprints/${blueprintId}/voice-notes`, {
+    credentials: "include",
+  });
+  return handle<{ voice_notes: BlueprintVoiceNote[] }>(response);
+}
+
+export async function uploadVoiceNote(
+  file: File,
+  payload: { session_id?: string; title?: string; language_code?: string }
+): Promise<{ voice_note_id: string }> {
+  const apiBaseUrl = resolveApiBaseUrl();
+  const form = new FormData();
+  form.append("file", file);
+  if (payload.session_id) form.append("session_id", payload.session_id);
+  if (payload.title) form.append("title", payload.title);
+  if (payload.language_code) form.append("language_code", payload.language_code);
+  const response = await fetch(`${apiBaseUrl}/xyn/api/voice-notes`, {
+    method: "POST",
+    credentials: "include",
+    body: form,
+  });
+  return handle<{ voice_note_id: string }>(response);
+}
+
+export async function enqueueVoiceNoteTranscription(
+  voiceNoteId: string
+): Promise<{ status: string; job_id: string }> {
+  const apiBaseUrl = resolveApiBaseUrl();
+  const response = await fetch(`${apiBaseUrl}/xyn/api/voice-notes/${voiceNoteId}/enqueue-transcription`, {
+    method: "POST",
+    credentials: "include",
+  });
+  return handle<{ status: string; job_id: string }>(response);
+}
+
 export async function deleteBlueprint(id: string): Promise<{ status: string }> {
   const apiBaseUrl = resolveApiBaseUrl();
   const response = await fetch(`${apiBaseUrl}/xyn/api/blueprints/${id}`, {
@@ -106,6 +176,75 @@ export async function submitBlueprintWithDevTasks(id: string): Promise<{ run_id?
     credentials: "include",
   });
   return handle<{ run_id?: string; instance_id?: string }>(response);
+}
+
+export async function listContextPacks(params: {
+  scope?: string;
+  purpose?: string;
+  namespace?: string;
+  project_key?: string;
+  active?: boolean;
+} = {}): Promise<ContextPackListResponse> {
+  const apiBaseUrl = resolveApiBaseUrl();
+  const url = new URL(`${apiBaseUrl}/xyn/api/context-packs`);
+  if (params.scope) url.searchParams.set("scope", params.scope);
+  if (params.purpose) url.searchParams.set("purpose", params.purpose);
+  if (params.namespace) url.searchParams.set("namespace", params.namespace);
+  if (params.project_key) url.searchParams.set("project_key", params.project_key);
+  if (params.active !== undefined) url.searchParams.set("active", params.active ? "1" : "0");
+  const response = await fetch(url.toString(), { credentials: "include" });
+  return handle<ContextPackListResponse>(response);
+}
+
+export async function getContextPack(id: string): Promise<ContextPackDetail> {
+  const apiBaseUrl = resolveApiBaseUrl();
+  const response = await fetch(`${apiBaseUrl}/xyn/api/context-packs/${id}`, {
+    credentials: "include",
+  });
+  return handle<ContextPackDetail>(response);
+}
+
+export async function createContextPack(payload: ContextPackCreatePayload): Promise<{ id: string }> {
+  const apiBaseUrl = resolveApiBaseUrl();
+  const response = await fetch(`${apiBaseUrl}/xyn/api/context-packs`, {
+    method: "POST",
+    headers: jsonHeaders,
+    credentials: "include",
+    body: JSON.stringify(payload),
+  });
+  return handle<{ id: string }>(response);
+}
+
+export async function updateContextPack(
+  id: string,
+  payload: Partial<ContextPackCreatePayload>
+): Promise<ContextPackDetail> {
+  const apiBaseUrl = resolveApiBaseUrl();
+  const response = await fetch(`${apiBaseUrl}/xyn/api/context-packs/${id}`, {
+    method: "PUT",
+    headers: jsonHeaders,
+    credentials: "include",
+    body: JSON.stringify(payload),
+  });
+  return handle<ContextPackDetail>(response);
+}
+
+export async function activateContextPack(id: string): Promise<{ status: string }> {
+  const apiBaseUrl = resolveApiBaseUrl();
+  const response = await fetch(`${apiBaseUrl}/xyn/api/context-packs/${id}/activate`, {
+    method: "POST",
+    credentials: "include",
+  });
+  return handle<{ status: string }>(response);
+}
+
+export async function deactivateContextPack(id: string): Promise<{ status: string }> {
+  const apiBaseUrl = resolveApiBaseUrl();
+  const response = await fetch(`${apiBaseUrl}/xyn/api/context-packs/${id}/deactivate`, {
+    method: "POST",
+    credentials: "include",
+  });
+  return handle<{ status: string }>(response);
 }
 
 export async function listModules(query = ""): Promise<ModuleListResponse> {
@@ -284,15 +423,42 @@ export async function listRuns(entity?: string, status?: string): Promise<RunLis
   return handle<RunListResponse>(response);
 }
 
-export async function listReleases(blueprintId?: string): Promise<ReleaseListResponse> {
+export async function listReleases(
+  blueprintId?: string,
+  environmentId?: string
+): Promise<ReleaseListResponse> {
   const apiBaseUrl = resolveApiBaseUrl();
   const url = new URL(`${apiBaseUrl}/xyn/api/releases`);
   url.searchParams.set("page_size", "200");
   if (blueprintId) {
     url.searchParams.set("blueprint_id", blueprintId);
   }
+  if (environmentId) {
+    url.searchParams.set("environment_id", environmentId);
+  }
   const response = await fetch(url.toString(), { credentials: "include" });
   return handle<ReleaseListResponse>(response);
+}
+
+export async function listEnvironments(): Promise<EnvironmentListResponse> {
+  const apiBaseUrl = resolveApiBaseUrl();
+  const url = new URL(`${apiBaseUrl}/xyn/api/environments`);
+  url.searchParams.set("page_size", "200");
+  const response = await fetch(url.toString(), { credentials: "include" });
+  return handle<EnvironmentListResponse>(response);
+}
+
+export async function createEnvironment(
+  payload: EnvironmentCreatePayload
+): Promise<{ id: string }> {
+  const apiBaseUrl = resolveApiBaseUrl();
+  const response = await fetch(`${apiBaseUrl}/xyn/api/environments`, {
+    method: "POST",
+    headers: jsonHeaders,
+    credentials: "include",
+    body: JSON.stringify(payload),
+  });
+  return handle<{ id: string }>(response);
 }
 
 export async function getRelease(id: string): Promise<ReleaseDetail> {

@@ -10,6 +10,7 @@ export type ProvisionStatus =
 export type ProvisionedInstance = {
   id: string;
   name: string;
+  environment_id?: string | null;
   aws_region: string;
   instance_id: string | null;
   instance_type: string | null;
@@ -54,6 +55,7 @@ export type CreateInstancePayload = {
   repo_url?: string;
   iam_instance_profile_arn?: string;
   iam_instance_profile_name?: string;
+  environment_id?: string;
 };
 
 export type PaginatedResponse<T, K extends string> = {
@@ -67,6 +69,8 @@ export type BlueprintSummary = {
   name: string;
   namespace: string;
   description?: string;
+  spec_text?: string;
+  metadata_json?: Record<string, unknown> | null;
   created_at?: string;
   updated_at?: string;
   latest_revision?: number | null;
@@ -81,7 +85,30 @@ export type BlueprintCreatePayload = {
   namespace?: string;
   description?: string;
   spec_json?: Record<string, unknown>;
+  spec_text?: string;
+  metadata_json?: Record<string, unknown> | null;
   blueprint_kind?: string;
+};
+
+export type BlueprintDraftSession = {
+  id: string;
+  name: string;
+  status: string;
+  blueprint_kind: string;
+  created_at?: string;
+  updated_at?: string;
+};
+
+export type BlueprintVoiceNote = {
+  id: string;
+  title?: string;
+  status: string;
+  created_at?: string;
+  session_id: string;
+  job_id?: string | null;
+  last_error?: string | null;
+  transcript_text?: string | null;
+  transcript_confidence?: number | null;
 };
 
 export type BlueprintListResponse = PaginatedResponse<BlueprintSummary, "blueprints">;
@@ -146,6 +173,7 @@ export type ReleasePlanSummary = {
   from_version?: string;
   to_version?: string;
   blueprint_id?: string | null;
+  environment_id?: string | null;
   last_run?: string | null;
   created_at?: string;
   updated_at?: string;
@@ -163,6 +191,7 @@ export type ReleasePlanCreatePayload = {
   to_version?: string;
   milestones_json?: Record<string, unknown>;
   blueprint_id?: string | null;
+  environment_id?: string | null;
 };
 
 export type ReleasePlanListResponse = PaginatedResponse<ReleasePlanSummary, "release_plans">;
@@ -174,6 +203,7 @@ export type ReleaseSummary = {
   blueprint_id?: string | null;
   release_plan_id?: string | null;
   created_from_run_id?: string | null;
+  environment_id?: string | null;
   created_at?: string;
   updated_at?: string;
 };
@@ -188,10 +218,30 @@ export type ReleaseCreatePayload = {
   blueprint_id?: string | null;
   release_plan_id?: string | null;
   created_from_run_id?: string | null;
+  environment_id?: string | null;
   artifacts_json?: Array<{ name: string; url: string }>;
 };
 
 export type ReleaseListResponse = PaginatedResponse<ReleaseSummary, "releases">;
+
+export type EnvironmentSummary = {
+  id: string;
+  name: string;
+  slug: string;
+  base_domain?: string | null;
+  aws_region?: string | null;
+  created_at?: string;
+  updated_at?: string;
+};
+
+export type EnvironmentListResponse = PaginatedResponse<EnvironmentSummary, "environments">;
+
+export type EnvironmentCreatePayload = {
+  name?: string;
+  slug?: string;
+  base_domain?: string;
+  aws_region?: string;
+};
 
 export type RunSummary = {
   id: string;
@@ -289,4 +339,39 @@ export type DevTaskCreatePayload = {
   context_pack_ids?: string[];
   force?: boolean;
   release_id?: string | null;
+};
+
+export type ContextPackSummary = {
+  id: string;
+  name: string;
+  purpose: string;
+  scope: string;
+  namespace?: string;
+  project_key?: string;
+  version: string;
+  is_active: boolean;
+  is_default: boolean;
+  applies_to_json?: Record<string, unknown>;
+  updated_at?: string;
+};
+
+export type ContextPackDetail = ContextPackSummary & {
+  content_markdown?: string;
+};
+
+export type ContextPackListResponse = {
+  context_packs: ContextPackSummary[];
+};
+
+export type ContextPackCreatePayload = {
+  name: string;
+  purpose?: string;
+  scope?: string;
+  namespace?: string;
+  project_key?: string;
+  version: string;
+  is_active?: boolean;
+  is_default?: boolean;
+  content_markdown: string;
+  applies_to_json?: Record<string, unknown>;
 };
