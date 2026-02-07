@@ -5,6 +5,27 @@ import { cancelDevTask, getDevTask, listDevTasks, retryDevTask, runDevTask } fro
 import type { DevTaskDetail, DevTaskSummary } from "../../api/types";
 
 const STATUS_OPTIONS = ["", "queued", "running", "succeeded", "failed", "canceled"];
+const formatRelativeTime = (value?: string | null) => {
+  if (!value) return "";
+  const then = new Date(value).getTime();
+  if (!Number.isFinite(then)) return "";
+  const diffMs = Date.now() - then;
+  if (diffMs < 0) return "just now";
+  const seconds = Math.floor(diffMs / 1000);
+  if (seconds < 60) return "just now";
+  const minutes = Math.floor(seconds / 60);
+  if (minutes < 60) return `${minutes} min ago`;
+  const hours = Math.floor(minutes / 60);
+  if (hours < 24) return `${hours} hr ago`;
+  const days = Math.floor(hours / 24);
+  if (days < 7) return `${days} d ago`;
+  const weeks = Math.floor(days / 7);
+  if (weeks < 5) return `${weeks} w ago`;
+  const months = Math.floor(days / 30);
+  if (months < 12) return `${months} mo ago`;
+  const years = Math.floor(days / 365);
+  return `${years} yr ago`;
+};
 
 export default function DevTasksPage() {
   const [items, setItems] = useState<DevTaskSummary[]>([]);
@@ -165,6 +186,9 @@ export default function DevTasksPage() {
                 <div>
                   <strong>{item.title}</strong>
                   <span className="muted small">{item.task_type}</span>
+                  {item.created_at && (
+                    <span className="muted small">{formatRelativeTime(item.created_at)}</span>
+                  )}
                 </div>
                 <StatusPill status={item.status} />
               </button>
