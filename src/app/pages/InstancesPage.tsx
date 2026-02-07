@@ -46,6 +46,7 @@ export default function InstancesPage() {
   const [deployMessage, setDeployMessage] = useState<string | null>(null);
   const [environments, setEnvironments] = useState<EnvironmentSummary[]>([]);
   const [environmentId, setEnvironmentId] = useState<string>("");
+  const [statusFilter, setStatusFilter] = useState<string>("running");
 
   const selectedInstance = useMemo(
     () => instances.find((item) => item.id === selectedId) ?? selected,
@@ -56,14 +57,18 @@ export default function InstancesPage() {
     try {
       setError(null);
       const data = await listInstances(environmentId || undefined);
-      setInstances(data.instances);
+      const filtered =
+        statusFilter === "all"
+          ? data.instances
+          : data.instances.filter((instance) => instance.status === statusFilter);
+      setInstances(filtered);
       if (!selectedId && data.instances[0]) {
         setSelectedId(data.instances[0].id);
       }
     } catch (err) {
       setError((err as Error).message);
     }
-  }, [environmentId, selectedId]);
+  }, [environmentId, selectedId, statusFilter]);
 
   const refreshSelected = useCallback(async () => {
     if (!selectedId) return;
@@ -221,6 +226,20 @@ export default function InstancesPage() {
           <p className="muted">Provision and monitor Xyn Seed instances.</p>
         </div>
         <div className="inline-actions">
+          <select
+            className="input"
+            value={statusFilter}
+            onChange={(event) => setStatusFilter(event.target.value)}
+          >
+            <option value="running">running</option>
+            <option value="provisioning">provisioning</option>
+            <option value="requested">requested</option>
+            <option value="ready">ready</option>
+            <option value="error">error</option>
+            <option value="terminating">terminating</option>
+            <option value="terminated">terminated</option>
+            <option value="all">all</option>
+          </select>
           <select
             className="input"
             value={environmentId}

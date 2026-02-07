@@ -42,6 +42,7 @@ export default function ReleasePlansPage() {
   const [message, setMessage] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [instances, setInstances] = useState<ProvisionedInstance[]>([]);
+  const [activeInstances, setActiveInstances] = useState<ProvisionedInstance[]>([]);
   const [targetInstanceId, setTargetInstanceId] = useState<string>("");
   const [forceDeploy, setForceDeploy] = useState(false);
   const [runLogs, setRunLogs] = useState<string>("");
@@ -70,6 +71,9 @@ export default function ReleasePlansPage() {
       try {
         const data = await listInstances();
         setInstances(data.instances);
+        setActiveInstances(
+          data.instances.filter((instance) => instance.status !== "terminated" && instance.status !== "error")
+        );
       } catch (err) {
         setError((err as Error).message);
       }
@@ -369,7 +373,7 @@ export default function ReleasePlansPage() {
                 <div className="label">Target instance</div>
                 <select value={targetInstanceId} onChange={(event) => setTargetInstanceId(event.target.value)}>
                   <option value="">Select instance</option>
-                  {instances.map((instance) => (
+                  {activeInstances.map((instance) => (
                     <option key={instance.id} value={instance.id}>
                       {instance.name} ({instance.aws_region})
                     </option>
