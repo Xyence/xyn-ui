@@ -24,7 +24,7 @@ export default function ActivityPage() {
     try {
       setLoading(true);
       setError(null);
-      const data = await listRuns(selectedEntity || undefined);
+      const data = await listRuns(selectedEntity || undefined, undefined);
       setItems(data.runs);
     } catch (err) {
       setError((err as Error).message);

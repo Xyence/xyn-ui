@@ -11,6 +11,12 @@ export default function DevTasksPage() {
   const [selectedId, setSelectedId] = useState<string | null>(null);
   const [selected, setSelected] = useState<DevTaskDetail | null>(null);
   const [statusFilter, setStatusFilter] = useState("");
+  const [query, setQuery] = useState("");
+  const [page, setPage] = useState(1);
+  const [pageSize, setPageSize] = useState(50);
+  const [totalCount, setTotalCount] = useState(0);
+  const [nextPage, setNextPage] = useState<number | null>(null);
+  const [prevPage, setPrevPage] = useState<number | null>(null);
   const [message, setMessage] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
@@ -18,19 +24,26 @@ export default function DevTasksPage() {
   const load = useCallback(async () => {
     try {
       setError(null);
-      const data = await listDevTasks(statusFilter || undefined);
+      const data = await listDevTasks(statusFilter || undefined, query || undefined, page, pageSize);
       setItems(data.dev_tasks);
+      setTotalCount(data.count ?? 0);
+      setNextPage(data.next ?? null);
+      setPrevPage(data.prev ?? null);
       if (!selectedId && data.dev_tasks[0]) {
         setSelectedId(data.dev_tasks[0].id);
       }
     } catch (err) {
       setError((err as Error).message);
     }
-  }, [selectedId, statusFilter]);
+  }, [selectedId, statusFilter, query, page, pageSize]);
 
   useEffect(() => {
     load();
   }, [load]);
+
+  useEffect(() => {
+    setPage(1);
+  }, [statusFilter, query]);
 
   useEffect(() => {
     if (!selectedId) {
@@ -108,6 +121,26 @@ export default function DevTasksPage() {
               </option>
             ))}
           </select>
+          <label className="muted small">Search</label>
+          <input
+            value={query}
+            onChange={(event) => setQuery(event.target.value)}
+            placeholder="Search tasks..."
+          />
+          <label className="muted small">Page size</label>
+          <select
+            value={pageSize}
+            onChange={(event) => {
+              setPageSize(Number(event.target.value));
+              setPage(1);
+            }}
+          >
+            {[25, 50, 100].map((size) => (
+              <option key={size} value={size}>
+                {size}
+              </option>
+            ))}
+          </select>
           <button className="ghost" onClick={load} disabled={loading}>
             Refresh
           </button>
@@ -137,6 +170,25 @@ export default function DevTasksPage() {
               </button>
             ))}
             {items.length === 0 && <p className="muted">No dev tasks found.</p>}
+          </div>
+          <div className="form-actions">
+            <button
+              className="ghost"
+              onClick={() => setPage(prevPage ?? 1)}
+              disabled={!prevPage}
+            >
+              Prev
+            </button>
+            <span className="muted small">
+              Page {page} · {totalCount} total
+            </span>
+            <button
+              className="ghost"
+              onClick={() => setPage(nextPage ?? page)}
+              disabled={!nextPage}
+            >
+              Next
+            </button>
           </div>
         </section>
 

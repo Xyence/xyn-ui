@@ -503,15 +503,27 @@ export async function generateReleasePlan(id: string): Promise<{ run_id: string 
   return handle<{ run_id: string }>(response);
 }
 
-export async function listRuns(entity?: string, status?: string): Promise<RunListResponse> {
+export async function listRuns(
+  entity?: string,
+  status?: string,
+  query?: string,
+  page?: number,
+  pageSize?: number
+): Promise<RunListResponse> {
   const apiBaseUrl = resolveApiBaseUrl();
   const url = new URL(`${apiBaseUrl}/xyn/api/runs`);
-  url.searchParams.set("page_size", "200");
+  url.searchParams.set("page_size", String(pageSize ?? 50));
+  if (page) {
+    url.searchParams.set("page", String(page));
+  }
   if (entity) {
     url.searchParams.set("entity", entity);
   }
   if (status) {
     url.searchParams.set("status", status);
+  }
+  if (query) {
+    url.searchParams.set("q", query);
   }
   const response = await apiFetch(url.toString(), { credentials: "include" });
   return handle<RunListResponse>(response);
@@ -619,12 +631,23 @@ export async function getRunCommands(id: string): Promise<RunCommandExecution[]>
   return data.commands;
 }
 
-export async function listDevTasks(status?: string): Promise<DevTaskListResponse> {
+export async function listDevTasks(
+  status?: string,
+  query?: string,
+  page?: number,
+  pageSize?: number
+): Promise<DevTaskListResponse> {
   const apiBaseUrl = resolveApiBaseUrl();
   const url = new URL(`${apiBaseUrl}/xyn/api/dev-tasks`);
-  url.searchParams.set("page_size", "200");
+  url.searchParams.set("page_size", String(pageSize ?? 50));
+  if (page) {
+    url.searchParams.set("page", String(page));
+  }
   if (status) {
     url.searchParams.set("status", status);
+  }
+  if (query) {
+    url.searchParams.set("q", query);
   }
   const response = await apiFetch(url.toString(), { credentials: "include" });
   return handle<DevTaskListResponse>(response);

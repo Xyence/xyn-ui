@@ -17,6 +17,12 @@ export default function RunsPage() {
   const [commands, setCommands] = useState<RunCommandExecution[]>([]);
   const [entityFilter, setEntityFilter] = useState("");
   const [statusFilter, setStatusFilter] = useState("");
+  const [query, setQuery] = useState("");
+  const [page, setPage] = useState(1);
+  const [pageSize, setPageSize] = useState(50);
+  const [totalCount, setTotalCount] = useState(0);
+  const [nextPage, setNextPage] = useState<number | null>(null);
+  const [prevPage, setPrevPage] = useState<number | null>(null);
   const [autoRefresh, setAutoRefresh] = useState(true);
   const [loading, setLoading] = useState(false);
   const [message, setMessage] = useState<string | null>(null);
@@ -27,15 +33,24 @@ export default function RunsPage() {
   const load = useCallback(async () => {
     try {
       setError(null);
-      const data = await listRuns(entityFilter || undefined, statusFilter || undefined);
+      const data = await listRuns(
+        entityFilter || undefined,
+        statusFilter || undefined,
+        query || undefined,
+        page,
+        pageSize
+      );
       setItems(data.runs);
+      setTotalCount(data.count ?? 0);
+      setNextPage(data.next ?? null);
+      setPrevPage(data.prev ?? null);
       if (!selectedId && data.runs[0]) {
         setSelectedId(data.runs[0].id);
       }
     } catch (err) {
       setError((err as Error).message);
     }
-  }, [entityFilter, statusFilter, selectedId]);
+  }, [entityFilter, statusFilter, selectedId, query, page, pageSize]);
 
   useEffect(() => {
     load();
@@ -46,6 +61,10 @@ export default function RunsPage() {
       setSelectedId(runParam);
     }
   }, [runParam]);
+
+  useEffect(() => {
+    setPage(1);
+  }, [entityFilter, statusFilter]);
 
   useEffect(() => {
     if (!selectedId) {
@@ -133,6 +152,29 @@ export default function RunsPage() {
               </option>
             ))}
           </select>
+          <label className="muted small">Search</label>
+          <input
+            value={query}
+            onChange={(event) => {
+              setQuery(event.target.value);
+              setPage(1);
+            }}
+            placeholder="Search runs..."
+          />
+          <label className="muted small">Page size</label>
+          <select
+            value={pageSize}
+            onChange={(event) => {
+              setPageSize(Number(event.target.value));
+              setPage(1);
+            }}
+          >
+            {[25, 50, 100].map((size) => (
+              <option key={size} value={size}>
+                {size}
+              </option>
+            ))}
+          </select>
           <label className="muted small">
             <input
               type="checkbox"
@@ -174,6 +216,25 @@ export default function RunsPage() {
               </button>
             ))}
             {items.length === 0 && <p className="muted">No runs yet.</p>}
+          </div>
+          <div className="form-actions">
+            <button
+              className="ghost"
+              onClick={() => setPage(prevPage ?? 1)}
+              disabled={!prevPage}
+            >
+              Prev
+            </button>
+            <span className="muted small">
+              Page {page} · {totalCount} total
+            </span>
+            <button
+              className="ghost"
+              onClick={() => setPage(nextPage ?? page)}
+              disabled={!nextPage}
+            >
+              Next
+            </button>
           </div>
         </section>
 
