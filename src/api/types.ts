@@ -344,6 +344,24 @@ export type DevTaskDetail = DevTaskSummary & {
     scope: string;
     version: string;
   }>;
+  result_run_detail?: {
+    id: string;
+    status?: string;
+    summary?: string;
+    error?: string;
+    log_text?: string;
+    started_at?: string | null;
+    finished_at?: string | null;
+  } | null;
+  result_run_artifacts?: Array<{
+    id: string;
+    name: string;
+    kind?: string;
+    url?: string;
+    metadata?: Record<string, unknown> | null;
+    created_at?: string;
+  }>;
+  result_run_commands?: RunCommandExecution[];
   force?: boolean;
 };
 

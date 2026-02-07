@@ -185,6 +185,9 @@ export default function DevTasksPage() {
               {selected.last_error && (
                 <InlineMessage tone="error" title="Last error" body={selected.last_error} />
               )}
+              {selected.result_run_detail?.error && (
+                <InlineMessage tone="error" title="Run error" body={selected.result_run_detail.error} />
+              )}
               <div className="form-actions">
                 <button className="primary" onClick={handleRun} disabled={loading}>
                   Run task
@@ -216,6 +219,69 @@ export default function DevTasksPage() {
                   <span className="muted">No context packs attached.</span>
                 )}
               </div>
+              {selected.result_run_detail && (
+                <div className="stack">
+                  <strong>Run detail</strong>
+                  <div className="detail-grid">
+                    <div>
+                      <div className="label">Run status</div>
+                      <span className="muted">{selected.result_run_detail.status ?? "—"}</span>
+                    </div>
+                    <div>
+                      <div className="label">Run summary</div>
+                      <span className="muted">{selected.result_run_detail.summary ?? "—"}</span>
+                    </div>
+                    <div>
+                      <div className="label">Started</div>
+                      <span className="muted">{selected.result_run_detail.started_at ?? "—"}</span>
+                    </div>
+                    <div>
+                      <div className="label">Finished</div>
+                      <span className="muted">{selected.result_run_detail.finished_at ?? "—"}</span>
+                    </div>
+                  </div>
+                  {selected.result_run_detail.log_text && (
+                    <pre className="code-block">{selected.result_run_detail.log_text}</pre>
+                  )}
+                </div>
+              )}
+              {selected.result_run_artifacts && selected.result_run_artifacts.length > 0 && (
+                <div className="stack">
+                  <strong>Artifacts</strong>
+                  {selected.result_run_artifacts.map((artifact) => (
+                    <div key={artifact.id} className="item-row">
+                      <div>
+                        <strong>{artifact.name}</strong>
+                        <span className="muted small">{artifact.kind ?? "artifact"}</span>
+                      </div>
+                      {artifact.url ? (
+                        <a className="link" href={artifact.url} target="_blank" rel="noreferrer">
+                          Open
+                        </a>
+                      ) : (
+                        <span className="muted small">No URL</span>
+                      )}
+                    </div>
+                  ))}
+                </div>
+              )}
+              {selected.result_run_commands && selected.result_run_commands.length > 0 && (
+                <div className="stack">
+                  <strong>Command executions</strong>
+                  {selected.result_run_commands.map((cmd) => (
+                    <div key={cmd.id} className="item-row">
+                      <div>
+                        <strong>
+                          {cmd.step_name || "Command"}#{cmd.command_index ?? 0}
+                        </strong>
+                        <span className="muted small">
+                          exit={cmd.exit_code ?? "—"} · {cmd.status ?? "unknown"}
+                        </span>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              )}
             </>
           )}
         </section>
