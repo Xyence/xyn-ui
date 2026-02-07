@@ -7,6 +7,26 @@ import StatusPill from "../../components/StatusPill";
 
 const ENTITY_OPTIONS = ["", "blueprint", "registry", "module", "release_plan", "dev_task"];
 const STATUS_OPTIONS = ["", "pending", "running", "succeeded", "failed"];
+const formatContextPackRef = (ref: unknown) => {
+  if (typeof ref === "string") {
+    return { key: ref, label: ref };
+  }
+  if (ref && typeof ref === "object") {
+    const obj = ref as Record<string, unknown>;
+    const name = typeof obj.name === "string" ? obj.name : "";
+    const id = typeof obj.id === "string" ? obj.id : "";
+    const purpose = typeof obj.purpose === "string" ? obj.purpose : "";
+    const scope = typeof obj.scope === "string" ? obj.scope : "";
+    const version = typeof obj.version === "string" ? obj.version : "";
+    const contentHash = typeof obj.content_hash === "string" ? obj.content_hash : "";
+    const parts = [name || id, purpose, scope, version].filter(Boolean);
+    const label = parts.length > 0 ? parts.join(" · ") : contentHash || JSON.stringify(obj);
+    const key = id || name || label;
+    return { key, label };
+  }
+  const label = String(ref ?? "");
+  return { key: label || "context-pack", label: label || "unknown" };
+};
 
 export default function RunsPage() {
   const [items, setItems] = useState<RunSummary[]>([]);
@@ -278,11 +298,14 @@ export default function RunsPage() {
               {selected.context_pack_refs && selected.context_pack_refs.length > 0 && (
                 <div className="stack">
                   <strong>Context packs</strong>
-                  {selected.context_pack_refs.map((ref) => (
-                    <div key={ref} className="item-row">
-                      <span className="muted">{ref}</span>
-                    </div>
-                  ))}
+                  {selected.context_pack_refs.map((ref, index) => {
+                    const formatted = formatContextPackRef(ref);
+                    return (
+                      <div key={`${formatted.key}-${index}`} className="item-row">
+                        <span className="muted">{formatted.label}</span>
+                      </div>
+                    );
+                  })}
                 </div>
               )}
             </>

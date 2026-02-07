@@ -279,11 +279,20 @@ export type RunSummary = {
   finished_at?: string;
 };
 
+export type ContextPackRef = {
+  id?: string;
+  name?: string;
+  purpose?: string;
+  scope?: string;
+  version?: string;
+  content_hash?: string;
+};
+
 export type RunDetail = RunSummary & {
   error?: string;
   log_text?: string;
   metadata?: Record<string, unknown> | null;
-  context_pack_refs?: string[] | null;
+  context_pack_refs?: Array<string | ContextPackRef> | null;
 };
 
 export type RunListResponse = PaginatedResponse<RunSummary, "runs">;
