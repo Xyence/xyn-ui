@@ -281,6 +281,9 @@ export type RunSummary = {
 
 export type RunDetail = RunSummary & {
   error?: string;
+  log_text?: string;
+  metadata?: Record<string, unknown> | null;
+  context_pack_refs?: string[] | null;
 };
 
 export type RunListResponse = PaginatedResponse<RunSummary, "runs">;

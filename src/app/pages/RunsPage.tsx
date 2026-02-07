@@ -168,6 +168,7 @@ export default function RunsPage() {
                 <div>
                   <strong>{item.entity_type}</strong>
                   <span className="muted small">{item.entity_id}</span>
+                  {item.summary && <span className="muted small">{item.summary}</span>}
                 </div>
                 <StatusPill status={item.status} />
               </button>
@@ -194,6 +195,10 @@ export default function RunsPage() {
                   <StatusPill status={selected.status} />
                 </div>
                 <div>
+                  <div className="label">Summary</div>
+                  <span className="muted">{selected.summary ?? "—"}</span>
+                </div>
+                <div>
                   <div className="label">Started</div>
                   <span className="muted">{selected.started_at ?? "—"}</span>
                 </div>
@@ -203,6 +208,22 @@ export default function RunsPage() {
                 </div>
               </div>
               {selected.error && <InlineMessage tone="error" title="Run error" body={selected.error} />}
+              {selected.log_text && (
+                <div className="stack">
+                  <strong>Run log</strong>
+                  <pre className="code-block">{selected.log_text}</pre>
+                </div>
+              )}
+              {selected.context_pack_refs && selected.context_pack_refs.length > 0 && (
+                <div className="stack">
+                  <strong>Context packs</strong>
+                  {selected.context_pack_refs.map((ref) => (
+                    <div key={ref} className="item-row">
+                      <span className="muted">{ref}</span>
+                    </div>
+                  ))}
+                </div>
+              )}
             </>
           )}
         </section>
