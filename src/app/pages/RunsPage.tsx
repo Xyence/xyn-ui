@@ -253,7 +253,7 @@ export default function RunsPage() {
                   <span className="muted small">{item.entity_id}</span>
                   {item.summary && <span className="muted small">{item.summary}</span>}
                   {item.created_at && (
-                    <span className="muted small">{formatRelativeTime(item.created_at)}</span>
+                    <span className="muted small"> · {formatRelativeTime(item.created_at)}</span>
                   )}
                 </div>
                 <StatusPill status={item.status} />

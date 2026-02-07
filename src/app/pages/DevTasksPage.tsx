@@ -187,7 +187,7 @@ export default function DevTasksPage() {
                   <strong>{item.title}</strong>
                   <span className="muted small">{item.task_type}</span>
                   {item.created_at && (
-                    <span className="muted small">{formatRelativeTime(item.created_at)}</span>
+                    <span className="muted small"> · {formatRelativeTime(item.created_at)}</span>
                   )}
                 </div>
                 <StatusPill status={item.status} />
