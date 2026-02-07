@@ -22,6 +22,9 @@ import {
   submitBlueprint,
   submitBlueprintWithDevTasks,
   updateBlueprint,
+  listReleaseTargets,
+  createReleaseTarget,
+  deleteReleaseTarget,
 } from "../../api/xyn";
 import type {
   BlueprintCreatePayload,
@@ -32,6 +35,7 @@ import type {
   BlueprintVoiceNote,
   ContextPackSummary,
   DevTaskSummary,
+  ReleaseTarget,
 } from "../../api/types";
 
 const emptyForm: BlueprintCreatePayload = {
@@ -58,11 +62,106 @@ export default function BlueprintsPage() {
   const [sessionContextPackIds, setSessionContextPackIds] = useState<string[]>([]);
   const [contextPacks, setContextPacks] = useState<ContextPackSummary[]>([]);
   const [selectedContextPackIds, setSelectedContextPackIds] = useState<string[]>([]);
+  const [releaseTargets, setReleaseTargets] = useState<ReleaseTarget[]>([]);
+  const [releaseTargetForm, setReleaseTargetForm] = useState({
+    name: "",
+    environment: "",
+    fqdn: "",
+    target_instance_id: "",
+    zone_name: "",
+    zone_id: "",
+    tls_mode: "none",
+    acme_email: "",
+  });
   const [uploading, setUploading] = useState(false);
   const [creatingSession, setCreatingSession] = useState(false);
   const [loading, setLoading] = useState(false);
   const [message, setMessage] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
+
+  const handleCreateReleaseTarget = async () => {
+    if (!selected) return;
+    setError(null);
+    try {
+      await createReleaseTarget({
+        blueprint_id: selected.id,
+        name: releaseTargetForm.name,
+        environment: releaseTargetForm.environment || undefined,
+        fqdn: releaseTargetForm.fqdn,
+        target_instance_id: releaseTargetForm.target_instance_id,
+        dns: {
+          provider: "route53",
+          zone_name: releaseTargetForm.zone_name || undefined,
+          zone_id: releaseTargetForm.zone_id || undefined,
+          record_type: "A",
+          ttl: 60,
+        },
+        runtime: {
+          type: "docker-compose",
+          transport: "ssm",
+          compose_file_path: "apps/ems-stack/docker-compose.yml",
+          remote_root: "/opt/xyn/apps/ems",
+        },
+        tls: {
+          mode: releaseTargetForm.tls_mode,
+          acme_email: releaseTargetForm.acme_email || undefined,
+          redirect_http_to_https: true,
+        },
+      });
+      const targets = await listReleaseTargets(selected.id);
+      setReleaseTargets(targets.release_targets);
+      setReleaseTargetForm({
+        name: "",
+        environment: "",
+        fqdn: "",
+        target_instance_id: "",
+        zone_name: "",
+        zone_id: "",
+        tls_mode: "none",
+        acme_email: "",
+      });
+      setMessage("Release target created.");
+    } catch (err) {
+      setError((err as Error).message);
+    }
+  };
+
+  const handleDeleteReleaseTarget = async (id: string) => {
+    if (!selected) return;
+    if (!confirm("Delete this release target?")) return;
+    setError(null);
+    try {
+      await deleteReleaseTarget(id);
+      const targets = await listReleaseTargets(selected.id);
+      setReleaseTargets(targets.release_targets);
+    } catch (err) {
+      setError((err as Error).message);
+    }
+  };
+
+  const handleSetDefaultReleaseTarget = async (id: string) => {
+    if (!selected) return;
+    setError(null);
+    try {
+      const nextMetadata = {
+        ...(selected.metadata_json || {}),
+        default_release_target_id: id,
+      };
+      await updateBlueprint(selected.id, {
+        name: selected.name,
+        namespace: selected.namespace,
+        description: selected.description ?? "",
+        spec_text: selected.spec_text ?? "",
+        metadata_json: nextMetadata,
+      });
+      const detail = await getBlueprint(selected.id);
+      setSelected(detail);
+      setMetadataText(detail.metadata_json ? JSON.stringify(detail.metadata_json, null, 2) : "");
+      setMessage("Default release target updated.");
+    } catch (err) {
+      setError((err as Error).message);
+    }
+  };
 
   const load = useCallback(async () => {
     try {
@@ -115,6 +214,8 @@ export default function BlueprintsPage() {
         setDraftSessions(sessions.sessions);
         const notes = await listBlueprintVoiceNotes(selectedId);
         setVoiceNotes(notes.voice_notes);
+        const targets = await listReleaseTargets(selectedId);
+        setReleaseTargets(targets.release_targets);
       } catch (err) {
         setError((err as Error).message);
       }
@@ -539,6 +640,126 @@ export default function BlueprintsPage() {
             </div>
           )}
         </section>
+        {selected && (
+          <section className="card">
+            <div className="card-header">
+              <h3>Release Targets</h3>
+            </div>
+            {releaseTargets.length === 0 ? (
+              <p className="muted">No release targets yet.</p>
+            ) : (
+              <div className="stack">
+                {releaseTargets.map((target) => (
+                  <div key={target.id} className="item-row">
+                    <div>
+                      <strong>{target.name}</strong>
+                      <span className="muted small">{target.fqdn}</span>
+                    </div>
+                    <div className="inline-actions">
+                      <span className="muted small">{target.tls?.mode ?? "none"}</span>
+                      <button
+                        className="ghost small"
+                        onClick={() => handleSetDefaultReleaseTarget(target.id)}
+                        disabled={loading}
+                      >
+                        Set default
+                      </button>
+                      <button
+                        className="ghost small"
+                        onClick={() => handleDeleteReleaseTarget(target.id)}
+                        disabled={loading}
+                      >
+                        Delete
+                      </button>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            )}
+            <div className="form-grid">
+              <label>
+                Name
+                <input
+                  value={releaseTargetForm.name}
+                  onChange={(event) =>
+                    setReleaseTargetForm({ ...releaseTargetForm, name: event.target.value })
+                  }
+                />
+              </label>
+              <label>
+                Environment
+                <input
+                  value={releaseTargetForm.environment}
+                  onChange={(event) =>
+                    setReleaseTargetForm({ ...releaseTargetForm, environment: event.target.value })
+                  }
+                />
+              </label>
+              <label className="span-full">
+                FQDN
+                <input
+                  value={releaseTargetForm.fqdn}
+                  onChange={(event) =>
+                    setReleaseTargetForm({ ...releaseTargetForm, fqdn: event.target.value })
+                  }
+                />
+              </label>
+              <label>
+                Target instance ID
+                <input
+                  value={releaseTargetForm.target_instance_id}
+                  onChange={(event) =>
+                    setReleaseTargetForm({ ...releaseTargetForm, target_instance_id: event.target.value })
+                  }
+                />
+              </label>
+              <label>
+                DNS zone name
+                <input
+                  value={releaseTargetForm.zone_name}
+                  onChange={(event) =>
+                    setReleaseTargetForm({ ...releaseTargetForm, zone_name: event.target.value })
+                  }
+                />
+              </label>
+              <label>
+                DNS zone id
+                <input
+                  value={releaseTargetForm.zone_id}
+                  onChange={(event) =>
+                    setReleaseTargetForm({ ...releaseTargetForm, zone_id: event.target.value })
+                  }
+                />
+              </label>
+              <label>
+                TLS mode
+                <select
+                  value={releaseTargetForm.tls_mode}
+                  onChange={(event) =>
+                    setReleaseTargetForm({ ...releaseTargetForm, tls_mode: event.target.value })
+                  }
+                >
+                  <option value="none">none</option>
+                  <option value="nginx+acme">nginx+acme</option>
+                </select>
+              </label>
+              <label>
+                ACME email
+                <input
+                  value={releaseTargetForm.acme_email}
+                  onChange={(event) =>
+                    setReleaseTargetForm({ ...releaseTargetForm, acme_email: event.target.value })
+                  }
+                />
+              </label>
+            </div>
+            <div className="form-actions">
+              <button className="primary" onClick={handleCreateReleaseTarget} disabled={loading}>
+                Add release target
+              </button>
+            </div>
+          </section>
+        )}
         {selected && (
           <section className="card">
             <div className="card-header">

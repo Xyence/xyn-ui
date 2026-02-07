@@ -221,6 +221,67 @@ export type ReleasePlanCreatePayload = {
 
 export type ReleasePlanListResponse = PaginatedResponse<ReleasePlanSummary, "release_plans">;
 
+export type ReleaseTarget = {
+  id: string;
+  blueprint_id: string;
+  name: string;
+  environment?: string;
+  target_instance_id: string;
+  fqdn: string;
+  dns: {
+    provider: string;
+    zone_name?: string;
+    zone_id?: string;
+    record_type?: string;
+    ttl?: number;
+  };
+  runtime: {
+    type: string;
+    transport: string;
+    remote_root?: string;
+    compose_file_path?: string;
+  };
+  tls: {
+    mode: string;
+    acme_email?: string;
+    redirect_http_to_https?: boolean;
+  };
+  env?: Record<string, string>;
+  secret_refs?: { name: string; ref: string }[];
+  created_at?: string;
+  updated_at?: string;
+};
+
+export type ReleaseTargetCreatePayload = {
+  blueprint_id: string;
+  name: string;
+  environment?: string;
+  target_instance_id: string;
+  fqdn: string;
+  dns?: {
+    provider?: string;
+    zone_name?: string;
+    zone_id?: string;
+    record_type?: string;
+    ttl?: number;
+  };
+  runtime?: {
+    type?: string;
+    transport?: string;
+    remote_root?: string;
+    compose_file_path?: string;
+  };
+  tls?: {
+    mode?: string;
+    acme_email?: string;
+    redirect_http_to_https?: boolean;
+  };
+  env?: Record<string, string>;
+  secret_refs?: { name: string; ref: string }[];
+};
+
+export type ReleaseTargetListResponse = { release_targets: ReleaseTarget[] };
+
 export type ReleaseSummary = {
   id: string;
   version: string;

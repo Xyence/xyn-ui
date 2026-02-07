@@ -25,6 +25,9 @@ import type {
   ReleaseDetail,
   ReleaseListResponse,
   ReleaseSummary,
+  ReleaseTarget,
+  ReleaseTargetCreatePayload,
+  ReleaseTargetListResponse,
   RunArtifact,
   RunCommandExecution,
   RunDetail,
@@ -130,6 +133,58 @@ export async function listBlueprintDraftSessions(
     credentials: "include",
   });
   return handle<{ sessions: BlueprintDraftSession[] }>(response);
+}
+
+export async function listReleaseTargets(blueprintId?: string): Promise<ReleaseTargetListResponse> {
+  const apiBaseUrl = resolveApiBaseUrl();
+  const url = new URL(`${apiBaseUrl}/xyn/api/release-targets`);
+  if (blueprintId) {
+    url.searchParams.set("blueprint_id", blueprintId);
+  }
+  const response = await apiFetch(url.toString(), { credentials: "include" });
+  return handle<ReleaseTargetListResponse>(response);
+}
+
+export async function createReleaseTarget(payload: ReleaseTargetCreatePayload): Promise<{ id: string }> {
+  const apiBaseUrl = resolveApiBaseUrl();
+  const response = await apiFetch(`${apiBaseUrl}/xyn/api/release-targets`, {
+    method: "POST",
+    headers: buildHeaders(),
+    credentials: "include",
+    body: JSON.stringify(payload),
+  });
+  return handle<{ id: string }>(response);
+}
+
+export async function getReleaseTarget(id: string): Promise<ReleaseTarget> {
+  const apiBaseUrl = resolveApiBaseUrl();
+  const response = await apiFetch(`${apiBaseUrl}/xyn/api/release-targets/${id}`, {
+    credentials: "include",
+  });
+  return handle<ReleaseTarget>(response);
+}
+
+export async function updateReleaseTarget(
+  id: string,
+  payload: Partial<ReleaseTargetCreatePayload>
+): Promise<{ id: string }> {
+  const apiBaseUrl = resolveApiBaseUrl();
+  const response = await apiFetch(`${apiBaseUrl}/xyn/api/release-targets/${id}`, {
+    method: "PATCH",
+    headers: buildHeaders(),
+    credentials: "include",
+    body: JSON.stringify(payload),
+  });
+  return handle<{ id: string }>(response);
+}
+
+export async function deleteReleaseTarget(id: string): Promise<void> {
+  const apiBaseUrl = resolveApiBaseUrl();
+  const response = await apiFetch(`${apiBaseUrl}/xyn/api/release-targets/${id}`, {
+    method: "DELETE",
+    credentials: "include",
+  });
+  await handle<void>(response);
 }
 
 export async function createBlueprintDraftSession(
