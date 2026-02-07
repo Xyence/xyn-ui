@@ -64,9 +64,23 @@ function apiFetch(input: RequestInfo | URL, init: RequestInit = {}) {
 }
 
 async function handle<T>(response: Response): Promise<T> {
+  const contentType = response.headers.get("content-type") || "";
   if (!response.ok) {
     const message = await response.text();
+    if (message.includes("<!DOCTYPE") || message.includes("<html")) {
+      throw new Error("Not authenticated. Please sign in.");
+    }
     throw new Error(message || `Request failed (${response.status})`);
+  }
+  if (response.status === 204) {
+    return {} as T;
+  }
+  if (!contentType.includes("application/json")) {
+    const message = await response.text();
+    if (message.includes("<!DOCTYPE") || message.includes("<html")) {
+      throw new Error("Not authenticated. Please sign in.");
+    }
+    throw new Error(message || "Unexpected response format.");
   }
   return (await response.json()) as T;
 }

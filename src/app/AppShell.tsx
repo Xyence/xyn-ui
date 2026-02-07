@@ -1,6 +1,7 @@
 import { useEffect, useState } from "react";
 import { NavLink, Navigate, Route, Routes } from "react-router-dom";
 import { getStoredIdToken } from "../api/client";
+import { getWhoAmI } from "../api/xyn";
 import BlueprintsPage from "./pages/BlueprintsPage";
 import InstancesPage from "./pages/InstancesPage";
 import ModulesPage from "./pages/ModulesPage";
@@ -21,6 +22,23 @@ export default function AppShell() {
     const onStorage = () => setAuthed(Boolean(getStoredIdToken()));
     window.addEventListener("storage", onStorage);
     return () => window.removeEventListener("storage", onStorage);
+  }, []);
+
+  useEffect(() => {
+    let mounted = true;
+    (async () => {
+      try {
+        const whoami = await getWhoAmI();
+        if (!mounted) return;
+        setAuthed(Boolean(whoami.authenticated) || Boolean(getStoredIdToken()));
+      } catch {
+        if (!mounted) return;
+        setAuthed(Boolean(getStoredIdToken()));
+      }
+    })();
+    return () => {
+      mounted = false;
+    };
   }, []);
 
   return (
