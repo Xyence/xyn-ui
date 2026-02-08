@@ -5,9 +5,19 @@ import {
   createContact,
   deleteContact,
   listContacts,
+  listMemberships,
+  createMembership,
+  updateMembership,
+  deleteMembership,
+  listIdentities,
   updateContact,
 } from "../../api/xyn";
-import type { Contact, ContactCreatePayload } from "../../api/types";
+import type {
+  Contact,
+  ContactCreatePayload,
+  IdentitySummary,
+  MembershipSummary,
+} from "../../api/types";
 
 const emptyForm: ContactCreatePayload = {
   name: "",
@@ -22,6 +32,10 @@ export default function PlatformTenantContactsPage() {
   const [contacts, setContacts] = useState<Contact[]>([]);
   const [selectedId, setSelectedId] = useState<string | null>(null);
   const [form, setForm] = useState<ContactCreatePayload>(emptyForm);
+  const [memberships, setMemberships] = useState<MembershipSummary[]>([]);
+  const [identities, setIdentities] = useState<IdentitySummary[]>([]);
+  const [selectedIdentity, setSelectedIdentity] = useState<string>("");
+  const [membershipRole, setMembershipRole] = useState("tenant_viewer");
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [message, setMessage] = useState<string | null>(null);
@@ -32,6 +46,13 @@ export default function PlatformTenantContactsPage() {
       setError(null);
       const data = await listContacts(tenantId);
       setContacts(data.contacts);
+      const membershipData = await listMemberships(tenantId);
+      setMemberships(membershipData.memberships);
+      const identitiesData = await listIdentities();
+      setIdentities(identitiesData.identities);
+      if (!selectedIdentity && identitiesData.identities[0]) {
+        setSelectedIdentity(identitiesData.identities[0].id);
+      }
       if (!selectedId && data.contacts[0]) {
         setSelectedId(data.contacts[0].id);
       }
@@ -106,6 +127,44 @@ export default function PlatformTenantContactsPage() {
       setError((err as Error).message);
     } finally {
       setLoading(false);
+    }
+  };
+
+  const handleAddMember = async () => {
+    if (!tenantId || !selectedIdentity) return;
+    try {
+      setError(null);
+      setMessage(null);
+      await createMembership(tenantId, { user_identity_id: selectedIdentity, role: membershipRole });
+      await load();
+      setMessage("Member added.");
+    } catch (err) {
+      setError((err as Error).message);
+    }
+  };
+
+  const handleUpdateMembership = async (membershipId: string, role: string) => {
+    try {
+      setError(null);
+      setMessage(null);
+      await updateMembership(membershipId, { role });
+      await load();
+      setMessage("Membership updated.");
+    } catch (err) {
+      setError((err as Error).message);
+    }
+  };
+
+  const handleRemoveMembership = async (membershipId: string) => {
+    if (!confirm("Deactivate this membership?")) return;
+    try {
+      setError(null);
+      setMessage(null);
+      await deleteMembership(membershipId);
+      await load();
+      setMessage("Membership deactivated.");
+    } catch (err) {
+      setError((err as Error).message);
     }
   };
 
@@ -208,6 +267,57 @@ export default function PlatformTenantContactsPage() {
           </div>
         </section>
       </div>
+
+      <section className="card">
+        <div className="card-header">
+          <h3>Memberships</h3>
+        </div>
+        <div className="form-grid">
+          <label>
+            Identity
+            <select value={selectedIdentity} onChange={(event) => setSelectedIdentity(event.target.value)}>
+              {identities.map((identity) => (
+                <option key={identity.id} value={identity.id}>
+                  {identity.display_name || identity.email || identity.subject}
+                </option>
+              ))}
+            </select>
+          </label>
+          <label>
+            Role
+            <select value={membershipRole} onChange={(event) => setMembershipRole(event.target.value)}>
+              <option value="tenant_viewer">tenant_viewer</option>
+              <option value="tenant_operator">tenant_operator</option>
+              <option value="tenant_admin">tenant_admin</option>
+            </select>
+          </label>
+          <button className="primary" onClick={handleAddMember} disabled={!selectedIdentity}>
+            Add member
+          </button>
+        </div>
+        <div className="instance-list">
+          {memberships.map((membership) => (
+            <div key={membership.id} className="instance-row">
+              <div>
+                <strong>{membership.user_display_name || membership.user_email || membership.user_identity_id}</strong>
+                <span className="muted small">{membership.user_email}</span>
+              </div>
+              <select
+                value={membership.role}
+                onChange={(event) => handleUpdateMembership(membership.id, event.target.value)}
+              >
+                <option value="tenant_viewer">tenant_viewer</option>
+                <option value="tenant_operator">tenant_operator</option>
+                <option value="tenant_admin">tenant_admin</option>
+              </select>
+              <button className="ghost" onClick={() => handleRemoveMembership(membership.id)}>
+                Deactivate
+              </button>
+            </div>
+          ))}
+          {memberships.length === 0 && <p className="muted">No memberships yet.</p>}
+        </div>
+      </section>
     </>
   );
 }

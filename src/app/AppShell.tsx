@@ -11,15 +11,16 @@ import RunsPage from "./pages/RunsPage";
 import ActivityPage from "./pages/ActivityPage";
 import DevTasksPage from "./pages/DevTasksPage";
 import ContextPacksPage from "./pages/ContextPacksPage";
-import AuthCallbackPage from "./pages/AuthCallbackPage";
 import PlatformTenantsPage from "./pages/PlatformTenantsPage";
 import PlatformTenantContactsPage from "./pages/PlatformTenantContactsPage";
 import PlatformUsersPage from "./pages/PlatformUsersPage";
 import PlatformRolesPage from "./pages/PlatformRolesPage";
+import MyTenantsPage from "./pages/MyTenantsPage";
 
 export default function AppShell() {
   const [authed, setAuthed] = useState(false);
   const [roles, setRoles] = useState<string[]>([]);
+  const [authLoaded, setAuthLoaded] = useState(false);
 
   useEffect(() => {
     let mounted = true;
@@ -33,6 +34,10 @@ export default function AppShell() {
         if (!mounted) return;
         setAuthed(false);
         setRoles([]);
+      } finally {
+        if (mounted) {
+          setAuthLoaded(true);
+        }
       }
     })();
     return () => {
@@ -41,6 +46,22 @@ export default function AppShell() {
   }, []);
 
   const isPlatformAdmin = roles.includes("platform_admin");
+
+  if (!authLoaded) {
+    return (
+      <div className="app-shell">
+        <header className="app-header">
+          <div className="brand">
+            <img className="brand-logo" src="/xyence-logo.png" alt="Xyence logo" />
+            <div>
+              <h1>Xyn Console</h1>
+              <p>Loading session…</p>
+            </div>
+          </div>
+        </header>
+      </div>
+    );
+  }
 
   return (
     <div className="app-shell">
@@ -70,6 +91,14 @@ export default function AppShell() {
 
       <div className="app-body">
         <aside className="app-sidebar">
+          {!isPlatformAdmin && (
+            <NavLink
+              className={({ isActive }) => (isActive ? "app-nav-link active" : "app-nav-link")}
+              to="/app/tenants"
+            >
+              Tenants
+            </NavLink>
+          )}
           <NavLink
             className={({ isActive }) => (isActive ? "app-nav-link active" : "app-nav-link")}
             to="/app/instances"
@@ -157,7 +186,6 @@ export default function AppShell() {
         <main className="app-content">
           <Routes>
             <Route path="/" element={<Navigate to="instances" replace />} />
-            <Route path="auth/callback" element={<AuthCallbackPage />} />
             <Route path="instances" element={<InstancesPage />} />
             <Route path="blueprints" element={<BlueprintsPage />} />
             <Route path="registries" element={<RegistriesPage />} />
@@ -168,6 +196,12 @@ export default function AppShell() {
             <Route path="dev-tasks" element={<DevTasksPage />} />
             <Route path="context-packs" element={<ContextPacksPage />} />
             <Route path="activity" element={<ActivityPage />} />
+            {!isPlatformAdmin && (
+              <>
+                <Route path="tenants" element={<MyTenantsPage />} />
+                <Route path="tenants/:tenantId" element={<PlatformTenantContactsPage />} />
+              </>
+            )}
             {isPlatformAdmin && (
               <>
                 <Route path="platform/tenants" element={<PlatformTenantsPage />} />

@@ -45,6 +45,9 @@ import type {
   IdentityListResponse,
   RoleBindingListResponse,
   RoleBindingCreatePayload,
+  MembershipListResponse,
+  MembershipCreatePayload,
+  MyProfile,
 } from "./types";
 import { authHeaders, resolveApiBaseUrl } from "./client";
 
@@ -97,6 +100,12 @@ export async function getMe(): Promise<{ user: Record<string, string | null>; ro
   const apiBaseUrl = resolveApiBaseUrl();
   const response = await apiFetch(`${apiBaseUrl}/xyn/api/me`, { credentials: "include" });
   return handle<{ user: Record<string, string | null>; roles: string[] }>(response);
+}
+
+export async function getMyProfile(): Promise<MyProfile> {
+  const apiBaseUrl = resolveApiBaseUrl();
+  const response = await apiFetch(`${apiBaseUrl}/xyn/api/my/profile`, { credentials: "include" });
+  return handle<MyProfile>(response);
 }
 
 export async function listBlueprints(query = ""): Promise<BlueprintListResponse> {
@@ -248,6 +257,48 @@ export async function createRoleBinding(payload: RoleBindingCreatePayload): Prom
 export async function deleteRoleBinding(id: string): Promise<void> {
   const apiBaseUrl = resolveApiBaseUrl();
   const response = await apiFetch(`${apiBaseUrl}/xyn/internal/role_bindings/${id}`, {
+    method: "DELETE",
+    credentials: "include",
+  });
+  await handle<void>(response);
+}
+
+export async function listMemberships(tenantId: string): Promise<MembershipListResponse> {
+  const apiBaseUrl = resolveApiBaseUrl();
+  const response = await apiFetch(`${apiBaseUrl}/xyn/internal/tenants/${tenantId}/memberships`, {
+    credentials: "include",
+  });
+  return handle<MembershipListResponse>(response);
+}
+
+export async function createMembership(
+  tenantId: string,
+  payload: MembershipCreatePayload
+): Promise<{ id: string }> {
+  const apiBaseUrl = resolveApiBaseUrl();
+  const response = await apiFetch(`${apiBaseUrl}/xyn/internal/tenants/${tenantId}/memberships`, {
+    method: "POST",
+    headers: buildHeaders(),
+    credentials: "include",
+    body: JSON.stringify(payload),
+  });
+  return handle<{ id: string }>(response);
+}
+
+export async function updateMembership(id: string, payload: Partial<MembershipCreatePayload>): Promise<{ id: string }> {
+  const apiBaseUrl = resolveApiBaseUrl();
+  const response = await apiFetch(`${apiBaseUrl}/xyn/internal/memberships/${id}`, {
+    method: "PATCH",
+    headers: buildHeaders(),
+    credentials: "include",
+    body: JSON.stringify(payload),
+  });
+  return handle<{ id: string }>(response);
+}
+
+export async function deleteMembership(id: string): Promise<void> {
+  const apiBaseUrl = resolveApiBaseUrl();
+  const response = await apiFetch(`${apiBaseUrl}/xyn/internal/memberships/${id}`, {
     method: "DELETE",
     credentials: "include",
   });

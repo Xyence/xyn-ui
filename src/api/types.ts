@@ -373,6 +373,38 @@ export type RoleBindingCreatePayload = {
   role: string;
 };
 
+export type MembershipSummary = {
+  id: string;
+  tenant_id: string;
+  user_identity_id: string;
+  role: string;
+  status: string;
+  user_email?: string | null;
+  user_display_name?: string | null;
+};
+
+export type MembershipListResponse = { memberships: MembershipSummary[] };
+
+export type MembershipCreatePayload = {
+  user_identity_id: string;
+  role: string;
+};
+
+export type MyProfile = {
+  user: {
+    issuer: string;
+    subject: string;
+    email?: string | null;
+    display_name?: string | null;
+  };
+  roles: string[];
+  memberships: Array<{
+    tenant_id: string;
+    tenant_name: string;
+    role: string;
+  }>;
+};
+
 export type ReleaseSummary = {
   id: string;
   version: string;
