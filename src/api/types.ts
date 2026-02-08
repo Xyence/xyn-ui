@@ -256,6 +256,8 @@ export type ReleaseTarget = {
     transport: string;
     remote_root?: string;
     compose_file_path?: string;
+    mode?: string;
+    image_deploy?: boolean;
   };
   tls: {
     mode: string;
@@ -286,6 +288,8 @@ export type ReleaseTargetCreatePayload = {
     transport?: string;
     remote_root?: string;
     compose_file_path?: string;
+    mode?: string;
+    image_deploy?: boolean;
   };
   tls?: {
     mode?: string;
