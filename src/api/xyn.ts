@@ -36,6 +36,15 @@ import type {
   ContextPackCreatePayload,
   ContextPackDetail,
   ContextPackListResponse,
+  Tenant,
+  TenantCreatePayload,
+  TenantListResponse,
+  Contact,
+  ContactCreatePayload,
+  ContactListResponse,
+  IdentityListResponse,
+  RoleBindingListResponse,
+  RoleBindingCreatePayload,
 } from "./types";
 import { authHeaders, resolveApiBaseUrl } from "./client";
 
@@ -84,6 +93,12 @@ export async function getWhoAmI(): Promise<{ authenticated: boolean; username?: 
   return handle<{ authenticated: boolean; username?: string; email?: string }>(response);
 }
 
+export async function getMe(): Promise<{ user: Record<string, string | null>; roles: string[] }> {
+  const apiBaseUrl = resolveApiBaseUrl();
+  const response = await apiFetch(`${apiBaseUrl}/xyn/api/me`, { credentials: "include" });
+  return handle<{ user: Record<string, string | null>; roles: string[] }>(response);
+}
+
 export async function listBlueprints(query = ""): Promise<BlueprintListResponse> {
   const apiBaseUrl = resolveApiBaseUrl();
   const url = new URL(`${apiBaseUrl}/xyn/api/blueprints`);
@@ -123,6 +138,120 @@ export async function updateBlueprint(id: string, payload: BlueprintCreatePayloa
     body: JSON.stringify(payload),
   });
   return handle<{ id: string }>(response);
+}
+
+export async function listTenants(): Promise<TenantListResponse> {
+  const apiBaseUrl = resolveApiBaseUrl();
+  const response = await apiFetch(`${apiBaseUrl}/xyn/internal/tenants`, { credentials: "include" });
+  return handle<TenantListResponse>(response);
+}
+
+export async function createTenant(payload: TenantCreatePayload): Promise<{ id: string }> {
+  const apiBaseUrl = resolveApiBaseUrl();
+  const response = await apiFetch(`${apiBaseUrl}/xyn/internal/tenants`, {
+    method: "POST",
+    headers: buildHeaders(),
+    credentials: "include",
+    body: JSON.stringify(payload),
+  });
+  return handle<{ id: string }>(response);
+}
+
+export async function updateTenant(id: string, payload: Partial<TenantCreatePayload>): Promise<{ id: string }> {
+  const apiBaseUrl = resolveApiBaseUrl();
+  const response = await apiFetch(`${apiBaseUrl}/xyn/internal/tenants/${id}`, {
+    method: "PATCH",
+    headers: buildHeaders(),
+    credentials: "include",
+    body: JSON.stringify(payload),
+  });
+  return handle<{ id: string }>(response);
+}
+
+export async function deleteTenant(id: string): Promise<void> {
+  const apiBaseUrl = resolveApiBaseUrl();
+  const response = await apiFetch(`${apiBaseUrl}/xyn/internal/tenants/${id}`, {
+    method: "DELETE",
+    credentials: "include",
+  });
+  await handle<void>(response);
+}
+
+export async function listContacts(tenantId: string): Promise<ContactListResponse> {
+  const apiBaseUrl = resolveApiBaseUrl();
+  const response = await apiFetch(`${apiBaseUrl}/xyn/internal/tenants/${tenantId}/contacts`, {
+    credentials: "include",
+  });
+  return handle<ContactListResponse>(response);
+}
+
+export async function createContact(tenantId: string, payload: ContactCreatePayload): Promise<{ id: string }> {
+  const apiBaseUrl = resolveApiBaseUrl();
+  const response = await apiFetch(`${apiBaseUrl}/xyn/internal/tenants/${tenantId}/contacts`, {
+    method: "POST",
+    headers: buildHeaders(),
+    credentials: "include",
+    body: JSON.stringify(payload),
+  });
+  return handle<{ id: string }>(response);
+}
+
+export async function updateContact(id: string, payload: Partial<ContactCreatePayload>): Promise<{ id: string }> {
+  const apiBaseUrl = resolveApiBaseUrl();
+  const response = await apiFetch(`${apiBaseUrl}/xyn/internal/contacts/${id}`, {
+    method: "PATCH",
+    headers: buildHeaders(),
+    credentials: "include",
+    body: JSON.stringify(payload),
+  });
+  return handle<{ id: string }>(response);
+}
+
+export async function deleteContact(id: string): Promise<void> {
+  const apiBaseUrl = resolveApiBaseUrl();
+  const response = await apiFetch(`${apiBaseUrl}/xyn/internal/contacts/${id}`, {
+    method: "DELETE",
+    credentials: "include",
+  });
+  await handle<void>(response);
+}
+
+export async function listIdentities(): Promise<IdentityListResponse> {
+  const apiBaseUrl = resolveApiBaseUrl();
+  const response = await apiFetch(`${apiBaseUrl}/xyn/internal/identities`, {
+    credentials: "include",
+  });
+  return handle<IdentityListResponse>(response);
+}
+
+export async function listRoleBindings(identityId?: string): Promise<RoleBindingListResponse> {
+  const apiBaseUrl = resolveApiBaseUrl();
+  const url = new URL(`${apiBaseUrl}/xyn/internal/role_bindings`);
+  if (identityId) {
+    url.searchParams.set("identity_id", identityId);
+  }
+  const response = await apiFetch(url.toString(), { credentials: "include" });
+  return handle<RoleBindingListResponse>(response);
+}
+
+export async function createRoleBinding(payload: RoleBindingCreatePayload): Promise<{ id: string }> {
+  const apiBaseUrl = resolveApiBaseUrl();
+  const response = await apiFetch(`${apiBaseUrl}/xyn/internal/role_bindings`, {
+    method: "POST",
+    headers: buildHeaders(),
+    credentials: "include",
+    body: JSON.stringify(payload),
+  });
+  return handle<{ id: string }>(response);
+}
+
+export async function deleteRoleBinding(id: string): Promise<void> {
+  const apiBaseUrl = resolveApiBaseUrl();
+  const response = await apiFetch(`${apiBaseUrl}/xyn/internal/role_bindings/${id}`, {
+    method: "DELETE",
+    credentials: "include",
+  });
+  await handle<void>(response);
 }
 
 export async function listBlueprintDraftSessions(

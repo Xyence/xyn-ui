@@ -163,6 +163,15 @@ input {
   color: var(--accent);
 }
 
+.nav-section {
+  margin-top: 8px;
+  font-size: 12px;
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+  color: var(--muted);
+  padding: 4px 10px;
+}
+
 .app-content {
   display: flex;
   flex-direction: column;

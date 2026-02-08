@@ -302,6 +302,77 @@ export type ReleaseTargetCreatePayload = {
 
 export type ReleaseTargetListResponse = { release_targets: ReleaseTarget[] };
 
+export type Tenant = {
+  id: string;
+  name: string;
+  slug: string;
+  status: string;
+  metadata_json?: Record<string, unknown> | null;
+  created_at?: string;
+  updated_at?: string;
+};
+
+export type TenantListResponse = { tenants: Tenant[]; count?: number; next?: number | null; prev?: number | null };
+
+export type TenantCreatePayload = {
+  name?: string;
+  slug?: string;
+  status?: string;
+  metadata_json?: Record<string, unknown> | null;
+};
+
+export type Contact = {
+  id: string;
+  tenant_id: string;
+  name: string;
+  email?: string | null;
+  phone?: string | null;
+  role_title?: string | null;
+  status: string;
+  metadata_json?: Record<string, unknown> | null;
+  created_at?: string;
+  updated_at?: string;
+};
+
+export type ContactListResponse = { contacts: Contact[] };
+
+export type ContactCreatePayload = {
+  name?: string;
+  email?: string | null;
+  phone?: string | null;
+  role_title?: string | null;
+  status?: string;
+  metadata_json?: Record<string, unknown> | null;
+};
+
+export type IdentitySummary = {
+  id: string;
+  provider: string;
+  issuer: string;
+  subject: string;
+  email?: string | null;
+  display_name?: string | null;
+  last_login_at?: string | null;
+};
+
+export type IdentityListResponse = { identities: IdentitySummary[] };
+
+export type RoleBindingSummary = {
+  id: string;
+  user_identity_id: string;
+  scope_kind: string;
+  scope_id?: string | null;
+  role: string;
+  created_at?: string;
+};
+
+export type RoleBindingListResponse = { role_bindings: RoleBindingSummary[] };
+
+export type RoleBindingCreatePayload = {
+  user_identity_id: string;
+  role: string;
+};
+
 export type ReleaseSummary = {
   id: string;
   version: string;

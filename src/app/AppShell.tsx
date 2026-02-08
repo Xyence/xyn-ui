@@ -1,7 +1,6 @@
 import { useEffect, useState } from "react";
 import { NavLink, Navigate, Route, Routes } from "react-router-dom";
-import { getStoredIdToken } from "../api/client";
-import { getWhoAmI } from "../api/xyn";
+import { getMe } from "../api/xyn";
 import BlueprintsPage from "./pages/BlueprintsPage";
 import InstancesPage from "./pages/InstancesPage";
 import ModulesPage from "./pages/ModulesPage";
@@ -13,33 +12,35 @@ import ActivityPage from "./pages/ActivityPage";
 import DevTasksPage from "./pages/DevTasksPage";
 import ContextPacksPage from "./pages/ContextPacksPage";
 import AuthCallbackPage from "./pages/AuthCallbackPage";
-import { isOidcConfigured, logout, startLogin } from "./auth/oidc";
+import PlatformTenantsPage from "./pages/PlatformTenantsPage";
+import PlatformTenantContactsPage from "./pages/PlatformTenantContactsPage";
+import PlatformUsersPage from "./pages/PlatformUsersPage";
+import PlatformRolesPage from "./pages/PlatformRolesPage";
 
 export default function AppShell() {
-  const [authed, setAuthed] = useState(Boolean(getStoredIdToken()));
-
-  useEffect(() => {
-    const onStorage = () => setAuthed(Boolean(getStoredIdToken()));
-    window.addEventListener("storage", onStorage);
-    return () => window.removeEventListener("storage", onStorage);
-  }, []);
+  const [authed, setAuthed] = useState(false);
+  const [roles, setRoles] = useState<string[]>([]);
 
   useEffect(() => {
     let mounted = true;
     (async () => {
       try {
-        const whoami = await getWhoAmI();
+        const me = await getMe();
         if (!mounted) return;
-        setAuthed(Boolean(whoami.authenticated) || Boolean(getStoredIdToken()));
+        setAuthed(Boolean(me?.user));
+        setRoles(me?.roles ?? []);
       } catch {
         if (!mounted) return;
-        setAuthed(Boolean(getStoredIdToken()));
+        setAuthed(false);
+        setRoles([]);
       }
     })();
     return () => {
       mounted = false;
     };
   }, []);
+
+  const isPlatformAdmin = roles.includes("platform_admin");
 
   return (
     <div className="app-shell">
@@ -52,18 +53,17 @@ export default function AppShell() {
           </div>
         </div>
         <div className="header-meta">
-          {isOidcConfigured() ? (
-            authed ? (
-              <button className="ghost" onClick={() => logout()}>
-                Sign out
-              </button>
-            ) : (
-              <button className="ghost" onClick={() => startLogin(window.location.pathname)}>
-                Sign in
-              </button>
-            )
+          {authed ? (
+            <button className="ghost" onClick={() => fetch("/auth/logout", { method: "POST" }).then(() => setAuthed(false))}>
+              Sign out
+            </button>
           ) : (
-            <span className="meta-pill">Auth not configured</span>
+            <button
+              className="ghost"
+              onClick={() => (window.location.href = `/auth/login?next=${encodeURIComponent(window.location.pathname)}`)}
+            >
+              Sign in
+            </button>
           )}
         </div>
       </header>
@@ -130,6 +130,29 @@ export default function AppShell() {
           >
             Activity
           </NavLink>
+          {isPlatformAdmin && (
+            <>
+              <div className="nav-section">Platform</div>
+              <NavLink
+                className={({ isActive }) => (isActive ? "app-nav-link active" : "app-nav-link")}
+                to="/app/platform/tenants"
+              >
+                Tenants
+              </NavLink>
+              <NavLink
+                className={({ isActive }) => (isActive ? "app-nav-link active" : "app-nav-link")}
+                to="/app/platform/users"
+              >
+                Users
+              </NavLink>
+              <NavLink
+                className={({ isActive }) => (isActive ? "app-nav-link active" : "app-nav-link")}
+                to="/app/platform/roles"
+              >
+                Roles
+              </NavLink>
+            </>
+          )}
         </aside>
         <main className="app-content">
           <Routes>
@@ -145,6 +168,14 @@ export default function AppShell() {
             <Route path="dev-tasks" element={<DevTasksPage />} />
             <Route path="context-packs" element={<ContextPacksPage />} />
             <Route path="activity" element={<ActivityPage />} />
+            {isPlatformAdmin && (
+              <>
+                <Route path="platform/tenants" element={<PlatformTenantsPage />} />
+                <Route path="platform/tenants/:tenantId" element={<PlatformTenantContactsPage />} />
+                <Route path="platform/users" element={<PlatformUsersPage />} />
+                <Route path="platform/roles" element={<PlatformRolesPage />} />
+              </>
+            )}
           </Routes>
         </main>
       </div>
