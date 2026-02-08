@@ -72,6 +72,7 @@ export default function BlueprintsPage() {
     zone_id: "",
     tls_mode: "none",
     acme_email: "",
+    secret_refs_text: "",
   });
   const [selectedReleaseTargetId, setSelectedReleaseTargetId] = useState<string>("");
   const [uploading, setUploading] = useState(false);
@@ -84,6 +85,13 @@ export default function BlueprintsPage() {
     if (!selected) return;
     setError(null);
     try {
+      let secretRefs: Array<{ name: string; ref: string; type?: string; version?: string }> = [];
+      if (releaseTargetForm.secret_refs_text.trim()) {
+        secretRefs = JSON.parse(releaseTargetForm.secret_refs_text);
+        if (!Array.isArray(secretRefs)) {
+          throw new Error("Secret refs must be a JSON array.");
+        }
+      }
       await createReleaseTarget({
         blueprint_id: selected.id,
         name: releaseTargetForm.name,
@@ -108,6 +116,7 @@ export default function BlueprintsPage() {
           acme_email: releaseTargetForm.acme_email || undefined,
           redirect_http_to_https: true,
         },
+        secret_refs: secretRefs,
       });
       const targets = await listReleaseTargets(selected.id);
       setReleaseTargets(targets.release_targets);
@@ -123,6 +132,7 @@ export default function BlueprintsPage() {
         zone_id: "",
         tls_mode: "none",
         acme_email: "",
+        secret_refs_text: "",
       });
       setMessage("Release target created.");
     } catch (err) {
@@ -775,6 +785,17 @@ export default function BlueprintsPage() {
                   value={releaseTargetForm.acme_email}
                   onChange={(event) =>
                     setReleaseTargetForm({ ...releaseTargetForm, acme_email: event.target.value })
+                  }
+                />
+              </label>
+              <label className="span-full">
+                Secret refs (JSON array)
+                <textarea
+                  rows={4}
+                  placeholder='[{"name":"EMS_JWT_SECRET","ref":"ssm:/xyn/ems/manager-demo/jwt_secret"}]'
+                  value={releaseTargetForm.secret_refs_text}
+                  onChange={(event) =>
+                    setReleaseTargetForm({ ...releaseTargetForm, secret_refs_text: event.target.value })
                   }
                 />
               </label>
