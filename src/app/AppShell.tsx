@@ -1,6 +1,6 @@
 import { useEffect, useState } from "react";
 import { NavLink, Navigate, Route, Routes } from "react-router-dom";
-import { getMe } from "../api/xyn";
+import { getMe, getMyProfile, getTenantBranding } from "../api/xyn";
 import BlueprintsPage from "./pages/BlueprintsPage";
 import InstancesPage from "./pages/InstancesPage";
 import ModulesPage from "./pages/ModulesPage";
@@ -21,6 +21,8 @@ export default function AppShell() {
   const [authed, setAuthed] = useState(false);
   const [roles, setRoles] = useState<string[]>([]);
   const [authLoaded, setAuthLoaded] = useState(false);
+  const [brandName, setBrandName] = useState<string>("Xyn Console");
+  const [brandLogo, setBrandLogo] = useState<string>("/xyence-logo.png");
 
   useEffect(() => {
     let mounted = true;
@@ -30,6 +32,25 @@ export default function AppShell() {
         if (!mounted) return;
         setAuthed(Boolean(me?.user));
         setRoles(me?.roles ?? []);
+        if (me?.user) {
+          try {
+            const profile = await getMyProfile();
+            const membership = profile.memberships?.[0];
+            if (membership?.tenant_id) {
+              const branding = await getTenantBranding(membership.tenant_id);
+              if (!mounted) return;
+              setBrandName(branding.display_name || "Xyn Console");
+              setBrandLogo(branding.logo_url || "/xyence-logo.png");
+              Object.entries(branding.theme || {}).forEach(([key, value]) => {
+                if (key) {
+                  document.documentElement.style.setProperty(key, value);
+                }
+              });
+            }
+          } catch {
+            // Silent fallback to defaults.
+          }
+        }
       } catch {
         if (!mounted) return;
         setAuthed(false);
@@ -54,7 +75,7 @@ export default function AppShell() {
           <div className="brand">
             <img className="brand-logo" src="/xyence-logo.png" alt="Xyence logo" />
             <div>
-              <h1>Xyn Console</h1>
+              <h1>{brandName}</h1>
               <p>Loading session…</p>
             </div>
           </div>
@@ -67,9 +88,9 @@ export default function AppShell() {
     <div className="app-shell">
       <header className="app-header">
         <div className="brand">
-          <img className="brand-logo" src="/xyence-logo.png" alt="Xyence logo" />
+          <img className="brand-logo" src={brandLogo} alt="Xyence logo" />
           <div>
-            <h1>Xyn Console</h1>
+            <h1>{brandName}</h1>
             <p>Blueprints, registries, and instance management</p>
           </div>
         </div>

@@ -48,6 +48,8 @@ import type {
   MembershipListResponse,
   MembershipCreatePayload,
   MyProfile,
+  BrandingPayload,
+  BrandingResponse,
 } from "./types";
 import { authHeaders, resolveApiBaseUrl } from "./client";
 
@@ -106,6 +108,25 @@ export async function getMyProfile(): Promise<MyProfile> {
   const apiBaseUrl = resolveApiBaseUrl();
   const response = await apiFetch(`${apiBaseUrl}/xyn/api/my/profile`, { credentials: "include" });
   return handle<MyProfile>(response);
+}
+
+export async function getTenantBranding(tenantId: string): Promise<BrandingResponse> {
+  const apiBaseUrl = resolveApiBaseUrl();
+  const response = await apiFetch(`${apiBaseUrl}/xyn/api/tenants/${tenantId}/branding`, {
+    credentials: "include",
+  });
+  return handle<BrandingResponse>(response);
+}
+
+export async function updateTenantBranding(tenantId: string, payload: BrandingPayload): Promise<void> {
+  const apiBaseUrl = resolveApiBaseUrl();
+  const response = await apiFetch(`${apiBaseUrl}/xyn/internal/tenants/${tenantId}/branding`, {
+    method: "PATCH",
+    headers: buildHeaders(),
+    credentials: "include",
+    body: JSON.stringify(payload),
+  });
+  await handle<void>(response);
 }
 
 export async function listBlueprints(query = ""): Promise<BlueprintListResponse> {

@@ -10,6 +10,8 @@ import {
   updateMembership,
   deleteMembership,
   listIdentities,
+  getTenantBranding,
+  updateTenantBranding,
   updateContact,
 } from "../../api/xyn";
 import type {
@@ -17,6 +19,7 @@ import type {
   ContactCreatePayload,
   IdentitySummary,
   MembershipSummary,
+  BrandingPayload,
 } from "../../api/types";
 
 const emptyForm: ContactCreatePayload = {
@@ -36,6 +39,8 @@ export default function PlatformTenantContactsPage() {
   const [identities, setIdentities] = useState<IdentitySummary[]>([]);
   const [selectedIdentity, setSelectedIdentity] = useState<string>("");
   const [membershipRole, setMembershipRole] = useState("tenant_viewer");
+  const [branding, setBranding] = useState<BrandingPayload>({});
+  const [themeText, setThemeText] = useState("{}");
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [message, setMessage] = useState<string | null>(null);
@@ -50,6 +55,18 @@ export default function PlatformTenantContactsPage() {
       setMemberships(membershipData.memberships);
       const identitiesData = await listIdentities();
       setIdentities(identitiesData.identities);
+      try {
+        const brandingData = await getTenantBranding(tenantId);
+        setBranding({
+          display_name: brandingData.display_name,
+          logo_url: brandingData.logo_url,
+          theme_json: brandingData.theme,
+        });
+        setThemeText(JSON.stringify(brandingData.theme || {}, null, 2));
+      } catch {
+        setBranding({});
+        setThemeText("{}");
+      }
       if (!selectedIdentity && identitiesData.identities[0]) {
         setSelectedIdentity(identitiesData.identities[0].id);
       }
@@ -163,6 +180,25 @@ export default function PlatformTenantContactsPage() {
       await deleteMembership(membershipId);
       await load();
       setMessage("Membership deactivated.");
+    } catch (err) {
+      setError((err as Error).message);
+    }
+  };
+
+  const handleSaveBranding = async () => {
+    if (!tenantId) return;
+    try {
+      setError(null);
+      setMessage(null);
+      let parsedTheme: Record<string, string> | undefined;
+      if (themeText.trim()) {
+        parsedTheme = JSON.parse(themeText);
+      }
+      await updateTenantBranding(tenantId, {
+        ...branding,
+        theme_json: parsedTheme,
+      });
+      setMessage("Branding updated.");
     } catch (err) {
       setError((err as Error).message);
     }
@@ -316,6 +352,55 @@ export default function PlatformTenantContactsPage() {
             </div>
           ))}
           {memberships.length === 0 && <p className="muted">No memberships yet.</p>}
+        </div>
+      </section>
+
+      <section className="card">
+        <div className="card-header">
+          <h3>Branding</h3>
+        </div>
+        <div className="form-grid">
+          <label>
+            Display name
+            <input
+              value={branding.display_name ?? ""}
+              onChange={(event) => setBranding({ ...branding, display_name: event.target.value })}
+            />
+          </label>
+          <label>
+            Logo URL
+            <input
+              value={branding.logo_url ?? ""}
+              onChange={(event) => setBranding({ ...branding, logo_url: event.target.value })}
+            />
+          </label>
+          <label>
+            Primary color
+            <input
+              value={branding.primary_color ?? ""}
+              onChange={(event) => setBranding({ ...branding, primary_color: event.target.value })}
+            />
+          </label>
+          <label>
+            Secondary color
+            <input
+              value={branding.secondary_color ?? ""}
+              onChange={(event) => setBranding({ ...branding, secondary_color: event.target.value })}
+            />
+          </label>
+          <label className="form-full">
+            Theme JSON
+            <textarea
+              rows={6}
+              value={themeText}
+              onChange={(event) => setThemeText(event.target.value)}
+            />
+          </label>
+        </div>
+        <div className="form-actions">
+          <button className="primary" onClick={handleSaveBranding}>
+            Save branding
+          </button>
         </div>
       </section>
     </>

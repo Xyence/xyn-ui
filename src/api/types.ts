@@ -405,6 +405,20 @@ export type MyProfile = {
   }>;
 };
 
+export type BrandingPayload = {
+  display_name?: string | null;
+  logo_url?: string | null;
+  primary_color?: string | null;
+  secondary_color?: string | null;
+  theme_json?: Record<string, string>;
+};
+
+export type BrandingResponse = {
+  display_name: string;
+  logo_url: string;
+  theme: Record<string, string>;
+};
+
 export type ReleaseSummary = {
   id: string;
   version: string;
