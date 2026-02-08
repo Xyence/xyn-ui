@@ -3,6 +3,7 @@ import {
   createInstance,
   destroyInstance,
   fetchBootstrapLog,
+  fetchInstanceContainers,
   getInstance,
   listInstances,
   retryProvisionInstance,
@@ -10,6 +11,7 @@ import {
 import { createDevTask, getRelease, listEnvironments, listReleases } from "../../api/xyn";
 import type {
   BootstrapLogResponse,
+  ContainerInfo,
   CreateInstancePayload,
   EnvironmentSummary,
   ProvisionedInstance,
@@ -42,6 +44,9 @@ export default function InstancesPage() {
   const [error, setError] = useState<string | null>(null);
   const [logTail, setLogTail] = useState(200);
   const [bootstrapLog, setBootstrapLog] = useState<BootstrapLogResponse | null>(null);
+  const [containers, setContainers] = useState<ContainerInfo[]>([]);
+  const [containersError, setContainersError] = useState<string | null>(null);
+  const [containersLoading, setContainersLoading] = useState(false);
   const [releaseMap, setReleaseMap] = useState<Record<string, ReleaseSummary>>({});
   const [deployMessage, setDeployMessage] = useState<string | null>(null);
   const [environments, setEnvironments] = useState<EnvironmentSummary[]>([]);
@@ -181,6 +186,20 @@ export default function InstancesPage() {
       setBootstrapLog(log);
     } catch (err) {
       setError((err as Error).message);
+    }
+  };
+
+  const handleFetchContainers = async () => {
+    if (!selectedId) return;
+    try {
+      setContainersLoading(true);
+      setContainersError(null);
+      const data = await fetchInstanceContainers(selectedId);
+      setContainers(data.containers || []);
+    } catch (err) {
+      setContainersError((err as Error).message);
+    } finally {
+      setContainersLoading(false);
     }
   };
 
@@ -536,6 +555,52 @@ export default function InstancesPage() {
             </div>
           ) : (
             <p className="muted">Fetch the bootstrap log to view output.</p>
+          )}
+        </section>
+
+        <section className="card">
+          <div className="card-header">
+            <h3>Containers</h3>
+            <button
+              className="ghost"
+              onClick={handleFetchContainers}
+              disabled={!selectedId || containersLoading}
+            >
+              {containersLoading ? "Loading..." : "Refresh"}
+            </button>
+          </div>
+          {!selectedInstance ? (
+            <p className="muted">Select an instance to view containers.</p>
+          ) : (
+            <>
+              {containersError && (
+                <InlineMessage tone="error" title="Container query failed" body={containersError} />
+              )}
+              {containers.length === 0 && !containersLoading ? (
+                <p className="muted">No containers reported.</p>
+              ) : (
+                <div className="table">
+                  <div className="table-row table-head">
+                    <span>ID</span>
+                    <span>Name</span>
+                    <span>Image</span>
+                    <span>Status</span>
+                    <span>Ports</span>
+                    <span></span>
+                  </div>
+                  {containers.map((container) => (
+                    <div className="table-row" key={container.id}>
+                      <span className="muted">{container.id.slice(0, 12)}</span>
+                      <strong>{container.name}</strong>
+                      <span className="muted">{container.image}</span>
+                      <span className="muted">{container.status}</span>
+                      <span className="muted">{container.ports || "—"}</span>
+                      <span></span>
+                    </div>
+                  ))}
+                </div>
+              )}
+            </>
           )}
         </section>
       </div>

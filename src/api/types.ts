@@ -44,6 +44,22 @@ export type BootstrapLogResponse = {
   stderr?: string;
 };
 
+export type ContainerInfo = {
+  id: string;
+  name: string;
+  image: string;
+  status: string;
+  ports: string;
+};
+
+export type InstanceContainersResponse = {
+  instance_id: string;
+  status: string;
+  ssm_command_id?: string;
+  error?: string;
+  containers: ContainerInfo[];
+};
+
 export type CreateInstancePayload = {
   name?: string;
   region?: string;

@@ -1,4 +1,10 @@
-import type { BootstrapLogResponse, CreateInstancePayload, InstanceListResponse, ProvisionedInstance } from "./types";
+import type {
+  BootstrapLogResponse,
+  CreateInstancePayload,
+  InstanceContainersResponse,
+  InstanceListResponse,
+  ProvisionedInstance,
+} from "./types";
 
 export function resolveApiBaseUrl() {
   const envBase = import.meta.env.VITE_API_BASE_URL as string | undefined;
@@ -145,4 +151,13 @@ export async function fetchBootstrapLog(id: string, tail = 200): Promise<Bootstr
   url.searchParams.set("tail", String(tail));
   const response = await apiFetch(url.toString(), { credentials: "include", headers: { ...authHeaders() } });
   return handle<BootstrapLogResponse>(response);
+}
+
+export async function fetchInstanceContainers(id: string): Promise<InstanceContainersResponse> {
+  const apiBaseUrl = resolveApiBaseUrl();
+  const response = await apiFetch(`${apiBaseUrl}/xyn/api/provision/instances/${id}/containers`, {
+    credentials: "include",
+    headers: { ...authHeaders() },
+  });
+  return handle<InstanceContainersResponse>(response);
 }
