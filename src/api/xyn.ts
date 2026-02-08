@@ -331,20 +331,30 @@ export async function deleteBlueprint(id: string): Promise<{ status: string }> {
   return handle<{ status: string }>(response);
 }
 
-export async function submitBlueprint(id: string): Promise<{ run_id?: string; instance_id?: string }> {
+export async function submitBlueprint(
+  id: string,
+  releaseTargetId?: string
+): Promise<{ run_id?: string; instance_id?: string }> {
   const apiBaseUrl = resolveApiBaseUrl();
   const response = await apiFetch(`${apiBaseUrl}/xyn/api/blueprints/${id}/submit`, {
     method: "POST",
     credentials: "include",
+    headers: releaseTargetId ? buildHeaders() : undefined,
+    body: releaseTargetId ? JSON.stringify({ release_target_id: releaseTargetId }) : undefined,
   });
   return handle<{ run_id?: string; instance_id?: string }>(response);
 }
 
-export async function submitBlueprintWithDevTasks(id: string): Promise<{ run_id?: string; instance_id?: string }> {
+export async function submitBlueprintWithDevTasks(
+  id: string,
+  releaseTargetId?: string
+): Promise<{ run_id?: string; instance_id?: string }> {
   const apiBaseUrl = resolveApiBaseUrl();
   const response = await apiFetch(`${apiBaseUrl}/xyn/api/blueprints/${id}/submit?queue_dev_tasks=1`, {
     method: "POST",
     credentials: "include",
+    headers: releaseTargetId ? buildHeaders() : undefined,
+    body: releaseTargetId ? JSON.stringify({ release_target_id: releaseTargetId }) : undefined,
   });
   return handle<{ run_id?: string; instance_id?: string }>(response);
 }

@@ -73,6 +73,7 @@ export default function BlueprintsPage() {
     tls_mode: "none",
     acme_email: "",
   });
+  const [selectedReleaseTargetId, setSelectedReleaseTargetId] = useState<string>("");
   const [uploading, setUploading] = useState(false);
   const [creatingSession, setCreatingSession] = useState(false);
   const [loading, setLoading] = useState(false);
@@ -110,6 +111,9 @@ export default function BlueprintsPage() {
       });
       const targets = await listReleaseTargets(selected.id);
       setReleaseTargets(targets.release_targets);
+      if (!selectedReleaseTargetId && targets.release_targets[0]) {
+        setSelectedReleaseTargetId(targets.release_targets[0].id);
+      }
       setReleaseTargetForm({
         name: "",
         environment: "",
@@ -216,6 +220,10 @@ export default function BlueprintsPage() {
         setVoiceNotes(notes.voice_notes);
         const targets = await listReleaseTargets(selectedId);
         setReleaseTargets(targets.release_targets);
+        const defaultTargetId =
+          (detail.metadata_json as Record<string, string> | null)?.default_release_target_id ?? "";
+        const targetId = defaultTargetId || targets.release_targets[0]?.id || "";
+        setSelectedReleaseTargetId(targetId);
       } catch (err) {
         setError((err as Error).message);
       }
@@ -317,7 +325,7 @@ export default function BlueprintsPage() {
     try {
       setLoading(true);
       setError(null);
-      const result = await submitBlueprint(selectedId);
+      const result = await submitBlueprint(selectedId, selectedReleaseTargetId || undefined);
       setMessage(`Submit queued. Run: ${result.run_id ?? "n/a"}`);
     } catch (err) {
       setError((err as Error).message);
@@ -331,7 +339,7 @@ export default function BlueprintsPage() {
     try {
       setLoading(true);
       setError(null);
-      const result = await submitBlueprintWithDevTasks(selectedId);
+      const result = await submitBlueprintWithDevTasks(selectedId, selectedReleaseTargetId || undefined);
       setMessage(`Dev tasks queued. Run: ${result.run_id ?? "n/a"}`);
       const tasks = await listBlueprintDevTasks(selectedId);
       setDevTasks(tasks.dev_tasks);
@@ -627,6 +635,24 @@ export default function BlueprintsPage() {
               </>
             )}
           </div>
+          {selected && (
+            <div className="form-grid">
+              <label className="span-full">
+                Release target for submit
+                <select
+                  value={selectedReleaseTargetId}
+                  onChange={(event) => setSelectedReleaseTargetId(event.target.value)}
+                >
+                  <option value="">Auto-select</option>
+                  {releaseTargets.map((target) => (
+                    <option key={target.id} value={target.id}>
+                      {target.name} — {target.fqdn}
+                    </option>
+                  ))}
+                </select>
+              </label>
+            </div>
+          )}
           {selected && (
             <div className="detail-grid">
               <div>
