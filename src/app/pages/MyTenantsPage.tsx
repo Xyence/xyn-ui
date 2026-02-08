@@ -47,6 +47,7 @@ export default function MyTenantsPage() {
                 <strong>{item.name}</strong>
                 <span className="muted small">{item.slug}</span>
               </div>
+              <span className="muted small">{(item as Tenant & { membership_role?: string }).membership_role || ""}</span>
               <Link className="ghost" to={`/app/tenants/${item.id}`}>
                 View contacts
               </Link>
