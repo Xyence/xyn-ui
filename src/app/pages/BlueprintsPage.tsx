@@ -73,6 +73,7 @@ export default function BlueprintsPage() {
     tls_mode: "none",
     acme_email: "",
     secret_refs_text: "",
+    runtime_mode: "compose_build",
   });
   const [selectedReleaseTargetId, setSelectedReleaseTargetId] = useState<string>("");
   const [uploading, setUploading] = useState(false);
@@ -110,6 +111,7 @@ export default function BlueprintsPage() {
           transport: "ssm",
           compose_file_path: "apps/ems-stack/docker-compose.yml",
           remote_root: "/opt/xyn/apps/ems",
+          mode: releaseTargetForm.runtime_mode,
         },
         tls: {
           mode: releaseTargetForm.tls_mode,
@@ -133,6 +135,7 @@ export default function BlueprintsPage() {
         tls_mode: "none",
         acme_email: "",
         secret_refs_text: "",
+        runtime_mode: "compose_build",
       });
       setMessage("Release target created.");
     } catch (err) {
@@ -766,6 +769,18 @@ export default function BlueprintsPage() {
                     setReleaseTargetForm({ ...releaseTargetForm, zone_id: event.target.value })
                   }
                 />
+              </label>
+              <label>
+                Runtime mode
+                <select
+                  value={releaseTargetForm.runtime_mode}
+                  onChange={(event) =>
+                    setReleaseTargetForm({ ...releaseTargetForm, runtime_mode: event.target.value })
+                  }
+                >
+                  <option value="compose_build">compose_build</option>
+                  <option value="compose_images">compose_images</option>
+                </select>
               </label>
               <label>
                 TLS mode
