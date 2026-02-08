@@ -96,7 +96,12 @@ export default function AppShell() {
         </div>
         <div className="header-meta">
           {authed ? (
-            <button className="ghost" onClick={() => fetch("/auth/logout", { method: "POST" }).then(() => setAuthed(false))}>
+            <button
+              className="ghost"
+              onClick={() =>
+                fetch("/auth/logout", { method: "POST", credentials: "include" }).then(() => setAuthed(false))
+              }
+            >
               Sign out
             </button>
           ) : (

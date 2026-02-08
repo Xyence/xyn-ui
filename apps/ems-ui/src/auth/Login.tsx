@@ -47,7 +47,7 @@ export default function Login() {
   }, []);
 
   const signOut = useCallback(async () => {
-    await fetch("/auth/logout", { method: "POST" });
+    await fetch("/auth/logout", { method: "POST", credentials: "include" });
     setAuthStatus("signed_out");
     setMeIdentity("");
     setMeResult("");
