@@ -2,6 +2,7 @@ import { useCallback, useEffect, useState } from "react";
 import { useSearchParams } from "react-router-dom";
 import InlineMessage from "../../components/InlineMessage";
 import { getRun, getRunArtifacts, getRunCommands, getRunLogs, listRuns } from "../../api/xyn";
+import { fetchArtifactJson } from "../../api/client";
 import type { RunArtifact, RunCommandExecution, RunDetail, RunSummary } from "../../api/types";
 import StatusPill from "../../components/StatusPill";
 
@@ -56,6 +57,10 @@ export default function RunsPage() {
   const [logs, setLogs] = useState<string | null>(null);
   const [artifacts, setArtifacts] = useState<RunArtifact[]>([]);
   const [commands, setCommands] = useState<RunCommandExecution[]>([]);
+  const [imageArtifacts, setImageArtifacts] = useState<{
+    releaseManifest?: Record<string, { image_uri?: string; digest?: string }>;
+    buildImages?: Array<{ name: string; image_uri: string; digest?: string; tag?: string }>;
+  }>({});
   const [entityFilter, setEntityFilter] = useState("");
   const [statusFilter, setStatusFilter] = useState("");
   const [query, setQuery] = useState("");
@@ -113,6 +118,7 @@ export default function RunsPage() {
       setLogs(null);
       setArtifacts([]);
       setCommands([]);
+      setImageArtifacts({});
       return;
     }
     (async () => {
@@ -130,6 +136,39 @@ export default function RunsPage() {
       }
     })();
   }, [selectedId]);
+
+  useEffect(() => {
+    if (!selected || artifacts.length === 0) return;
+    (async () => {
+      const manifest = artifacts.find((item) => item.name === "release_manifest.json");
+      const buildResult = artifacts.find((item) => item.name === "build_result.json");
+      const nextArtifacts: {
+        releaseManifest?: Record<string, { image_uri?: string; digest?: string }>;
+        buildImages?: Array<{ name: string; image_uri: string; digest?: string; tag?: string }>;
+      } = {};
+      try {
+        if (manifest?.url) {
+          const payload = await fetchArtifactJson<{ images?: Record<string, { image_uri?: string; digest?: string }> }>(
+            manifest.url
+          );
+          if (payload?.images) {
+            nextArtifacts.releaseManifest = payload.images;
+          }
+        }
+        if (buildResult?.url) {
+          const payload = await fetchArtifactJson<{ images?: Array<{ name: string; image_uri: string; digest?: string; tag?: string }> }>(
+            buildResult.url
+          );
+          if (payload?.images) {
+            nextArtifacts.buildImages = payload.images;
+          }
+        }
+        setImageArtifacts(nextArtifacts);
+      } catch {
+        setImageArtifacts({});
+      }
+    })();
+  }, [artifacts, selected]);
 
   useEffect(() => {
     if (!autoRefresh || !selectedId) return;
@@ -330,6 +369,39 @@ export default function RunsPage() {
                       </div>
                     );
                   })}
+                </div>
+              )}
+              {(imageArtifacts.releaseManifest || imageArtifacts.buildImages) && (
+                <div className="stack">
+                  <strong>Image artifacts</strong>
+                  {imageArtifacts.buildImages && imageArtifacts.buildImages.length > 0 && (
+                    <div className="stack">
+                      <div className="label">Build result</div>
+                      {imageArtifacts.buildImages.map((img) => (
+                        <div key={`${img.name}-${img.image_uri}`} className="item-row">
+                          <div>
+                            <strong>{img.name}</strong>
+                            <span className="muted small">{img.image_uri}</span>
+                          </div>
+                          <span className="muted small">{img.digest ?? img.tag ?? "—"}</span>
+                        </div>
+                      ))}
+                    </div>
+                  )}
+                  {imageArtifacts.releaseManifest && (
+                    <div className="stack">
+                      <div className="label">Release manifest</div>
+                      {Object.entries(imageArtifacts.releaseManifest).map(([service, info]) => (
+                        <div key={service} className="item-row">
+                          <div>
+                            <strong>{service}</strong>
+                            <span className="muted small">{info.image_uri ?? "—"}</span>
+                          </div>
+                          <span className="muted small">{info.digest ?? "—"}</span>
+                        </div>
+                      ))}
+                    </div>
+                  )}
                 </div>
               )}
             </>

@@ -161,3 +161,10 @@ export async function fetchInstanceContainers(id: string): Promise<InstanceConta
   });
   return handle<InstanceContainersResponse>(response);
 }
+
+export async function fetchArtifactJson<T = unknown>(url: string): Promise<T> {
+  const apiBaseUrl = resolveApiBaseUrl();
+  const target = url.startsWith("http") ? url : `${apiBaseUrl}${url}`;
+  const response = await apiFetch(target, { credentials: "include", headers: { ...authHeaders() } });
+  return handle<T>(response);
+}
