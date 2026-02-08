@@ -50,6 +50,9 @@ import type {
   MyProfile,
   BrandingPayload,
   BrandingResponse,
+  DeviceListResponse,
+  DevicePayload,
+  Device,
 } from "./types";
 import { authHeaders, resolveApiBaseUrl } from "./client";
 
@@ -129,6 +132,56 @@ export async function updateTenantBranding(tenantId: string, payload: BrandingPa
   await handle<void>(response);
 }
 
+export async function setActiveTenant(tenantId: string): Promise<void> {
+  const apiBaseUrl = resolveApiBaseUrl();
+  const response = await apiFetch(`${apiBaseUrl}/xyn/api/my/active-tenant`, {
+    method: "POST",
+    headers: buildHeaders(),
+    credentials: "include",
+    body: JSON.stringify({ tenant_id: tenantId }),
+  });
+  await handle<void>(response);
+}
+
+export async function listTenantDevices(): Promise<DeviceListResponse> {
+  const apiBaseUrl = resolveApiBaseUrl();
+  const response = await apiFetch(`${apiBaseUrl}/xyn/api/tenant/devices`, {
+    credentials: "include",
+  });
+  return handle<DeviceListResponse>(response);
+}
+
+export async function createDevice(payload: DevicePayload): Promise<Device> {
+  const apiBaseUrl = resolveApiBaseUrl();
+  const response = await apiFetch(`${apiBaseUrl}/xyn/api/tenant/devices`, {
+    method: "POST",
+    headers: buildHeaders(),
+    credentials: "include",
+    body: JSON.stringify(payload),
+  });
+  return handle<Device>(response);
+}
+
+export async function updateDevice(id: string, payload: DevicePayload): Promise<Device> {
+  const apiBaseUrl = resolveApiBaseUrl();
+  const response = await apiFetch(`${apiBaseUrl}/xyn/api/devices/${id}`, {
+    method: "PATCH",
+    headers: buildHeaders(),
+    credentials: "include",
+    body: JSON.stringify(payload),
+  });
+  return handle<Device>(response);
+}
+
+export async function deleteDevice(id: string): Promise<void> {
+  const apiBaseUrl = resolveApiBaseUrl();
+  const response = await apiFetch(`${apiBaseUrl}/xyn/api/devices/${id}`, {
+    method: "DELETE",
+    credentials: "include",
+  });
+  await handle<void>(response);
+}
+
 export async function listBlueprints(query = ""): Promise<BlueprintListResponse> {
   const apiBaseUrl = resolveApiBaseUrl();
   const url = new URL(`${apiBaseUrl}/xyn/api/blueprints`);
@@ -173,6 +226,12 @@ export async function updateBlueprint(id: string, payload: BlueprintCreatePayloa
 export async function listTenants(): Promise<TenantListResponse> {
   const apiBaseUrl = resolveApiBaseUrl();
   const response = await apiFetch(`${apiBaseUrl}/xyn/internal/tenants`, { credentials: "include" });
+  return handle<TenantListResponse>(response);
+}
+
+export async function listVisibleTenants(): Promise<TenantListResponse> {
+  const apiBaseUrl = resolveApiBaseUrl();
+  const response = await apiFetch(`${apiBaseUrl}/xyn/api/tenants`, { credentials: "include" });
   return handle<TenantListResponse>(response);
 }
 

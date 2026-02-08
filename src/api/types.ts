@@ -308,6 +308,7 @@ export type Tenant = {
   slug: string;
   status: string;
   metadata_json?: Record<string, unknown> | null;
+  membership_role?: string;
   created_at?: string;
   updated_at?: string;
 };
@@ -417,6 +418,28 @@ export type BrandingResponse = {
   display_name: string;
   logo_url: string;
   theme: Record<string, string>;
+};
+
+export type Device = {
+  id: string;
+  tenant_id: string;
+  name: string;
+  device_type: string;
+  mgmt_ip?: string | null;
+  status: string;
+  tags?: Record<string, unknown> | null;
+  metadata_json?: Record<string, unknown> | null;
+};
+
+export type DeviceListResponse = { devices: Device[] };
+
+export type DevicePayload = {
+  name?: string;
+  device_type?: string;
+  mgmt_ip?: string | null;
+  status?: string;
+  tags?: Record<string, unknown> | null;
+  metadata_json?: Record<string, unknown> | null;
 };
 
 export type ReleaseSummary = {
