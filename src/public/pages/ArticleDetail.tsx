@@ -46,14 +46,14 @@ export default function ArticleDetail() {
 
   return (
     <div className="public-article">
-      <Link className="ghost" to="/articles">
-        ← Back to articles
-      </Link>
       <h1 className="page-title">{article.title}</h1>
       {article.summary && <p className="article-summary muted">{article.summary}</p>}
       {article.body_html && (
         <div className="article-body" dangerouslySetInnerHTML={{ __html: article.body_html }} />
       )}
+      <Link className="ghost" to="/articles">
+        ← Back to articles
+      </Link>
     </div>
   );
 }
