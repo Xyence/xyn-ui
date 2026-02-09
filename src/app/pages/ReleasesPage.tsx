@@ -1,6 +1,13 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
 import InlineMessage from "../../components/InlineMessage";
-import { getRelease, listBlueprints, listEnvironments, listReleasePlans, listReleases } from "../../api/xyn";
+import {
+  getRelease,
+  listBlueprints,
+  listEnvironments,
+  listReleasePlans,
+  listReleases,
+  updateRelease,
+} from "../../api/xyn";
 import type {
   BlueprintSummary,
   EnvironmentSummary,
@@ -96,6 +103,23 @@ export default function ReleasesPage() {
       setLoading(true);
       await load();
       setMessage("Releases refreshed.");
+    } catch (err) {
+      setError((err as Error).message);
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const handlePublish = async () => {
+    if (!selected) return;
+    try {
+      setLoading(true);
+      setError(null);
+      await updateRelease(selected.id, { status: "published" });
+      const detail = await getRelease(selected.id);
+      setSelected(detail);
+      await load();
+      setMessage(`Release ${detail.version} published.`);
     } catch (err) {
       setError((err as Error).message);
     } finally {
@@ -221,6 +245,13 @@ export default function ReleasesPage() {
                 </div>
               </div>
               <div className="stack">
+                {selected.status === "draft" && (
+                  <div className="inline-actions">
+                    <button className="primary" onClick={handlePublish} disabled={loading}>
+                      Publish release
+                    </button>
+                  </div>
+                )}
                 <strong>Artifacts</strong>
                 {(selected.artifacts_json || []).length === 0 ? (
                   <span className="muted">No artifacts attached.</span>
