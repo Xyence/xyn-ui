@@ -335,11 +335,11 @@ export default function ReleasePlansPage() {
       {error && <InlineMessage tone="error" title="Request failed" body={error} />}
       {message && <InlineMessage tone="info" title="Update" body={message} />}
       {draftReleaseWarning && (
-        <InlineMessage tone="warning" title="Draft release selected" body={draftReleaseWarning} />
+        <InlineMessage tone="warn" title="Draft release selected" body={draftReleaseWarning} />
       )}
       {isDraftSelected && !draftReleaseWarning && (
         <InlineMessage
-          tone="warning"
+          tone="warn"
           title="Draft release selected"
           body="Publish the selected release before deploying or saving."
         />
