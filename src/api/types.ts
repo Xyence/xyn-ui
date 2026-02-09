@@ -222,6 +222,12 @@ export type ReleasePlanSummary = {
 
 export type ReleasePlanDetail = ReleasePlanSummary & {
   milestones_json?: Record<string, unknown> | null;
+  deployments?: Array<{
+    instance_id: string;
+    instance_name: string;
+    last_applied_hash?: string | null;
+    last_applied_at?: string | null;
+  }>;
 };
 
 export type ReleasePlanCreatePayload = {

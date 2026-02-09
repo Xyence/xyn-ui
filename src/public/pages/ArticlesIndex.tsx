@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { Link } from "react-router-dom";
 import { fetchPublicArticles } from "../../api/public";
 import { useMenuItems } from "../PublicShell";
@@ -9,16 +9,31 @@ export default function ArticlesIndex() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const menuItems = useMenuItems();
-  const menuLabel = menuItems.find((item) => item.path === "/articles")?.label;
+
+  const menuLabel = useMemo(() => {
+    return menuItems.find((item) => item.path === "/articles")?.label || "Articles";
+  }, [menuItems]);
 
   useEffect(() => {
+    let active = true;
+    setLoading(true);
     fetchPublicArticles()
       .then((data) => {
+        if (!active) return;
         setArticles(data.items || []);
         setError(null);
       })
-      .catch((err) => setError((err as Error).message))
-      .finally(() => setLoading(false));
+      .catch((err) => {
+        if (!active) return;
+        setError((err as Error).message);
+      })
+      .finally(() => {
+        if (!active) return;
+        setLoading(false);
+      });
+    return () => {
+      active = false;
+    };
   }, []);
 
   if (loading) {
@@ -29,22 +44,24 @@ export default function ArticlesIndex() {
     return <p className="muted">{error}</p>;
   }
 
+  if (!articles.length) {
+    return <p className="muted">No articles published yet.</p>;
+  }
+
   return (
-    <section className="public-section">
-      <div className="section-head">
-        <h1>{menuLabel || "Articles"}</h1>
-      </div>
-      <div className="article-grid">
+    <div className="public-articles">
+      <h1 className="page-title">{menuLabel}</h1>
+      <div className="article-list">
         {articles.map((article) => (
           <article key={article.slug} className="article-card">
-            <h3>{article.title}</h3>
-            {article.summary && <p>{article.summary}</p>}
+            <h2>{article.title}</h2>
+            {article.summary && <p className="muted">{article.summary}</p>}
             <Link className="ghost" to={`/articles/${article.slug}`}>
-              Read article
+              Read article →
             </Link>
           </article>
         ))}
       </div>
-    </section>
+    </div>
   );
 }

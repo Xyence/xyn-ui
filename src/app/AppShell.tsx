@@ -5,6 +5,7 @@ import BlueprintsPage from "./pages/BlueprintsPage";
 import InstancesPage from "./pages/InstancesPage";
 import ModulesPage from "./pages/ModulesPage";
 import RegistriesPage from "./pages/RegistriesPage";
+import EnvironmentsPage from "./pages/EnvironmentsPage";
 import ReleasePlansPage from "./pages/ReleasePlansPage";
 import ReleasesPage from "./pages/ReleasesPage";
 import RunsPage from "./pages/RunsPage";
@@ -16,7 +17,6 @@ import PlatformTenantContactsPage from "./pages/PlatformTenantContactsPage";
 import PlatformUsersPage from "./pages/PlatformUsersPage";
 import PlatformRolesPage from "./pages/PlatformRolesPage";
 import MyTenantsPage from "./pages/MyTenantsPage";
-import DevicesPage from "./pages/DevicesPage";
 
 export default function AppShell() {
   const [authed, setAuthed] = useState(false);
@@ -128,12 +128,6 @@ export default function AppShell() {
           )}
           <NavLink
             className={({ isActive }) => (isActive ? "app-nav-link active" : "app-nav-link")}
-            to="/app/devices"
-          >
-            Devices
-          </NavLink>
-          <NavLink
-            className={({ isActive }) => (isActive ? "app-nav-link active" : "app-nav-link")}
             to="/app/instances"
           >
             Instances
@@ -213,6 +207,12 @@ export default function AppShell() {
               >
                 Roles
               </NavLink>
+              <NavLink
+                className={({ isActive }) => (isActive ? "app-nav-link active" : "app-nav-link")}
+                to="/app/platform/environments"
+              >
+                Environments
+              </NavLink>
             </>
           )}
         </aside>
@@ -220,7 +220,6 @@ export default function AppShell() {
           <Routes>
             <Route path="/" element={<Navigate to="instances" replace />} />
             <Route path="instances" element={<InstancesPage />} />
-            <Route path="devices" element={<DevicesPage />} />
             <Route path="blueprints" element={<BlueprintsPage />} />
             <Route path="registries" element={<RegistriesPage />} />
             <Route path="modules" element={<ModulesPage />} />
@@ -242,6 +241,7 @@ export default function AppShell() {
                 <Route path="platform/tenants/:tenantId" element={<PlatformTenantContactsPage />} />
                 <Route path="platform/users" element={<PlatformUsersPage />} />
                 <Route path="platform/roles" element={<PlatformRolesPage />} />
+                <Route path="platform/environments" element={<EnvironmentsPage />} />
               </>
             )}
           </Routes>

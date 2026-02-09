@@ -48,6 +48,7 @@ export default function ReleasePlansPage() {
   const [runLogs, setRunLogs] = useState<string>("");
   const [runArtifacts, setRunArtifacts] = useState<RunArtifact[]>([]);
   const [releases, setReleases] = useState<ReleaseSummary[]>([]);
+  const [selectedReleaseId, setSelectedReleaseId] = useState<string>("");
 
   const load = useCallback(async () => {
     try {
@@ -96,10 +97,20 @@ export default function ReleasePlansPage() {
       setSelected(null);
       return;
     }
+    setSelectedReleaseId("");
     (async () => {
       try {
         const detail = await getReleasePlan(selectedId);
         setSelected(detail);
+        if (!targetInstanceId && detail.deployments && detail.deployments[0]) {
+          setTargetInstanceId(detail.deployments[0].instance_id);
+        }
+        if (!selectedReleaseId) {
+          const matching = releases.filter((item) => item.release_plan_id === detail.id);
+          if (matching[0]) {
+            setSelectedReleaseId(matching[0].id);
+          }
+        }
         setForm({
           name: detail.name,
           target_kind: detail.target_kind,
@@ -112,7 +123,7 @@ export default function ReleasePlansPage() {
         setError((err as Error).message);
       }
     })();
-  }, [selectedId]);
+  }, [selectedId, releases, targetInstanceId]);
 
   useEffect(() => {
     const lastRun = selected?.last_run;
@@ -216,7 +227,9 @@ export default function ReleasePlansPage() {
     try {
       setLoading(true);
       setError(null);
-      const release = releases.find((item) => item.release_plan_id === selected.id);
+      const release =
+        releases.find((item) => item.id === selectedReleaseId) ||
+        releases.find((item) => item.release_plan_id === selected.id);
       const payload = {
         title: `Deploy ${selected.name}`,
         task_type: "deploy_release_plan",
@@ -393,6 +406,42 @@ export default function ReleasePlansPage() {
               </div>
             </div>
           )}
+          {selected && (
+            <div className="detail-grid">
+              <div>
+                <div className="label">Release</div>
+                <select
+                  value={selectedReleaseId}
+                  onChange={(event) => setSelectedReleaseId(event.target.value)}
+                >
+                  <option value="">Select release</option>
+                  {releases
+                    .filter((item) => item.release_plan_id === selected.id)
+                    .map((item) => (
+                      <option key={item.id} value={item.id}>
+                        {item.version} ({item.status})
+                      </option>
+                    ))}
+                </select>
+              </div>
+            </div>
+          )}
+          <div className="stack">
+            <strong>Deployments</strong>
+            {!selected?.deployments || selected.deployments.length === 0 ? (
+              <span className="muted">No deployments recorded yet.</span>
+            ) : (
+              selected.deployments.map((dep) => (
+                <div key={dep.instance_id} className="item-row">
+                  <div>
+                    <strong>{dep.instance_name}</strong>
+                    <span className="muted small">{dep.instance_id}</span>
+                  </div>
+                  <div className="muted small">{dep.last_applied_at ?? "—"}</div>
+                </div>
+              ))
+            )}
+          </div>
           {selected?.last_run && (
             <div className="stack">
               <strong>Run artifacts</strong>

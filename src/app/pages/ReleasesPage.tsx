@@ -1,7 +1,13 @@
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useMemo, useState } from "react";
 import InlineMessage from "../../components/InlineMessage";
-import { getRelease, listEnvironments, listReleases } from "../../api/xyn";
-import type { EnvironmentSummary, ReleaseDetail, ReleaseSummary } from "../../api/types";
+import { getRelease, listBlueprints, listEnvironments, listReleasePlans, listReleases } from "../../api/xyn";
+import type {
+  BlueprintSummary,
+  EnvironmentSummary,
+  ReleaseDetail,
+  ReleasePlanSummary,
+  ReleaseSummary,
+} from "../../api/types";
 
 export default function ReleasesPage() {
   const [items, setItems] = useState<ReleaseSummary[]>([]);
@@ -12,6 +18,29 @@ export default function ReleasesPage() {
   const [error, setError] = useState<string | null>(null);
   const [environments, setEnvironments] = useState<EnvironmentSummary[]>([]);
   const [environmentId, setEnvironmentId] = useState<string>("");
+  const [blueprints, setBlueprints] = useState<BlueprintSummary[]>([]);
+  const [releasePlans, setReleasePlans] = useState<ReleasePlanSummary[]>([]);
+
+  const environmentNameById = useMemo(() => {
+    return environments.reduce<Record<string, string>>((acc, env) => {
+      acc[env.id] = env.name;
+      return acc;
+    }, {});
+  }, [environments]);
+
+  const blueprintNameById = useMemo(() => {
+    return blueprints.reduce<Record<string, string>>((acc, blueprint) => {
+      acc[blueprint.id] = blueprint.name;
+      return acc;
+    }, {});
+  }, [blueprints]);
+
+  const releasePlanNameById = useMemo(() => {
+    return releasePlans.reduce<Record<string, string>>((acc, plan) => {
+      acc[plan.id] = plan.name;
+      return acc;
+    }, {});
+  }, [releasePlans]);
 
   const load = useCallback(async () => {
     try {
@@ -33,8 +62,14 @@ export default function ReleasesPage() {
   useEffect(() => {
     (async () => {
       try {
-        const data = await listEnvironments();
-        setEnvironments(data.environments);
+        const [envs, blueprintData, releasePlanData] = await Promise.all([
+          listEnvironments(),
+          listBlueprints(),
+          listReleasePlans(),
+        ]);
+        setEnvironments(envs.environments);
+        setBlueprints(blueprintData.blueprints);
+        setReleasePlans(releasePlanData.release_plans);
       } catch (err) {
         setError((err as Error).message);
       }
@@ -111,9 +146,15 @@ export default function ReleasesPage() {
               >
                 <div>
                   <strong>{item.version}</strong>
-                  <span className="muted small">{item.status}</span>
+                  <span className="muted small">{item.status} · </span>
+                  <span className="muted small">
+                    {blueprintNameById[item.blueprint_id ?? ""] ?? item.blueprint_id ?? "—"}
+                  </span>
                 </div>
-                <span className="muted small">{item.blueprint_id ?? "—"}</span>
+                <div className="muted small">
+                  <div>{environmentNameById[item.environment_id ?? ""] ?? "All environments"}</div>
+                  <div>{item.release_plan_id ? "Has release plan" : "No release plan"}</div>
+                </div>
               </button>
             ))}
             {items.length === 0 && <p className="muted">No releases yet.</p>}
@@ -128,6 +169,13 @@ export default function ReleasesPage() {
             <p className="muted">Select a release to inspect.</p>
           ) : (
             <>
+              {selected.status === "draft" && (
+                <InlineMessage
+                  tone="info"
+                  title="Draft release"
+                  body="This release is in draft state. Drafts are not promoted to targets until published or deployed."
+                />
+              )}
               <div className="detail-grid">
                 <div>
                   <div className="label">Version</div>
@@ -139,11 +187,37 @@ export default function ReleasesPage() {
                 </div>
                 <div>
                   <div className="label">Blueprint</div>
-                  <span className="muted">{selected.blueprint_id ?? "—"}</span>
+                  <span className="muted">
+                    {blueprintNameById[selected.blueprint_id ?? ""] ??
+                      selected.blueprint_id ??
+                      "—"}
+                  </span>
                 </div>
                 <div>
                   <div className="label">Release plan</div>
-                  <span className="muted">{selected.release_plan_id ?? "—"}</span>
+                  <span className="muted">
+                    {releasePlanNameById[selected.release_plan_id ?? ""] ??
+                      selected.release_plan_id ??
+                      "—"}
+                  </span>
+                </div>
+                <div>
+                  <div className="label">Environment</div>
+                  <span className="muted">
+                    {environmentNameById[selected.environment_id ?? ""] ?? "—"}
+                  </span>
+                </div>
+                <div>
+                  <div className="label">Created from run</div>
+                  <span className="muted">{selected.created_from_run_id ?? "—"}</span>
+                </div>
+                <div>
+                  <div className="label">Created</div>
+                  <span className="muted">{selected.created_at ?? "—"}</span>
+                </div>
+                <div>
+                  <div className="label">Updated</div>
+                  <span className="muted">{selected.updated_at ?? "—"}</span>
                 </div>
               </div>
               <div className="stack">

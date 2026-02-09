@@ -65,7 +65,11 @@ export default function InstancesPage() {
       const filtered =
         statusFilter === "all"
           ? data.instances
-          : data.instances.filter((instance) => instance.status === statusFilter);
+          : data.instances.filter((instance) =>
+              statusFilter === "running"
+                ? instance.status === "running" || instance.status === "ready"
+                : instance.status === statusFilter
+            );
       setInstances(filtered);
       if (!selectedId && data.instances[0]) {
         setSelectedId(data.instances[0].id);
@@ -118,10 +122,17 @@ export default function InstancesPage() {
 
   useEffect(() => {
     if (!selectedId) return;
+    setContainers([]);
+    setContainersError(null);
     refreshSelected();
     const interval = window.setInterval(refreshSelected, POLL_INTERVAL_MS);
     return () => window.clearInterval(interval);
   }, [refreshSelected, selectedId]);
+
+  useEffect(() => {
+    if (!selectedId) return;
+    handleFetchContainers();
+  }, [selectedId]);
 
   const handleCreate = async () => {
     try {

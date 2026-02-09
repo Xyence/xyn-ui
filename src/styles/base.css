@@ -712,6 +712,12 @@ button:disabled {
   gap: 20px;
 }
 
+.article-list {
+  display: flex;
+  flex-direction: column;
+  gap: 18px;
+}
+
 .article-card {
   background: var(--card);
   border-radius: 18px;
@@ -726,6 +732,35 @@ button:disabled {
   display: flex;
   flex-direction: column;
   gap: 16px;
+}
+
+.article-summary {
+  font-style: italic;
+  padding: 0 12px;
+  margin: 6px 0 22px;
+}
+
+.article-body {
+  line-height: 1.55;
+}
+
+.article-body p {
+  margin: 0 0 20px;
+}
+
+.article-body h2,
+.article-body h3,
+.article-body h4 {
+  margin: 24px 0 12px;
+}
+
+.article-body ul,
+.article-body ol {
+  margin: 0 0 18px 22px;
+}
+
+.article-body li + li {
+  margin-top: 6px;
 }
 
 .page-title {
@@ -779,6 +814,12 @@ button:disabled {
     float: none;
     width: 100%;
     margin: 0 0 18px;
+  }
+}
+
+@media (max-width: 700px) {
+  .article-summary {
+    display: none;
   }
 }
 

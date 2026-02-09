@@ -52,16 +52,16 @@ export default function PageRoute() {
     };
   }, [slug]);
 
-  if (match?.kind === "articles_index") {
-    return <Navigate to="/articles" replace />;
-  }
-
   if (loading) {
     return <p className="muted">Loading...</p>;
   }
 
   if (error) {
     return <p className="muted">{error}</p>;
+  }
+
+  if (match?.kind === "articles_index") {
+    return <Navigate to="/articles" replace />;
   }
 
   if (!sections.length) {

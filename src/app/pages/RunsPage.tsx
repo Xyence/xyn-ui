@@ -174,6 +174,9 @@ export default function RunsPage() {
     if (!autoRefresh || !selectedId) return;
     const interval = setInterval(async () => {
       try {
+        await load();
+        const detail = await getRun(selectedId);
+        setSelected(detail);
         const log = await getRunLogs(selectedId);
         setLogs(log.log ?? "");
         const artifactList = await getRunArtifacts(selectedId);
@@ -185,7 +188,7 @@ export default function RunsPage() {
       }
     }, 5000);
     return () => clearInterval(interval);
-  }, [autoRefresh, selectedId]);
+  }, [autoRefresh, selectedId, load]);
 
   const handleRefresh = async () => {
     try {

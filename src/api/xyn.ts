@@ -802,6 +802,20 @@ export async function listReleasePlans(): Promise<ReleasePlanListResponse> {
   return handle<ReleasePlanListResponse>(response);
 }
 
+export async function markReleasePlanDeployment(
+  id: string,
+  payload: { instance_id: string; last_applied_at?: string }
+): Promise<{ status: string }> {
+  const apiBaseUrl = resolveApiBaseUrl();
+  const response = await apiFetch(`${apiBaseUrl}/xyn/api/release-plans/${id}/deployments`, {
+    method: "POST",
+    headers: buildHeaders(),
+    credentials: "include",
+    body: JSON.stringify(payload),
+  });
+  return handle<{ status: string }>(response);
+}
+
 export async function getReleasePlan(id: string): Promise<ReleasePlanDetail> {
   const apiBaseUrl = resolveApiBaseUrl();
   const response = await apiFetch(`${apiBaseUrl}/xyn/api/release-plans/${id}`, {
@@ -912,6 +926,29 @@ export async function createEnvironment(
     body: JSON.stringify(payload),
   });
   return handle<{ id: string }>(response);
+}
+
+export async function updateEnvironment(
+  id: string,
+  payload: EnvironmentCreatePayload
+): Promise<{ id: string }> {
+  const apiBaseUrl = resolveApiBaseUrl();
+  const response = await apiFetch(`${apiBaseUrl}/xyn/api/environments/${id}`, {
+    method: "PATCH",
+    headers: buildHeaders(),
+    credentials: "include",
+    body: JSON.stringify(payload),
+  });
+  return handle<{ id: string }>(response);
+}
+
+export async function deleteEnvironment(id: string): Promise<{ status: string }> {
+  const apiBaseUrl = resolveApiBaseUrl();
+  const response = await apiFetch(`${apiBaseUrl}/xyn/api/environments/${id}`, {
+    method: "DELETE",
+    credentials: "include",
+  });
+  return handle<{ status: string }>(response);
 }
 
 export async function getRelease(id: string): Promise<ReleaseDetail> {
