@@ -125,6 +125,20 @@ export async function getInstance(id: string, refresh = false): Promise<Provisio
   return handle<ProvisionedInstance>(response);
 }
 
+export async function updateInstance(
+  id: string,
+  payload: { environment_id: string; force?: boolean }
+): Promise<ProvisionedInstance> {
+  const apiBaseUrl = resolveApiBaseUrl();
+  const response = await apiFetch(`${apiBaseUrl}/xyn/api/provision/instances/${id}`, {
+    method: "PATCH",
+    credentials: "include",
+    headers: { ...jsonHeaders, ...authHeaders() },
+    body: JSON.stringify(payload),
+  });
+  return handle<ProvisionedInstance>(response);
+}
+
 export async function destroyInstance(id: string): Promise<ProvisionedInstance> {
   const apiBaseUrl = resolveApiBaseUrl();
   const response = await apiFetch(`${apiBaseUrl}/xyn/api/provision/instances/${id}/destroy`, {

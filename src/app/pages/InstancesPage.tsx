@@ -7,6 +7,7 @@ import {
   getInstance,
   listInstances,
   retryProvisionInstance,
+  updateInstance,
 } from "../../api/client";
 import { createDevTask, getRelease, listEnvironments, listReleases } from "../../api/xyn";
 import type {
@@ -52,6 +53,16 @@ export default function InstancesPage() {
   const [environments, setEnvironments] = useState<EnvironmentSummary[]>([]);
   const [environmentId, setEnvironmentId] = useState<string>("");
   const [statusFilter, setStatusFilter] = useState<string>("running");
+  const [pendingEnvironmentId, setPendingEnvironmentId] = useState<string>("");
+  const [showEnvConfirm, setShowEnvConfirm] = useState(false);
+  const [forceEnvChange, setForceEnvChange] = useState(false);
+
+  const environmentNameById = useMemo(() => {
+    return environments.reduce<Record<string, string>>((acc, env) => {
+      acc[env.id] = env.name;
+      return acc;
+    }, {});
+  }, [environments]);
 
   const selectedInstance = useMemo(
     () => instances.find((item) => item.id === selectedId) ?? selected,
@@ -97,7 +108,7 @@ export default function InstancesPage() {
   useEffect(() => {
     (async () => {
       try {
-        const data = await listReleases(undefined, environmentId || undefined);
+        const data = await listReleases();
         const map: Record<string, ReleaseSummary> = {};
         data.releases.forEach((item) => {
           map[item.id] = item;
@@ -107,7 +118,7 @@ export default function InstancesPage() {
         setError((err as Error).message);
       }
     })();
-  }, [environmentId]);
+  }, []);
 
   useEffect(() => {
     (async () => {
@@ -133,6 +144,54 @@ export default function InstancesPage() {
     if (!selectedId) return;
     handleFetchContainers();
   }, [selectedId]);
+
+  useEffect(() => {
+    if (!selectedInstance) return;
+    setPendingEnvironmentId(selectedInstance.environment_id ?? "");
+  }, [selectedInstance?.id, selectedInstance?.environment_id]);
+
+  const handleEnvironmentChange = (nextId: string) => {
+    if (!selectedInstance) return;
+    if (!nextId) {
+      setError("Instances must belong to an environment.");
+      return;
+    }
+    if (nextId === (selectedInstance.environment_id ?? "")) {
+      setPendingEnvironmentId(nextId);
+      return;
+    }
+    setPendingEnvironmentId(nextId);
+    setShowEnvConfirm(true);
+  };
+
+  const confirmEnvironmentChange = async () => {
+    if (!selectedInstance || !pendingEnvironmentId) return;
+    try {
+      setLoading(true);
+      setError(null);
+      const updated = await updateInstance(selectedInstance.id, {
+        environment_id: pendingEnvironmentId,
+        force: forceEnvChange,
+      });
+      setInstances((prev) => prev.map((item) => (item.id === updated.id ? updated : item)));
+      setSelected(updated);
+      await loadInstances();
+      setShowEnvConfirm(false);
+      setForceEnvChange(false);
+    } catch (err) {
+      setError((err as Error).message);
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const cancelEnvironmentChange = () => {
+    if (selectedInstance) {
+      setPendingEnvironmentId(selectedInstance.environment_id ?? "");
+    }
+    setShowEnvConfirm(false);
+    setForceEnvChange(false);
+  };
 
   const handleCreate = async () => {
     try {
@@ -250,6 +309,50 @@ export default function InstancesPage() {
 
   return (
     <>
+      {showEnvConfirm && selectedInstance && (
+        <div className="modal-backdrop">
+          <div className="modal">
+            <h3>Change instance environment?</h3>
+            <p className="muted">
+              This updates the instance's environment association. Deployments are only valid when the
+              release plan environment matches the instance environment.
+            </p>
+            <div className="detail-grid">
+              <div>
+                <div className="label">Instance</div>
+                <strong>{selectedInstance.name}</strong>
+              </div>
+              <div>
+                <div className="label">Current environment</div>
+                <span className="muted">
+                  {environmentNameById[selectedInstance.environment_id ?? ""] ?? "None"}
+                </span>
+              </div>
+              <div>
+                <div className="label">New environment</div>
+                <span className="muted">{environmentNameById[pendingEnvironmentId] ?? "None"}</span>
+              </div>
+            </div>
+            <label className="checkbox">
+              <input
+                type="checkbox"
+                checked={forceEnvChange}
+                onChange={(event) => setForceEnvChange(event.target.checked)}
+              />
+              Force change even if deployments are active
+            </label>
+            <div className="inline-actions">
+              <button className="ghost" onClick={cancelEnvironmentChange} disabled={loading}>
+                Cancel
+              </button>
+              <button className="primary" onClick={confirmEnvironmentChange} disabled={loading}>
+                Confirm change
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
       <div className="page-header">
         <div>
           <h2>Instances</h2>
@@ -418,7 +521,7 @@ export default function InstancesPage() {
                   setPayload((prev) => ({ ...prev, environment_id: event.target.value }))
                 }
               >
-                <option value="">None</option>
+                <option value="">Select environment</option>
                 {environments.map((env) => (
                   <option key={env.id} value={env.id}>
                     {env.name}
@@ -503,6 +606,21 @@ export default function InstancesPage() {
                 <div>
                   <div className="label">Status</div>
                   <StatusPill status={selectedInstance.status} />
+                </div>
+                <div>
+                  <div className="label">Environment</div>
+                  <select
+                    className="input"
+                    value={pendingEnvironmentId}
+                    onChange={(event) => handleEnvironmentChange(event.target.value)}
+                  >
+                    <option value="">Select environment</option>
+                    {environments.map((env) => (
+                      <option key={env.id} value={env.id}>
+                        {env.name}
+                      </option>
+                    ))}
+                  </select>
                 </div>
                 <div>
                   <div className="label">Instance ID</div>

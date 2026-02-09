@@ -455,7 +455,6 @@ export type ReleaseSummary = {
   blueprint_id?: string | null;
   release_plan_id?: string | null;
   created_from_run_id?: string | null;
-  environment_id?: string | null;
   created_at?: string;
   updated_at?: string;
 };
@@ -470,7 +469,6 @@ export type ReleaseCreatePayload = {
   blueprint_id?: string | null;
   release_plan_id?: string | null;
   created_from_run_id?: string | null;
-  environment_id?: string | null;
   artifacts_json?: Array<{ name: string; url: string }>;
 };
 

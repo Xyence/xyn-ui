@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useMemo, useState } from "react";
 import InlineMessage from "../../components/InlineMessage";
 import {
   createDevTask,
@@ -7,6 +7,7 @@ import {
   getReleasePlan,
   getRunArtifacts,
   getRunLogs,
+  listEnvironments,
   listReleases,
   listReleasePlans,
   runDevTask,
@@ -14,6 +15,7 @@ import {
 } from "../../api/xyn";
 import { listInstances } from "../../api/client";
 import type {
+  EnvironmentSummary,
   ProvisionedInstance,
   ReleasePlanCreatePayload,
   ReleasePlanDetail,
@@ -29,6 +31,7 @@ const emptyForm: ReleasePlanCreatePayload = {
   from_version: "",
   to_version: "",
   blueprint_id: "",
+  environment_id: "",
 };
 
 const TARGET_KINDS = ["module", "bundle", "release", "blueprint"];
@@ -48,7 +51,21 @@ export default function ReleasePlansPage() {
   const [runLogs, setRunLogs] = useState<string>("");
   const [runArtifacts, setRunArtifacts] = useState<RunArtifact[]>([]);
   const [releases, setReleases] = useState<ReleaseSummary[]>([]);
+  const [allReleases, setAllReleases] = useState<ReleaseSummary[]>([]);
   const [selectedReleaseId, setSelectedReleaseId] = useState<string>("");
+  const [environments, setEnvironments] = useState<EnvironmentSummary[]>([]);
+  const [draftReleaseWarning, setDraftReleaseWarning] = useState<string | null>(null);
+
+  const selectedRelease = useMemo(
+    () => allReleases.find((item) => item.id === selectedReleaseId),
+    [allReleases, selectedReleaseId]
+  );
+  const isDraftSelected = Boolean(selectedRelease && selectedRelease.status !== "published");
+
+  const eligibleInstances = useMemo(() => {
+    if (!form.environment_id) return activeInstances;
+    return activeInstances.filter((instance) => instance.environment_id === form.environment_id);
+  }, [activeInstances, form.environment_id]);
 
   const load = useCallback(async () => {
     try {
@@ -84,8 +101,20 @@ export default function ReleasePlansPage() {
   useEffect(() => {
     (async () => {
       try {
-        const data = await listReleases();
-        setReleases(data.releases);
+        const [published, all] = await Promise.all([listReleases(undefined, "published"), listReleases()]);
+        setReleases(published.releases);
+        setAllReleases(all.releases);
+      } catch (err) {
+        setError((err as Error).message);
+      }
+    })();
+  }, []);
+
+  useEffect(() => {
+    (async () => {
+      try {
+        const data = await listEnvironments();
+        setEnvironments(data.environments);
       } catch (err) {
         setError((err as Error).message);
       }
@@ -98,6 +127,7 @@ export default function ReleasePlansPage() {
       return;
     }
     setSelectedReleaseId("");
+    setDraftReleaseWarning(null);
     (async () => {
       try {
         const detail = await getReleasePlan(selectedId);
@@ -107,8 +137,15 @@ export default function ReleasePlansPage() {
         }
         if (!selectedReleaseId) {
           const matching = releases.filter((item) => item.release_plan_id === detail.id);
-          if (matching[0]) {
-            setSelectedReleaseId(matching[0].id);
+          if (matching[0]) setSelectedReleaseId(matching[0].id);
+          const legacyDraft = allReleases.find(
+            (item) => item.release_plan_id === detail.id && item.status !== "published"
+          );
+          if (legacyDraft && !matching[0]) {
+            setSelectedReleaseId(legacyDraft.id);
+            setDraftReleaseWarning(
+              `Draft release ${legacyDraft.version} is attached to this plan. Publish it before deploying or saving.`
+            );
           }
         }
         setForm({
@@ -118,12 +155,13 @@ export default function ReleasePlansPage() {
           from_version: detail.from_version ?? "",
           to_version: detail.to_version ?? "",
           blueprint_id: detail.blueprint_id ?? "",
+          environment_id: detail.environment_id ?? "",
         });
       } catch (err) {
         setError((err as Error).message);
       }
     })();
-  }, [selectedId, releases, targetInstanceId]);
+  }, [selectedId, releases, allReleases, targetInstanceId]);
 
   useEffect(() => {
     const lastRun = selected?.last_run;
@@ -144,7 +182,18 @@ export default function ReleasePlansPage() {
     })();
   }, [selected?.last_run]);
 
+  useEffect(() => {
+    if (!targetInstanceId) return;
+    if (!eligibleInstances.find((instance) => instance.id === targetInstanceId)) {
+      setTargetInstanceId("");
+    }
+  }, [eligibleInstances, targetInstanceId]);
+
   const handleCreate = async () => {
+    if (!form.environment_id) {
+      setError("Select an environment before creating a release plan.");
+      return;
+    }
     try {
       setLoading(true);
       setError(null);
@@ -162,6 +211,14 @@ export default function ReleasePlansPage() {
 
   const handleUpdate = async () => {
     if (!selectedId) return;
+    if (!form.environment_id) {
+      setError("Select an environment before saving.");
+      return;
+    }
+    if (isDraftSelected) {
+      setError("Draft release selected. Publish it before saving.");
+      return;
+    }
     try {
       setLoading(true);
       setError(null);
@@ -224,6 +281,17 @@ export default function ReleasePlansPage() {
       setError("Select a target instance before deploying.");
       return;
     }
+    if (isDraftSelected) {
+      setError("Draft release selected. Publish it before deploying.");
+      return;
+    }
+    if (form.environment_id) {
+      const target = activeInstances.find((instance) => instance.id === targetInstanceId);
+      if (target && target.environment_id && target.environment_id !== form.environment_id) {
+        setError("Target instance environment does not match release plan environment.");
+        return;
+      }
+    }
     try {
       setLoading(true);
       setError(null);
@@ -266,6 +334,16 @@ export default function ReleasePlansPage() {
 
       {error && <InlineMessage tone="error" title="Request failed" body={error} />}
       {message && <InlineMessage tone="info" title="Update" body={message} />}
+      {draftReleaseWarning && (
+        <InlineMessage tone="warning" title="Draft release selected" body={draftReleaseWarning} />
+      )}
+      {isDraftSelected && !draftReleaseWarning && (
+        <InlineMessage
+          tone="warning"
+          title="Draft release selected"
+          body="Publish the selected release before deploying or saving."
+        />
+      )}
 
       <div className="layout">
         <section className="card">
@@ -343,9 +421,28 @@ export default function ReleasePlansPage() {
                 onChange={(event) => setForm({ ...form, blueprint_id: event.target.value })}
               />
             </label>
+            <label>
+              Environment
+              <select
+                className="input"
+                value={form.environment_id ?? ""}
+                onChange={(event) => setForm({ ...form, environment_id: event.target.value })}
+              >
+                <option value="">Select environment</option>
+                {environments.map((env) => (
+                  <option key={env.id} value={env.id}>
+                    {env.name}
+                  </option>
+                ))}
+              </select>
+            </label>
           </div>
           <div className="form-actions">
-            <button className="primary" onClick={selected ? handleUpdate : handleCreate} disabled={loading}>
+            <button
+              className="primary"
+              onClick={selected ? handleUpdate : handleCreate}
+              disabled={loading || isDraftSelected || !form.environment_id}
+            >
               {selected ? "Save changes" : "Create"}
             </button>
             {selected && (
@@ -353,7 +450,11 @@ export default function ReleasePlansPage() {
                 <button className="ghost" onClick={handleGenerate} disabled={loading}>
                   Generate via DevTask
                 </button>
-                <button className="ghost" onClick={handleDeploy} disabled={loading || !targetInstanceId}>
+                <button
+                  className="ghost"
+                  onClick={handleDeploy}
+                  disabled={loading || !targetInstanceId || isDraftSelected}
+                >
                   Deploy (SSM)
                 </button>
                 <button className="danger" onClick={handleDelete} disabled={loading}>
@@ -386,7 +487,7 @@ export default function ReleasePlansPage() {
                 <div className="label">Target instance</div>
                 <select value={targetInstanceId} onChange={(event) => setTargetInstanceId(event.target.value)}>
                   <option value="">Select instance</option>
-                  {activeInstances.map((instance) => (
+                  {eligibleInstances.map((instance) => (
                     <option key={instance.id} value={instance.id}>
                       {instance.name} ({instance.aws_region})
                     </option>
@@ -415,6 +516,11 @@ export default function ReleasePlansPage() {
                   onChange={(event) => setSelectedReleaseId(event.target.value)}
                 >
                   <option value="">Select release</option>
+                  {isDraftSelected && selectedRelease && (
+                    <option value={selectedRelease.id}>
+                      Draft: {selectedRelease.version} (not published)
+                    </option>
+                  )}
                   {releases
                     .filter((item) => item.release_plan_id === selected.id)
                     .map((item) => (

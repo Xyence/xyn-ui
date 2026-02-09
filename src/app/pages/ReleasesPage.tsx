@@ -3,14 +3,12 @@ import InlineMessage from "../../components/InlineMessage";
 import {
   getRelease,
   listBlueprints,
-  listEnvironments,
   listReleasePlans,
   listReleases,
   updateRelease,
 } from "../../api/xyn";
 import type {
   BlueprintSummary,
-  EnvironmentSummary,
   ReleaseDetail,
   ReleasePlanSummary,
   ReleaseSummary,
@@ -23,17 +21,8 @@ export default function ReleasesPage() {
   const [loading, setLoading] = useState(false);
   const [message, setMessage] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
-  const [environments, setEnvironments] = useState<EnvironmentSummary[]>([]);
-  const [environmentId, setEnvironmentId] = useState<string>("");
   const [blueprints, setBlueprints] = useState<BlueprintSummary[]>([]);
   const [releasePlans, setReleasePlans] = useState<ReleasePlanSummary[]>([]);
-
-  const environmentNameById = useMemo(() => {
-    return environments.reduce<Record<string, string>>((acc, env) => {
-      acc[env.id] = env.name;
-      return acc;
-    }, {});
-  }, [environments]);
 
   const blueprintNameById = useMemo(() => {
     return blueprints.reduce<Record<string, string>>((acc, blueprint) => {
@@ -52,7 +41,7 @@ export default function ReleasesPage() {
   const load = useCallback(async () => {
     try {
       setError(null);
-      const data = await listReleases(undefined, environmentId || undefined);
+      const data = await listReleases();
       setItems(data.releases);
       if (!selectedId && data.releases[0]) {
         setSelectedId(data.releases[0].id);
@@ -60,7 +49,7 @@ export default function ReleasesPage() {
     } catch (err) {
       setError((err as Error).message);
     }
-  }, [environmentId, selectedId]);
+  }, [selectedId]);
 
   useEffect(() => {
     load();
@@ -69,12 +58,10 @@ export default function ReleasesPage() {
   useEffect(() => {
     (async () => {
       try {
-        const [envs, blueprintData, releasePlanData] = await Promise.all([
-          listEnvironments(),
+        const [blueprintData, releasePlanData] = await Promise.all([
           listBlueprints(),
           listReleasePlans(),
         ]);
-        setEnvironments(envs.environments);
         setBlueprints(blueprintData.blueprints);
         setReleasePlans(releasePlanData.release_plans);
       } catch (err) {
@@ -135,18 +122,6 @@ export default function ReleasesPage() {
           <p className="muted">Generated releases and artifacts.</p>
         </div>
         <div className="inline-actions">
-          <select
-            className="input"
-            value={environmentId}
-            onChange={(event) => setEnvironmentId(event.target.value)}
-          >
-            <option value="">All environments</option>
-            {environments.map((env) => (
-              <option key={env.id} value={env.id}>
-                {env.name}
-              </option>
-            ))}
-          </select>
           <button className="ghost" onClick={handleRefresh} disabled={loading}>
             Refresh
           </button>
@@ -176,7 +151,6 @@ export default function ReleasesPage() {
                   </span>
                 </div>
                 <div className="muted small">
-                  <div>{environmentNameById[item.environment_id ?? ""] ?? "All environments"}</div>
                   <div>{item.release_plan_id ? "Has release plan" : "No release plan"}</div>
                 </div>
               </button>
@@ -223,12 +197,6 @@ export default function ReleasesPage() {
                     {releasePlanNameById[selected.release_plan_id ?? ""] ??
                       selected.release_plan_id ??
                       "—"}
-                  </span>
-                </div>
-                <div>
-                  <div className="label">Environment</div>
-                  <span className="muted">
-                    {environmentNameById[selected.environment_id ?? ""] ?? "—"}
                   </span>
                 </div>
                 <div>

@@ -892,7 +892,7 @@ export async function listRuns(
 
 export async function listReleases(
   blueprintId?: string,
-  environmentId?: string
+  status?: string
 ): Promise<ReleaseListResponse> {
   const apiBaseUrl = resolveApiBaseUrl();
   const url = new URL(`${apiBaseUrl}/xyn/api/releases`);
@@ -900,8 +900,8 @@ export async function listReleases(
   if (blueprintId) {
     url.searchParams.set("blueprint_id", blueprintId);
   }
-  if (environmentId) {
-    url.searchParams.set("environment_id", environmentId);
+  if (status) {
+    url.searchParams.set("status", status);
   }
   const response = await apiFetch(url.toString(), { credentials: "include" });
   return handle<ReleaseListResponse>(response);
