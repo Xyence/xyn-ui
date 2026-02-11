@@ -1,13 +1,15 @@
 import { useCallback, useEffect, useState } from "react";
-import { Link } from "react-router-dom";
+import { Link, useNavigate } from "react-router-dom";
+import { clearStoredToken, getStoredToken } from "../auth/session";
 
 type Device = { id: string; name: string };
 
 export default function DeviceList() {
+  const navigate = useNavigate();
   const [devices, setDevices] = useState<Device[]>([]);
   const [roles, setRoles] = useState<string[]>([]);
-  const [token, setToken] = useState("");
   const [newName, setNewName] = useState("");
+  const [token, setToken] = useState<string>(getStoredToken());
   const isAdmin = roles.includes("admin");
 
   const fetchMe = useCallback(async () => {
@@ -59,22 +61,31 @@ export default function DeviceList() {
   );
 
   useEffect(() => {
+    const stored = getStoredToken();
+    if (!stored) {
+      navigate("/", { replace: true });
+      return;
+    }
+    setToken(stored);
     fetchMe();
     fetchDevices();
-  }, [fetchMe, fetchDevices]);
+  }, [fetchMe, fetchDevices, navigate]);
 
   return (
     <section>
       <h2>Devices</h2>
-      <p>Paste a token to load devices.</p>
-      <input
-        type="text"
-        placeholder="JWT token"
-        value={token}
-        onChange={(event) => setToken(event.target.value)}
-      />
+      <p>Signed in via OIDC.</p>
       <button type="button" onClick={fetchDevices}>
         Refresh
+      </button>
+      <button
+        type="button"
+        onClick={() => {
+          clearStoredToken();
+          navigate("/", { replace: true });
+        }}
+      >
+        Sign out
       </button>
       <ul>
         {devices.map((device) => (
