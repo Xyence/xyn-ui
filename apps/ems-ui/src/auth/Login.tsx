@@ -2,11 +2,17 @@ import { useCallback, useEffect, useMemo, useState } from "react";
 import { Link } from "react-router-dom";
 import { clearStoredToken, getStoredToken } from "./session";
 
+type OidcConfig = {
+  app_id?: string;
+  auth_base_url?: string;
+};
+
 export default function Login() {
   const [status, setStatus] = useState<"ok" | "down" | "checking">("checking");
   const [authStatus, setAuthStatus] = useState<"unknown" | "signed_out" | "signed_in">("unknown");
   const [meResult, setMeResult] = useState<string>("");
   const [meIdentity, setMeIdentity] = useState<string>("");
+  const [oidcConfig, setOidcConfig] = useState<OidcConfig | null>(null);
   const meLabel = useMemo(() => (meResult ? "Response:" : "Response will appear here."), [meResult]);
 
   const checkHealth = useCallback(async () => {
@@ -62,15 +68,36 @@ export default function Login() {
     setMeResult("");
   }, []);
 
-  const startLogin = useCallback(() => {
-    const returnTo = `${window.location.origin}/auth/callback`;
-    window.location.href = `/auth/login?appId=ems.platform&returnTo=${encodeURIComponent(returnTo)}`;
+  const loadOidcConfig = useCallback(async () => {
+    try {
+      const response = await fetch("/api/auth/oidc/config");
+      if (!response.ok) {
+        setMeResult(`OIDC config unavailable (${response.status})`);
+        return;
+      }
+      const payload = (await response.json()) as OidcConfig;
+      setOidcConfig(payload);
+    } catch (err) {
+      setMeResult(`OIDC config fetch failed: ${String(err)}`);
+    }
   }, []);
+
+  const startLogin = useCallback(() => {
+    const authBase = (oidcConfig?.auth_base_url || "").replace(/\/$/, "");
+    if (!authBase) {
+      setMeResult("OIDC auth base URL missing.");
+      return;
+    }
+    const appId = oidcConfig?.app_id || "ems.platform";
+    const returnTo = `${window.location.origin}/auth/callback`;
+    window.location.href = `${authBase}/auth/login?appId=${encodeURIComponent(appId)}&returnTo=${encodeURIComponent(returnTo)}`;
+  }, [oidcConfig]);
 
   useEffect(() => {
     checkHealth();
+    loadOidcConfig();
     callMe();
-  }, [checkHealth, callMe]);
+  }, [checkHealth, loadOidcConfig, callMe]);
 
   return (
     <section>
