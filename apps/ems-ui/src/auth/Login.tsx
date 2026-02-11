@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { Link } from "react-router-dom";
 import { clearStoredToken, getStoredToken } from "./session";
 
@@ -13,6 +13,7 @@ export default function Login() {
   const [meResult, setMeResult] = useState<string>("");
   const [meIdentity, setMeIdentity] = useState<string>("");
   const [oidcConfig, setOidcConfig] = useState<OidcConfig | null>(null);
+  const hasAutoRedirected = useRef(false);
   const meLabel = useMemo(() => (meResult ? "Response:" : "Response will appear here."), [meResult]);
 
   const checkHealth = useCallback(async () => {
@@ -98,6 +99,14 @@ export default function Login() {
     loadOidcConfig();
     callMe();
   }, [checkHealth, loadOidcConfig, callMe]);
+
+  useEffect(() => {
+    if (authStatus !== "signed_out" || !oidcConfig || hasAutoRedirected.current) {
+      return;
+    }
+    hasAutoRedirected.current = true;
+    startLogin();
+  }, [authStatus, oidcConfig, startLogin]);
 
   return (
     <section>
