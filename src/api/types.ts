@@ -426,6 +426,34 @@ export type BrandingResponse = {
   theme: Record<string, string>;
 };
 
+export type PlatformBranding = {
+  brand_name: string;
+  logo_url: string;
+  favicon_url: string;
+  primary_color: string;
+  background_color: string;
+  background_gradient: string;
+  text_color: string;
+  font_family: string;
+  button_radius_px: number;
+};
+
+export type PlatformBrandingPayload = Partial<PlatformBranding>;
+
+export type AppBrandingOverride = {
+  app_id: string;
+  display_name: string;
+  logo_url: string;
+  primary_color: string;
+  background_color: string;
+  background_gradient: string;
+  text_color: string;
+  font_family: string;
+  button_radius_px?: number | null;
+};
+
+export type AppBrandingOverridePayload = Partial<AppBrandingOverride>;
+
 export type Device = {
   id: string;
   tenant_id: string;

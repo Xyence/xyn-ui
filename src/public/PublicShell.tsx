@@ -63,7 +63,7 @@ export default function PublicShell() {
               })}
             </nav>
             {!authenticated && (
-              <a className="primary" href={`/admin/login/?next=/app`}>
+              <a className="primary" href={`/auth/login?appId=xyn-ui&returnTo=${encodeURIComponent("/app")}`}>
                 Login
               </a>
             )}

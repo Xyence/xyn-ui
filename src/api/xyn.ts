@@ -54,6 +54,10 @@ import type {
   MyProfile,
   BrandingPayload,
   BrandingResponse,
+  PlatformBranding,
+  PlatformBrandingPayload,
+  AppBrandingOverride,
+  AppBrandingOverridePayload,
   DeviceListResponse,
   DevicePayload,
   Device,
@@ -134,6 +138,53 @@ export async function updateTenantBranding(tenantId: string, payload: BrandingPa
     body: JSON.stringify(payload),
   });
   await handle<void>(response);
+}
+
+export async function getPlatformBranding(): Promise<PlatformBranding> {
+  const apiBaseUrl = resolveApiBaseUrl();
+  const response = await apiFetch(`${apiBaseUrl}/xyn/api/platform/branding`, {
+    credentials: "include",
+  });
+  return handle<PlatformBranding>(response);
+}
+
+export async function updatePlatformBranding(payload: PlatformBrandingPayload): Promise<PlatformBranding> {
+  const apiBaseUrl = resolveApiBaseUrl();
+  const response = await apiFetch(`${apiBaseUrl}/xyn/api/platform/branding`, {
+    method: "PUT",
+    headers: buildHeaders(),
+    credentials: "include",
+    body: JSON.stringify(payload),
+  });
+  return handle<PlatformBranding>(response);
+}
+
+export async function getAppBrandingOverride(appId: string): Promise<AppBrandingOverride> {
+  const apiBaseUrl = resolveApiBaseUrl();
+  const response = await apiFetch(`${apiBaseUrl}/xyn/api/platform/branding/apps/${encodeURIComponent(appId)}`, {
+    credentials: "include",
+  });
+  return handle<AppBrandingOverride>(response);
+}
+
+export async function updateAppBrandingOverride(
+  appId: string,
+  payload: AppBrandingOverridePayload
+): Promise<AppBrandingOverride> {
+  const apiBaseUrl = resolveApiBaseUrl();
+  const response = await apiFetch(`${apiBaseUrl}/xyn/api/platform/branding/apps/${encodeURIComponent(appId)}`, {
+    method: "PUT",
+    headers: buildHeaders(),
+    credentials: "include",
+    body: JSON.stringify(payload),
+  });
+  return handle<AppBrandingOverride>(response);
+}
+
+export async function getPublicBranding(appId: string): Promise<Record<string, unknown>> {
+  const apiBaseUrl = resolveApiBaseUrl();
+  const response = await apiFetch(`${apiBaseUrl}/xyn/api/public/branding?appId=${encodeURIComponent(appId)}`);
+  return handle<Record<string, unknown>>(response);
 }
 
 export async function setActiveTenant(tenantId: string): Promise<void> {

@@ -20,6 +20,11 @@ npm run dev
 ## Notes
 This UI relies on existing xyn-api staff session cookies in dev mode.
 
+## Shared Login
+- Apps should redirect users to the platform login route:
+  - `/auth/login?appId=<appId>&returnTo=<url>`
+- Do not implement app-specific provider pickers in individual apps.
+
 ## SPA routing fallback
 When deploying behind a reverse proxy, ensure all public routes (e.g. `/about`, `/articles`, `/articles/:slug`) resolve to `index.html`. The provided `nginx.conf` already includes:
 
