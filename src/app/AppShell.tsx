@@ -6,6 +6,8 @@ import InstancesPage from "./pages/InstancesPage";
 import ModulesPage from "./pages/ModulesPage";
 import RegistriesPage from "./pages/RegistriesPage";
 import EnvironmentsPage from "./pages/EnvironmentsPage";
+import IdentityProvidersPage from "./pages/IdentityProvidersPage";
+import OidcAppClientsPage from "./pages/OidcAppClientsPage";
 import ReleasePlansPage from "./pages/ReleasePlansPage";
 import ReleasesPage from "./pages/ReleasesPage";
 import RunsPage from "./pages/RunsPage";
@@ -24,6 +26,9 @@ export default function AppShell() {
   const [authLoaded, setAuthLoaded] = useState(false);
   const [brandName, setBrandName] = useState<string>("Xyn Console");
   const [brandLogo, setBrandLogo] = useState<string>("/xyence-logo.png");
+  const [oidcFallback, setOidcFallback] = useState(false);
+  const [authProviders, setAuthProviders] = useState<Array<{ id: string; display_name: string }>>([]);
+  const [showAuthPicker, setShowAuthPicker] = useState(false);
 
   useEffect(() => {
     let mounted = true;
@@ -67,6 +72,41 @@ export default function AppShell() {
     };
   }, []);
 
+  const startLogin = async () => {
+    try {
+      const response = await fetch("/xyn/api/auth/oidc/config?appId=xyn-ui", {
+        credentials: "include",
+      });
+      if (!response.ok) {
+        setOidcFallback(true);
+        window.location.href = `/auth/login?next=${encodeURIComponent(window.location.pathname)}`;
+        return;
+      }
+      setOidcFallback(false);
+      const payload = await response.json();
+      const providers = (payload.allowed_providers || []).map((provider: any) => ({
+        id: provider.id,
+        display_name: provider.display_name || provider.id,
+      }));
+      if (providers.length <= 1) {
+        const provider = providers[0];
+        if (!provider) {
+          window.location.href = `/auth/login?next=${encodeURIComponent(window.location.pathname)}`;
+          return;
+        }
+        window.location.href = `/xyn/api/auth/oidc/${provider.id}/authorize?appId=xyn-ui&next=${encodeURIComponent(
+          window.location.pathname
+        )}`;
+        return;
+      }
+      setAuthProviders(providers);
+      setShowAuthPicker(true);
+    } catch {
+      setOidcFallback(true);
+      window.location.href = `/auth/login?next=${encodeURIComponent(window.location.pathname)}`;
+    }
+  };
+
   const isPlatformAdmin = roles.includes("platform_admin");
 
   if (!authLoaded) {
@@ -108,13 +148,42 @@ export default function AppShell() {
           ) : (
             <button
               className="ghost"
-              onClick={() => (window.location.href = `/auth/login?next=${encodeURIComponent(window.location.pathname)}`)}
+              onClick={startLogin}
             >
               Sign in
             </button>
           )}
         </div>
       </header>
+      {!authed && showAuthPicker && authProviders.length > 1 && (
+        <div className="signin-picker">
+          <strong>Choose a provider</strong>
+          <div className="signin-picker-actions">
+            {authProviders.map((provider) => (
+              <button
+                key={provider.id}
+                className="ghost"
+                onClick={() =>
+                  (window.location.href = `/xyn/api/auth/oidc/${provider.id}/authorize?appId=xyn-ui&next=${encodeURIComponent(
+                    window.location.pathname
+                  )}`)
+                }
+              >
+                Continue with {provider.display_name}
+              </button>
+            ))}
+            <button className="ghost" onClick={() => setShowAuthPicker(false)}>
+              Cancel
+            </button>
+          </div>
+        </div>
+      )}
+      {!authed && oidcFallback && (
+        <div className="inline-message inline-warn">
+          <strong>Using ENV OIDC fallback (no app client configured)</strong>
+          <span className="muted">Seed an app client to switch to DB-managed providers.</span>
+        </div>
+      )}
 
       <div className="app-body">
         <aside className="app-sidebar">
@@ -213,6 +282,18 @@ export default function AppShell() {
               >
                 Environments
               </NavLink>
+              <NavLink
+                className={({ isActive }) => (isActive ? "app-nav-link active" : "app-nav-link")}
+                to="/app/platform/identity-providers"
+              >
+                Identity Providers
+              </NavLink>
+              <NavLink
+                className={({ isActive }) => (isActive ? "app-nav-link active" : "app-nav-link")}
+                to="/app/platform/oidc-app-clients"
+              >
+                OIDC App Clients
+              </NavLink>
             </>
           )}
         </aside>
@@ -242,6 +323,8 @@ export default function AppShell() {
                 <Route path="platform/users" element={<PlatformUsersPage />} />
                 <Route path="platform/roles" element={<PlatformRolesPage />} />
                 <Route path="platform/environments" element={<EnvironmentsPage />} />
+                <Route path="platform/identity-providers" element={<IdentityProvidersPage />} />
+                <Route path="platform/oidc-app-clients" element={<OidcAppClientsPage />} />
               </>
             )}
           </Routes>

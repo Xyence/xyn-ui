@@ -43,6 +43,10 @@ import type {
   ContactCreatePayload,
   ContactListResponse,
   IdentityListResponse,
+  IdentityProviderListResponse,
+  IdentityProviderPayload,
+  OidcAppClientListResponse,
+  OidcAppClientPayload,
   RoleBindingListResponse,
   RoleBindingCreatePayload,
   MembershipListResponse,
@@ -1093,4 +1097,101 @@ export async function listBlueprintDevTasks(id: string): Promise<{ dev_tasks: De
     credentials: "include",
   });
   return handle<{ dev_tasks: DevTaskSummary[] }>(response);
+}
+
+export async function listIdentityProviders(): Promise<IdentityProviderListResponse> {
+  const apiBaseUrl = resolveApiBaseUrl();
+  const response = await apiFetch(`${apiBaseUrl}/xyn/api/platform/identity-providers`, {
+    credentials: "include",
+  });
+  return handle<IdentityProviderListResponse>(response);
+}
+
+export async function createIdentityProvider(payload: IdentityProviderPayload): Promise<{ id: string }> {
+  const apiBaseUrl = resolveApiBaseUrl();
+  const response = await apiFetch(`${apiBaseUrl}/xyn/api/platform/identity-providers`, {
+    method: "POST",
+    headers: buildHeaders(),
+    credentials: "include",
+    body: JSON.stringify(payload),
+  });
+  return handle<{ id: string }>(response);
+}
+
+export async function updateIdentityProvider(
+  id: string,
+  payload: Partial<IdentityProviderPayload>
+): Promise<{ id: string }> {
+  const apiBaseUrl = resolveApiBaseUrl();
+  const response = await apiFetch(`${apiBaseUrl}/xyn/api/platform/identity-providers/${id}`, {
+    method: "PATCH",
+    headers: buildHeaders(),
+    credentials: "include",
+    body: JSON.stringify(payload),
+  });
+  return handle<{ id: string }>(response);
+}
+
+export async function deleteIdentityProvider(id: string): Promise<{ status: string }> {
+  const apiBaseUrl = resolveApiBaseUrl();
+  const response = await apiFetch(`${apiBaseUrl}/xyn/api/platform/identity-providers/${id}`, {
+    method: "DELETE",
+    credentials: "include",
+  });
+  return handle<{ status: string }>(response);
+}
+
+export async function testIdentityProvider(id: string): Promise<{
+  ok: boolean;
+  authorization_endpoint?: string;
+  token_endpoint?: string;
+  jwks_uri?: string;
+}> {
+  const apiBaseUrl = resolveApiBaseUrl();
+  const response = await apiFetch(`${apiBaseUrl}/xyn/api/platform/identity-providers/${id}/test`, {
+    credentials: "include",
+  });
+  return handle(response);
+}
+
+export async function listOidcAppClients(): Promise<OidcAppClientListResponse> {
+  const apiBaseUrl = resolveApiBaseUrl();
+  const response = await apiFetch(`${apiBaseUrl}/xyn/api/platform/oidc-app-clients`, {
+    credentials: "include",
+  });
+  return handle<OidcAppClientListResponse>(response);
+}
+
+export async function createOidcAppClient(payload: OidcAppClientPayload): Promise<{ id: string }> {
+  const apiBaseUrl = resolveApiBaseUrl();
+  const response = await apiFetch(`${apiBaseUrl}/xyn/api/platform/oidc-app-clients`, {
+    method: "POST",
+    headers: buildHeaders(),
+    credentials: "include",
+    body: JSON.stringify(payload),
+  });
+  return handle<{ id: string }>(response);
+}
+
+export async function updateOidcAppClient(
+  id: string,
+  payload: Partial<OidcAppClientPayload>
+): Promise<{ id: string }> {
+  const apiBaseUrl = resolveApiBaseUrl();
+  const response = await apiFetch(`${apiBaseUrl}/xyn/api/platform/oidc-app-clients/${id}`, {
+    method: "PATCH",
+    headers: buildHeaders(),
+    credentials: "include",
+    body: JSON.stringify(payload),
+  });
+  return handle<{ id: string }>(response);
+}
+
+export async function deleteOidcAppClient(id: string): Promise<{ status: string }> {
+  const apiBaseUrl = resolveApiBaseUrl();
+  const response = await apiFetch(`${apiBaseUrl}/xyn/api/platform/oidc-app-clients/${id}`, {
+    method: "DELETE",
+    credentials: "include",
+  });
+  return handle<{ status: string }>(response);
 }

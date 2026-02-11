@@ -106,7 +106,11 @@ export default function ReleasesPage() {
       const detail = await getRelease(selected.id);
       setSelected(detail);
       await load();
-      setMessage(`Release ${detail.version} published.`);
+      const buildNote =
+        detail.build_state && detail.build_state !== "ready"
+          ? ` Build state: ${detail.build_state}.`
+          : "";
+      setMessage(`Release ${detail.version} published.${buildNote}`);
     } catch (err) {
       setError((err as Error).message);
     } finally {
@@ -145,7 +149,13 @@ export default function ReleasesPage() {
               >
                 <div>
                   <strong>{item.version}</strong>
-                  <span className="muted small">{item.status} · </span>
+                  <span className="muted small">
+                    {item.status}
+                    {item.build_state && item.status === "published"
+                      ? ` · build ${item.build_state}`
+                      : ""}{" "}
+                    ·{" "}
+                  </span>
                   <span className="muted small">
                     {blueprintNameById[item.blueprint_id ?? ""] ?? item.blueprint_id ?? "—"}
                   </span>
@@ -174,6 +184,20 @@ export default function ReleasesPage() {
                   body="This release is in draft state. Drafts are not promoted to targets until published or deployed."
                 />
               )}
+              {selected.status === "published" && selected.build_state === "building" && (
+                <InlineMessage
+                  tone="info"
+                  title="Build in progress"
+                  body="Release build artifacts are being generated. Deployment will be available once build completes."
+                />
+              )}
+              {selected.status === "published" && selected.build_state === "failed" && (
+                <InlineMessage
+                  tone="error"
+                  title="Build failed"
+                  body="Release artifacts failed to build. Re-publish or rerun the build to make this release deployable."
+                />
+              )}
               <div className="detail-grid">
                 <div>
                   <div className="label">Version</div>
@@ -182,6 +206,10 @@ export default function ReleasesPage() {
                 <div>
                   <div className="label">Status</div>
                   <span className="muted">{selected.status}</span>
+                </div>
+                <div>
+                  <div className="label">Build state</div>
+                  <span className="muted">{selected.build_state ?? "—"}</span>
                 </div>
                 <div>
                   <div className="label">Blueprint</div>

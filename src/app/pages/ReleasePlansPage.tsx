@@ -61,11 +61,21 @@ export default function ReleasePlansPage() {
     [allReleases, selectedReleaseId]
   );
   const isDraftSelected = Boolean(selectedRelease && selectedRelease.status !== "published");
+  const isBuildReady = !selectedRelease || selectedRelease.build_state === "ready";
 
   const eligibleInstances = useMemo(() => {
     if (!form.environment_id) return activeInstances;
     return activeInstances.filter((instance) => instance.environment_id === form.environment_id);
   }, [activeInstances, form.environment_id]);
+  const availableReleases = useMemo(() => {
+    if (!selected) return [];
+    const byPlan = releases.filter((item) => item.release_plan_id === selected.id);
+    if (byPlan.length > 0) return byPlan;
+    if (selected.blueprint_id) {
+      return releases.filter((item) => item.blueprint_id === selected.blueprint_id);
+    }
+    return releases;
+  }, [releases, selected]);
 
   const load = useCallback(async () => {
     try {
@@ -132,21 +142,23 @@ export default function ReleasePlansPage() {
       try {
         const detail = await getReleasePlan(selectedId);
         setSelected(detail);
-        if (!targetInstanceId && detail.deployments && detail.deployments[0]) {
-          setTargetInstanceId(detail.deployments[0].instance_id);
-        }
-        if (!selectedReleaseId) {
-          const matching = releases.filter((item) => item.release_plan_id === detail.id);
-          if (matching[0]) setSelectedReleaseId(matching[0].id);
-          const legacyDraft = allReleases.find(
-            (item) => item.release_plan_id === detail.id && item.status !== "published"
+        setTargetInstanceId((prev) => prev || detail.deployments?.[0]?.instance_id || "");
+        const matching = releases.filter((item) => item.release_plan_id === detail.id);
+        const fallbackByBlueprint = detail.blueprint_id
+          ? releases.filter((item) => item.blueprint_id === detail.blueprint_id)
+          : [];
+        const selectedCandidate = matching[0] || fallbackByBlueprint[0];
+        if (selectedCandidate) setSelectedReleaseId(selectedCandidate.id);
+        const legacyDraft = allReleases.find(
+          (item) =>
+            item.status !== "published" &&
+            (item.release_plan_id === detail.id || (detail.blueprint_id && item.blueprint_id === detail.blueprint_id))
+        );
+        if (legacyDraft && !selectedCandidate) {
+          setSelectedReleaseId(legacyDraft.id);
+          setDraftReleaseWarning(
+            `Draft release ${legacyDraft.version} is attached to this plan. Publish it before deploying or saving.`
           );
-          if (legacyDraft && !matching[0]) {
-            setSelectedReleaseId(legacyDraft.id);
-            setDraftReleaseWarning(
-              `Draft release ${legacyDraft.version} is attached to this plan. Publish it before deploying or saving.`
-            );
-          }
         }
         setForm({
           name: detail.name,
@@ -161,7 +173,7 @@ export default function ReleasePlansPage() {
         setError((err as Error).message);
       }
     })();
-  }, [selectedId, releases, allReleases, targetInstanceId]);
+  }, [selectedId, releases, allReleases]);
 
   useEffect(() => {
     const lastRun = selected?.last_run;
@@ -285,6 +297,10 @@ export default function ReleasePlansPage() {
       setError("Draft release selected. Publish it before deploying.");
       return;
     }
+    if (!isBuildReady) {
+      setError("Release build is not ready. Wait for build completion before deploying.");
+      return;
+    }
     if (form.environment_id) {
       const target = activeInstances.find((instance) => instance.id === targetInstanceId);
       if (target && target.environment_id && target.environment_id !== form.environment_id) {
@@ -342,6 +358,13 @@ export default function ReleasePlansPage() {
           tone="warn"
           title="Draft release selected"
           body="Publish the selected release before deploying or saving."
+        />
+      )}
+      {!isDraftSelected && selectedRelease && !isBuildReady && (
+        <InlineMessage
+          tone="warn"
+          title="Release build not ready"
+          body={`Build state is ${selectedRelease.build_state ?? "unknown"}. Deployment is blocked until build succeeds.`}
         />
       )}
 
@@ -453,7 +476,7 @@ export default function ReleasePlansPage() {
                 <button
                   className="ghost"
                   onClick={handleDeploy}
-                  disabled={loading || !targetInstanceId || isDraftSelected}
+                  disabled={loading || !targetInstanceId || isDraftSelected || !isBuildReady}
                 >
                   Deploy (SSM)
                 </button>
@@ -521,13 +544,11 @@ export default function ReleasePlansPage() {
                       Draft: {selectedRelease.version} (not published)
                     </option>
                   )}
-                  {releases
-                    .filter((item) => item.release_plan_id === selected.id)
-                    .map((item) => (
-                      <option key={item.id} value={item.id}>
-                        {item.version} ({item.status})
-                      </option>
-                    ))}
+                  {availableReleases.map((item) => (
+                    <option key={item.id} value={item.id}>
+                      {item.version} ({item.status})
+                    </option>
+                  ))}
                 </select>
               </div>
             </div>

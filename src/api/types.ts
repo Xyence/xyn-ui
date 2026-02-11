@@ -452,6 +452,7 @@ export type ReleaseSummary = {
   id: string;
   version: string;
   status: string;
+  build_state?: string;
   blueprint_id?: string | null;
   release_plan_id?: string | null;
   created_from_run_id?: string | null;
@@ -466,6 +467,7 @@ export type ReleaseDetail = ReleaseSummary & {
 export type ReleaseCreatePayload = {
   version: string;
   status?: string;
+  build_state?: string;
   blueprint_id?: string | null;
   release_plan_id?: string | null;
   created_from_run_id?: string | null;
@@ -492,6 +494,62 @@ export type EnvironmentCreatePayload = {
   base_domain?: string;
   aws_region?: string;
 };
+
+export type SecretRef = {
+  type: string;
+  ref: string;
+};
+
+export type IdentityProvider = {
+  id: string;
+  display_name: string;
+  enabled: boolean;
+  issuer: string;
+  discovery?: {
+    mode?: string;
+    jwksUri?: string | null;
+    authorizationEndpoint?: string | null;
+    tokenEndpoint?: string | null;
+    userinfoEndpoint?: string | null;
+  };
+  client: {
+    client_id: string;
+    client_secret_ref?: SecretRef | null;
+  };
+  scopes?: string[];
+  pkce?: boolean;
+  prompt?: string | null;
+  domain_rules?: {
+    allowedEmailDomains?: string[];
+    allowedHostedDomain?: string | null;
+  };
+  claims?: Record<string, string>;
+  audience_rules?: {
+    acceptAudiences?: string[];
+    acceptAzp?: boolean;
+  };
+  last_discovery_refresh_at?: string;
+};
+
+export type IdentityProviderListResponse = { identity_providers: IdentityProvider[] };
+
+export type IdentityProviderPayload = IdentityProvider;
+
+export type OidcAppClient = {
+  id: string;
+  app_id: string;
+  login_mode: string;
+  default_provider_id?: string | null;
+  allowed_provider_ids: string[];
+  redirect_uris: string[];
+  post_logout_redirect_uris?: string[];
+  session?: { cookieName?: string; maxAgeSeconds?: number };
+  token_validation?: { issuerStrict?: boolean; clockSkewSeconds?: number };
+};
+
+export type OidcAppClientListResponse = { oidc_app_clients: OidcAppClient[] };
+
+export type OidcAppClientPayload = OidcAppClient;
 
 export type RunSummary = {
   id: string;
