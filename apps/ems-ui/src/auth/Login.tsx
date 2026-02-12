@@ -7,6 +7,9 @@ type OidcConfig = {
   auth_base_url?: string;
 };
 
+const DEFAULT_APP_ID = "ems.platform";
+const DEFAULT_AUTH_BASE = "https://xyence.io";
+
 export default function Login() {
   const [status, setStatus] = useState<"ok" | "down" | "checking">("checking");
   const [authStatus, setAuthStatus] = useState<"unknown" | "signed_out" | "signed_in">("unknown");
@@ -46,7 +49,18 @@ export default function Login() {
       });
       if (!response.ok) {
         setAuthStatus("signed_out");
+        if (response.status === 401 || response.status === 403) {
+          clearStoredToken();
+        }
         setMeResult(`Unauthorized (${response.status})`);
+        return;
+      }
+      const contentType = response.headers.get("content-type") || "";
+      if (!contentType.includes("application/json")) {
+        clearStoredToken();
+        setAuthStatus("signed_out");
+        const snippet = (await response.text()).slice(0, 140);
+        setMeResult(`Request failed: expected JSON from /api/me; received ${contentType || "unknown"}: ${snippet}`);
         return;
       }
       const payload = await response.json();
@@ -58,6 +72,8 @@ export default function Login() {
       setMeResult(JSON.stringify(payload, null, 2));
       setAuthStatus("signed_in");
     } catch (err) {
+      clearStoredToken();
+      setAuthStatus("signed_out");
       setMeResult(`Request failed: ${String(err)}`);
     }
   }, []);
@@ -73,23 +89,22 @@ export default function Login() {
     try {
       const response = await fetch("/api/auth/oidc/config");
       if (!response.ok) {
-        setMeResult(`OIDC config unavailable (${response.status})`);
+        setOidcConfig({ app_id: DEFAULT_APP_ID, auth_base_url: DEFAULT_AUTH_BASE });
         return;
       }
       const payload = (await response.json()) as OidcConfig;
-      setOidcConfig(payload);
+      setOidcConfig({
+        app_id: payload.app_id || DEFAULT_APP_ID,
+        auth_base_url: payload.auth_base_url || DEFAULT_AUTH_BASE,
+      });
     } catch (err) {
-      setMeResult(`OIDC config fetch failed: ${String(err)}`);
+      setOidcConfig({ app_id: DEFAULT_APP_ID, auth_base_url: DEFAULT_AUTH_BASE });
     }
   }, []);
 
   const startLogin = useCallback(() => {
-    const authBase = (oidcConfig?.auth_base_url || "").replace(/\/$/, "");
-    if (!authBase) {
-      setMeResult("OIDC auth base URL missing.");
-      return;
-    }
-    const appId = oidcConfig?.app_id || "ems.platform";
+    const authBase = (oidcConfig?.auth_base_url || DEFAULT_AUTH_BASE).replace(/\/$/, "");
+    const appId = oidcConfig?.app_id || DEFAULT_APP_ID;
     const returnTo = `${window.location.origin}/auth/callback`;
     window.location.href = `${authBase}/auth/login?appId=${encodeURIComponent(appId)}&returnTo=${encodeURIComponent(returnTo)}`;
   }, [oidcConfig]);
