@@ -267,8 +267,22 @@ export type ReleaseTarget = {
   };
   tls: {
     mode: string;
+    termination?: string;
+    provider?: string;
     acme_email?: string;
+    expose_http?: boolean;
+    expose_https?: boolean;
     redirect_http_to_https?: boolean;
+  };
+  ingress?: {
+    network?: string;
+    routes?: Array<{
+      host: string;
+      service: string;
+      port: number;
+      protocol?: string;
+      health_path?: string;
+    }>;
   };
   env?: Record<string, string>;
   secret_refs?: { name: string; ref: string }[];
@@ -299,8 +313,22 @@ export type ReleaseTargetCreatePayload = {
   };
   tls?: {
     mode?: string;
+    termination?: string;
+    provider?: string;
     acme_email?: string;
+    expose_http?: boolean;
+    expose_https?: boolean;
     redirect_http_to_https?: boolean;
+  };
+  ingress?: {
+    network?: string;
+    routes?: Array<{
+      host: string;
+      service: string;
+      port: number;
+      protocol?: string;
+      health_path?: string;
+    }>;
   };
   env?: Record<string, string>;
   secret_refs?: { name: string; ref: string }[];

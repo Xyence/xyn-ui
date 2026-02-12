@@ -38,6 +38,7 @@ export default function DevTasksPage() {
   const [totalCount, setTotalCount] = useState(0);
   const [nextPage, setNextPage] = useState<number | null>(null);
   const [prevPage, setPrevPage] = useState<number | null>(null);
+  const [autoRefresh, setAutoRefresh] = useState(true);
   const [message, setMessage] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
@@ -58,6 +59,19 @@ export default function DevTasksPage() {
     }
   }, [selectedId, statusFilter, query, page, pageSize]);
 
+  const loadSelected = useCallback(async () => {
+    if (!selectedId) {
+      setSelected(null);
+      return;
+    }
+    try {
+      const detail = await getDevTask(selectedId);
+      setSelected(detail);
+    } catch (err) {
+      setError((err as Error).message);
+    }
+  }, [selectedId]);
+
   useEffect(() => {
     load();
   }, [load]);
@@ -67,19 +81,31 @@ export default function DevTasksPage() {
   }, [statusFilter, query]);
 
   useEffect(() => {
-    if (!selectedId) {
-      setSelected(null);
-      return;
+    loadSelected();
+  }, [loadSelected]);
+
+  useEffect(() => {
+    if (!autoRefresh) return;
+    const interval = window.setInterval(async () => {
+      await load();
+      await loadSelected();
+    }, 5000);
+    return () => window.clearInterval(interval);
+  }, [autoRefresh, load, loadSelected]);
+
+  const handleRefresh = async () => {
+    try {
+      setLoading(true);
+      setError(null);
+      await load();
+      await loadSelected();
+      setMessage("Dev tasks refreshed.");
+    } catch (err) {
+      setError((err as Error).message);
+    } finally {
+      setLoading(false);
     }
-    (async () => {
-      try {
-        const detail = await getDevTask(selectedId);
-        setSelected(detail);
-      } catch (err) {
-        setError((err as Error).message);
-      }
-    })();
-  }, [selectedId]);
+  };
 
   const handleRun = async () => {
     if (!selectedId) return;
@@ -162,7 +188,15 @@ export default function DevTasksPage() {
               </option>
             ))}
           </select>
-          <button className="ghost" onClick={load} disabled={loading}>
+          <label className="muted small">
+            <input
+              type="checkbox"
+              checked={autoRefresh}
+              onChange={(event) => setAutoRefresh(event.target.checked)}
+            />
+            Auto-refresh
+          </label>
+          <button className="ghost" onClick={handleRefresh} disabled={loading}>
             Refresh
           </button>
         </div>

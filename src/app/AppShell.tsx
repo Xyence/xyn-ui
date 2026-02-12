@@ -99,7 +99,7 @@ export default function AppShell() {
           <img className="brand-logo" src={brandLogo} alt="Xyence logo" />
           <div>
             <h1>{brandName}</h1>
-            <p>Blueprints, registries, and instance management</p>
+            <p>Ask boldly.</p>
           </div>
         </div>
         <div className="header-meta">

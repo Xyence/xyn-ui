@@ -74,6 +74,9 @@ export default function BlueprintsPage() {
     acme_email: "",
     secret_refs_text: "",
     runtime_mode: "compose_build",
+    ingress_network: "xyn-edge",
+    ingress_service: "ems-web",
+    ingress_port: "3000",
   });
   const [selectedReleaseTargetId, setSelectedReleaseTargetId] = useState<string>("");
   const [uploading, setUploading] = useState(false);
@@ -109,15 +112,34 @@ export default function BlueprintsPage() {
         runtime: {
           type: "docker-compose",
           transport: "ssm",
-          compose_file_path: "apps/ems-stack/docker-compose.yml",
+          compose_file_path: "compose.release.yml",
           remote_root: "/opt/xyn/apps/ems",
           mode: releaseTargetForm.runtime_mode,
         },
         tls: {
           mode: releaseTargetForm.tls_mode,
+          provider: releaseTargetForm.tls_mode === "host-ingress" ? "traefik" : undefined,
+          termination: releaseTargetForm.tls_mode === "host-ingress" ? "host" : undefined,
           acme_email: releaseTargetForm.acme_email || undefined,
+          expose_http: true,
+          expose_https: true,
           redirect_http_to_https: true,
         },
+        ingress:
+          releaseTargetForm.tls_mode === "host-ingress"
+            ? {
+                network: releaseTargetForm.ingress_network || "xyn-edge",
+                routes: [
+                  {
+                    host: releaseTargetForm.fqdn,
+                    service: releaseTargetForm.ingress_service || "ems-web",
+                    port: Number.parseInt(releaseTargetForm.ingress_port || "3000", 10) || 3000,
+                    protocol: "http",
+                    health_path: "/health",
+                  },
+                ],
+              }
+            : undefined,
         secret_refs: secretRefs,
       });
       const targets = await listReleaseTargets(selected.id);
@@ -136,6 +158,9 @@ export default function BlueprintsPage() {
         acme_email: "",
         secret_refs_text: "",
         runtime_mode: "compose_build",
+        ingress_network: "xyn-edge",
+        ingress_service: "ems-web",
+        ingress_port: "3000",
       });
       setMessage("Release target created.");
     } catch (err) {
@@ -792,7 +817,36 @@ export default function BlueprintsPage() {
                 >
                   <option value="none">none</option>
                   <option value="nginx+acme">nginx+acme</option>
+                  <option value="host-ingress">host-ingress</option>
+                  <option value="embedded">embedded</option>
                 </select>
+              </label>
+              <label>
+                Ingress network
+                <input
+                  value={releaseTargetForm.ingress_network}
+                  onChange={(event) =>
+                    setReleaseTargetForm({ ...releaseTargetForm, ingress_network: event.target.value })
+                  }
+                />
+              </label>
+              <label>
+                Ingress service
+                <input
+                  value={releaseTargetForm.ingress_service}
+                  onChange={(event) =>
+                    setReleaseTargetForm({ ...releaseTargetForm, ingress_service: event.target.value })
+                  }
+                />
+              </label>
+              <label>
+                Ingress port
+                <input
+                  value={releaseTargetForm.ingress_port}
+                  onChange={(event) =>
+                    setReleaseTargetForm({ ...releaseTargetForm, ingress_port: event.target.value })
+                  }
+                />
               </label>
               <label>
                 ACME email
