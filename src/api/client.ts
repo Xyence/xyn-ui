@@ -49,6 +49,9 @@ export function clearStoredIdToken() {
 }
 
 export function authHeaders(): Record<string, string> {
+  if (authMode !== "token") {
+    return {};
+  }
   const runtimeToken = getStoredIdToken();
   if (runtimeToken) {
     return { Authorization: `Bearer ${runtimeToken}` };
