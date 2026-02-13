@@ -72,12 +72,31 @@ function apiFetch(input: RequestInfo | URL, init: RequestInit = {}) {
   return fetch(input, { ...init, headers });
 }
 
+function htmlAuthErrorMessage(response: Response, body: string): string {
+  const url = (response.url || "").toLowerCase();
+  const text = (body || "").toLowerCase();
+  if (
+    response.status === 401 ||
+    response.status === 403 ||
+    url.includes("/auth/login") ||
+    url.includes("/accounts/login") ||
+    url.includes("/admin/login") ||
+    text.includes("login")
+  ) {
+    return "Not authenticated. Please sign in.";
+  }
+  if (response.status >= 500) {
+    return `Server error (${response.status}). Please try again.`;
+  }
+  return `Unexpected HTML response (${response.status}).`;
+}
+
 async function handle<T>(response: Response): Promise<T> {
   const contentType = response.headers.get("content-type") || "";
   if (!response.ok) {
     const message = await response.text();
     if (message.includes("<!DOCTYPE") || message.includes("<html")) {
-      throw new Error("Not authenticated. Please sign in.");
+      throw new Error(htmlAuthErrorMessage(response, message));
     }
     throw new Error(message || `Request failed (${response.status})`);
   }
@@ -87,7 +106,7 @@ async function handle<T>(response: Response): Promise<T> {
   if (!contentType.includes("application/json")) {
     const message = await response.text();
     if (message.includes("<!DOCTYPE") || message.includes("<html")) {
-      throw new Error("Not authenticated. Please sign in.");
+      throw new Error(htmlAuthErrorMessage(response, message));
     }
     throw new Error(message || "Unexpected response format.");
   }
