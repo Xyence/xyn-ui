@@ -93,6 +93,7 @@
   display: flex;
   flex-direction: column;
   gap: 8px;
+  scrollbar-gutter: stable;
 }
 
 .nav-group {
@@ -217,6 +218,10 @@
 .nav-sidebar.is-collapsed .nav-item-link {
   justify-content: center;
   padding: 8px 6px;
+}
+
+.nav-sidebar.is-collapsed .sidebar-scroll {
+  padding-right: 14px;
 }
 
 .sidebar-bottom-controls {
