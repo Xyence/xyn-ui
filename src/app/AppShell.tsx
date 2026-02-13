@@ -151,7 +151,7 @@ export default function AppShell() {
           <img className="brand-logo" src={brandLogo} alt="Xyence logo" />
           <div>
             <h1>{brandName}</h1>
-            <p>Ask boldly.</p>
+            <p>Create boldly.</p>
           </div>
         </div>
         <div className="header-meta">
