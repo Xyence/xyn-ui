@@ -1,6 +1,6 @@
 :root {
   --sidebar-w-expanded: 272px;
-  --sidebar-w-collapsed: 72px;
+  --sidebar-w-collapsed: 95px;
   --sidebar-bg: #ffffff;
   --sidebar-border: #e5e7eb;
   --sidebar-hover: #f3f4f6;
@@ -21,7 +21,7 @@
   background: var(--sidebar-bg);
   border: 1px solid var(--sidebar-border);
   border-radius: 18px;
-  overflow: hidden;
+  overflow: visible;
   gap: 10px;
   position: sticky;
   top: 20px;
@@ -74,7 +74,7 @@
 
 .sidebar-search-popover {
   position: absolute;
-  left: 84px;
+  left: calc(var(--sidebar-w-collapsed) + 8px);
   top: 12px;
   width: 220px;
   z-index: 40;
