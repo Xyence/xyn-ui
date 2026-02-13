@@ -72,11 +72,19 @@ export default function ReleasePlansPage() {
   const availableReleases = useMemo(() => {
     if (!selected) return [];
     const byPlan = releases.filter((item) => item.release_plan_id === selected.id);
-    if (byPlan.length > 0) return byPlan;
-    if (selected.blueprint_id) {
-      return releases.filter((item) => item.blueprint_id === selected.blueprint_id);
+    const byBlueprint = selected.blueprint_id
+      ? releases.filter((item) => item.blueprint_id === selected.blueprint_id)
+      : [];
+    if (byBlueprint.length === 0) {
+      return byPlan.length > 0 ? byPlan : releases;
     }
-    return releases;
+    const merged = [...byPlan];
+    for (const item of byBlueprint) {
+      if (!merged.some((existing) => existing.id === item.id)) {
+        merged.push(item);
+      }
+    }
+    return merged;
   }, [releases, selected]);
   const selectedIsControlPlane = useMemo(() => {
     const target = (selected?.target_fqn || "").trim();
@@ -162,10 +170,10 @@ export default function ReleasePlansPage() {
         setSelected(detail);
         setTargetInstanceId((prev) => prev || detail.deployments?.[0]?.instance_id || "");
         const matching = releases.filter((item) => item.release_plan_id === detail.id);
-        const fallbackByBlueprint = detail.blueprint_id
+        const byBlueprint = detail.blueprint_id
           ? releases.filter((item) => item.blueprint_id === detail.blueprint_id)
           : [];
-        const selectedCandidate = matching[0] || fallbackByBlueprint[0];
+        const selectedCandidate = byBlueprint[0] || matching[0];
         if (selectedCandidate) setSelectedReleaseId(selectedCandidate.id);
         const legacyDraft = allReleases.find(
           (item) =>
