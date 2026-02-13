@@ -692,10 +692,16 @@ button:disabled {
   background: #e2e8f0;
 }
 
-.map-canvas .react-flow__minimap-node {
-  fill: #4b5563;
-  stroke: #0f172a;
-  stroke-width: 1;
+.map-canvas .react-flow__minimap.xyn-minimap .react-flow__minimap-node {
+  fill: #334155 !important;
+  stroke: #0f172a !important;
+  stroke-width: 2 !important;
+}
+
+.map-canvas .react-flow__minimap.xyn-minimap .react-flow__minimap-mask {
+  fill: transparent !important;
+  stroke: #64748b !important;
+  stroke-width: 1.25 !important;
 }
 
 .map-inspector {
