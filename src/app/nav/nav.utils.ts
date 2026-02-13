@@ -214,9 +214,9 @@ export function filterNav(groups: NavGroup[], query: string): FilteredNav {
 
 export function mergedExpandedState(
   state: NavState,
-  pathname: string,
+  _pathname: string,
   filtered: FilteredNav,
-  groups: NavGroup[],
+  _groups: NavGroup[],
   query: string,
 ): Pick<NavState, "expandedGroupIds" | "expandedSubgroupIds"> {
   const expandedGroupIds = new Set(state.expandedGroupIds);
@@ -227,12 +227,6 @@ export function mergedExpandedState(
       expandedGroupIds.add(match.groupId);
       if (match.subgroupId) expandedSubgroupIds.add(match.subgroupId);
     });
-  }
-
-  const active = findActiveItem(pathname, groups);
-  if (active) {
-    expandedGroupIds.add(active.groupId);
-    if (active.subgroupId) expandedSubgroupIds.add(active.subgroupId);
   }
 
   return {

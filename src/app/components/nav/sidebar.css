@@ -182,14 +182,6 @@ html.xyn-nav-collapsed .app-body {
   font-weight: 600;
 }
 
-.nav-subgroup-marker {
-  width: 18px;
-  height: 2px;
-  border-radius: 999px;
-  background: #c9d6e8;
-  margin: 6px auto 4px;
-}
-
 .nav-subgroup-items {
   display: flex;
   flex-direction: column;
@@ -250,6 +242,26 @@ html.xyn-nav-collapsed .app-body {
   padding: 8px 6px;
   width: 100%;
   margin-right: 0;
+}
+
+.nav-sidebar.is-collapsed .nav-subgroup {
+  position: relative;
+  margin-top: 6px;
+}
+
+.nav-sidebar.is-collapsed .nav-subgroup::before {
+  content: "";
+  display: block;
+  width: 22px;
+  height: 2px;
+  border-radius: 999px;
+  background: #ccd7e6;
+  margin: 0 auto 6px;
+}
+
+.nav-sidebar.is-collapsed .nav-subgroup-toggle .nav-icon {
+  color: #70859f;
+  transform: scale(0.92);
 }
 
 .nav-sidebar.is-collapsed .sidebar-scroll {
