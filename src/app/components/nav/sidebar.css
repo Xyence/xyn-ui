@@ -218,10 +218,13 @@
 .nav-sidebar.is-collapsed .nav-item-link {
   justify-content: center;
   padding: 8px 6px;
+  width: calc(100% - 12px);
+  margin-right: 12px;
 }
 
 .nav-sidebar.is-collapsed .sidebar-scroll {
-  padding-right: 14px;
+  padding-right: 22px;
+  padding-left: 8px;
 }
 
 .sidebar-bottom-controls {
