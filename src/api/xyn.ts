@@ -5,6 +5,7 @@ import type {
   BlueprintSummary,
   BlueprintDraftSession,
   BlueprintDraftSessionDetail,
+  ContextPackDefaultsResponse,
   BlueprintVoiceNote,
   DevTaskDetail,
   DevTaskListResponse,
@@ -571,7 +572,21 @@ export async function checkDrift(releaseTargetId: string): Promise<{
 
 export async function createBlueprintDraftSession(
   blueprintId: string,
-  payload: { name?: string; blueprint_kind?: string; context_pack_ids?: string[] }
+  payload: {
+    name?: string;
+    title?: string;
+    kind?: "blueprint" | "solution";
+    draft_kind?: "blueprint" | "solution";
+    blueprint_kind?: string;
+    namespace?: string;
+    project_key?: string;
+    initial_prompt?: string;
+    revision_instruction?: string;
+    generate_code?: boolean;
+    context_pack_ids?: string[];
+    selected_context_pack_ids?: string[];
+    source_artifacts?: Array<{ type: "text" | "audio_transcript"; content: string; meta?: Record<string, unknown> }>;
+  }
 ): Promise<{ session_id: string }> {
   const apiBaseUrl = resolveApiBaseUrl();
   const response = await apiFetch(`${apiBaseUrl}/xyn/api/blueprints/${blueprintId}/draft-sessions`, {
@@ -583,10 +598,51 @@ export async function createBlueprintDraftSession(
   return handle<{ session_id: string }>(response);
 }
 
+export async function getContextPackDefaults(params: {
+  draft_kind: "blueprint" | "solution";
+  namespace?: string;
+  project_key?: string;
+  generate_code?: boolean;
+}): Promise<ContextPackDefaultsResponse> {
+  const apiBaseUrl = resolveApiBaseUrl();
+  const url = new URL(`${apiBaseUrl}/xyn/api/context-pack-defaults`);
+  url.searchParams.set("draft_kind", params.draft_kind);
+  if (params.namespace) url.searchParams.set("namespace", params.namespace);
+  if (params.project_key) url.searchParams.set("project_key", params.project_key);
+  if (params.generate_code !== undefined) {
+    url.searchParams.set("generate_code", params.generate_code ? "1" : "0");
+  }
+  const response = await apiFetch(url.toString(), { credentials: "include" });
+  return handle<ContextPackDefaultsResponse>(response);
+}
+
 export async function getDraftSession(sessionId: string): Promise<BlueprintDraftSessionDetail> {
   const apiBaseUrl = resolveApiBaseUrl();
   const response = await apiFetch(`${apiBaseUrl}/xyn/api/draft-sessions/${sessionId}`, {
     credentials: "include",
+  });
+  return handle<BlueprintDraftSessionDetail>(response);
+}
+
+export async function updateDraftSession(
+  sessionId: string,
+  payload: {
+    title?: string;
+    kind?: "blueprint" | "solution";
+    namespace?: string;
+    project_key?: string;
+    initial_prompt?: string;
+    revision_instruction?: string;
+    selected_context_pack_ids?: string[];
+    source_artifacts?: Array<{ type: "text" | "audio_transcript"; content: string; meta?: Record<string, unknown> }>;
+  }
+): Promise<BlueprintDraftSessionDetail> {
+  const apiBaseUrl = resolveApiBaseUrl();
+  const response = await apiFetch(`${apiBaseUrl}/xyn/api/draft-sessions/${sessionId}`, {
+    method: "PATCH",
+    headers: buildHeaders(),
+    credentials: "include",
+    body: JSON.stringify(payload),
   });
   return handle<BlueprintDraftSessionDetail>(response);
 }
@@ -663,6 +719,27 @@ export async function publishDraftSession(
     credentials: "include",
   });
   return handle<{ ok: boolean; entity_type?: string; entity_id?: string; revision?: number }>(response);
+}
+
+export async function submitDraftSession(
+  sessionId: string,
+  payload: {
+    initial_prompt?: string;
+    selected_context_pack_ids?: string[];
+    source_artifacts?: Array<{ type: "text" | "audio_transcript"; content: string; meta?: Record<string, unknown> }>;
+    generate_code?: boolean;
+  } = {}
+): Promise<{ ok: boolean; status: string; session_id: string; submission_payload: Record<string, unknown> }> {
+  const apiBaseUrl = resolveApiBaseUrl();
+  const response = await apiFetch(`${apiBaseUrl}/xyn/api/draft-sessions/${sessionId}/submit`, {
+    method: "POST",
+    headers: buildHeaders(),
+    credentials: "include",
+    body: JSON.stringify(payload),
+  });
+  return handle<{ ok: boolean; status: string; session_id: string; submission_payload: Record<string, unknown> }>(
+    response
+  );
 }
 
 export async function listBlueprintVoiceNotes(

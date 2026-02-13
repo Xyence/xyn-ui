@@ -109,6 +109,8 @@ export type BlueprintCreatePayload = {
 export type BlueprintDraftSession = {
   id: string;
   name: string;
+  title?: string;
+  kind?: "blueprint" | "solution";
   status: string;
   blueprint_kind: string;
   created_at?: string;
@@ -117,9 +119,21 @@ export type BlueprintDraftSession = {
 
 export type BlueprintDraftSessionDetail = {
   id: string;
+  title?: string;
+  kind?: "blueprint" | "solution";
   blueprint_kind: string;
   status: string;
   draft?: Record<string, unknown> | null;
+  namespace?: string | null;
+  project_key?: string | null;
+  initial_prompt?: string;
+  revision_instruction?: string;
+  source_artifacts?: Array<{
+    type: "text" | "audio_transcript";
+    content: string;
+    meta?: Record<string, unknown>;
+  }>;
+  has_generated_output?: boolean;
   requirements_summary?: string | null;
   validation_errors?: string[];
   suggested_fixes?: string[];
@@ -136,8 +150,21 @@ export type BlueprintDraftSessionDetail = {
     is_active?: boolean;
   }>;
   context_pack_ids?: string[];
+  selected_context_pack_ids?: string[];
   effective_context_hash?: string | null;
   effective_context_preview?: string | null;
+  created_at?: string;
+  updated_at?: string;
+};
+
+export type ContextPackDefaultsResponse = {
+  draft_kind: "blueprint" | "solution";
+  namespace?: string | null;
+  project_key?: string | null;
+  generate_code: boolean;
+  recommended_context_pack_ids: string[];
+  required_pack_names: string[];
+  recommended_context_packs: ContextPackSummary[];
 };
 
 export type BlueprintVoiceNote = {

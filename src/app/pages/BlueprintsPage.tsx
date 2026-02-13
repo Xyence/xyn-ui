@@ -9,12 +9,15 @@ import {
   listBlueprints,
   listBlueprintDevTasks,
   listContextPacks,
+  getContextPackDefaults,
   getDraftSession,
   enqueueDraftGeneration,
   enqueueDraftRevision,
   resolveDraftSessionContext,
   saveDraftSession,
   publishDraftSession,
+  submitDraftSession,
+  updateDraftSession,
   runDevTask,
   createBlueprintDraftSession,
   uploadVoiceNote,
@@ -61,8 +64,22 @@ export default function BlueprintsPage() {
   const [draftJsonText, setDraftJsonText] = useState<string>("");
   const [revisionInstruction, setRevisionInstruction] = useState<string>("");
   const [sessionContextPackIds, setSessionContextPackIds] = useState<string[]>([]);
+  const [recommendedSessionPackIds, setRecommendedSessionPackIds] = useState<string[]>([]);
+  const [requiredPackNames, setRequiredPackNames] = useState<string[]>([]);
   const [contextPacks, setContextPacks] = useState<ContextPackSummary[]>([]);
   const [selectedContextPackIds, setSelectedContextPackIds] = useState<string[]>([]);
+  const [newSessionTitle, setNewSessionTitle] = useState("Untitled draft");
+  const [newSessionKind, setNewSessionKind] = useState<"blueprint" | "solution">("blueprint");
+  const [newSessionNamespace, setNewSessionNamespace] = useState("");
+  const [newSessionProjectKey, setNewSessionProjectKey] = useState("");
+  const [newSessionGenerateCode, setNewSessionGenerateCode] = useState(false);
+  const [newSessionPrompt, setNewSessionPrompt] = useState("");
+  const [newSessionTranscript, setNewSessionTranscript] = useState("");
+  const [didManuallyEditNewSessionPacks, setDidManuallyEditNewSessionPacks] = useState(false);
+  const [contextPackPurposeFilter, setContextPackPurposeFilter] = useState<"all" | "planner" | "coder">("all");
+  const [contextPackScopeFilter, setContextPackScopeFilter] = useState<"all" | "global" | "namespace" | "project">(
+    "all"
+  );
   const [releaseTargets, setReleaseTargets] = useState<ReleaseTarget[]>([]);
   const [releaseTargetForm, setReleaseTargetForm] = useState({
     name: "",
@@ -91,6 +108,17 @@ export default function BlueprintsPage() {
     const start = (devTaskPage - 1) * devTasksPageSize;
     return devTasks.slice(start, start + devTasksPageSize);
   }, [devTasks, devTaskPage]);
+  const filteredContextPacks = useMemo(() => {
+    return contextPacks.filter((pack) => {
+      if (contextPackPurposeFilter !== "all" && pack.purpose !== contextPackPurposeFilter) {
+        return false;
+      }
+      if (contextPackScopeFilter !== "all" && pack.scope !== contextPackScopeFilter) {
+        return false;
+      }
+      return true;
+    });
+  }, [contextPackPurposeFilter, contextPackScopeFilter, contextPacks]);
 
   const handleCreateReleaseTarget = async () => {
     if (!selected) return;
@@ -277,6 +305,13 @@ export default function BlueprintsPage() {
   }, [selectedId]);
 
   useEffect(() => {
+    if (!selected) return;
+    const projectKey = `${selected.namespace}.${selected.name}`;
+    setNewSessionNamespace(selected.namespace ?? "");
+    setNewSessionProjectKey(projectKey);
+  }, [selected]);
+
+  useEffect(() => {
     if (!selectedSessionId && draftSessions.length > 0) {
       setSelectedSessionId(draftSessions[0].id);
     }
@@ -295,7 +330,17 @@ export default function BlueprintsPage() {
         const detail = await getDraftSession(selectedSessionId);
         setSelectedSession(detail);
         setDraftJsonText(detail.draft ? JSON.stringify(detail.draft, null, 2) : "");
-        setSessionContextPackIds(detail.context_pack_ids ?? []);
+        setRevisionInstruction(detail.revision_instruction ?? "");
+        const ids = detail.selected_context_pack_ids ?? detail.context_pack_ids ?? [];
+        setSessionContextPackIds(ids);
+        const defaults = await getContextPackDefaults({
+          draft_kind: detail.kind === "solution" ? "solution" : "blueprint",
+          namespace: detail.namespace ?? undefined,
+          project_key: detail.project_key ?? undefined,
+          generate_code: detail.kind === "solution",
+        });
+        setRecommendedSessionPackIds(defaults.recommended_context_pack_ids);
+        setRequiredPackNames(defaults.required_pack_names);
       } catch (err) {
         setError((err as Error).message);
       }
@@ -307,6 +352,52 @@ export default function BlueprintsPage() {
       setDevTaskPage(devTaskTotalPages);
     }
   }, [devTaskPage, devTaskTotalPages]);
+
+  const refreshRecommendedContextPacks = useCallback(
+    async (options?: {
+      kind?: "blueprint" | "solution";
+      namespace?: string;
+      projectKey?: string;
+      generateCode?: boolean;
+      promptOnReset?: boolean;
+    }) => {
+      const kind = options?.kind ?? newSessionKind;
+      const namespace = options?.namespace ?? newSessionNamespace;
+      const projectKey = options?.projectKey ?? newSessionProjectKey;
+      const generateCode = options?.generateCode ?? newSessionGenerateCode;
+      const defaults = await getContextPackDefaults({
+        draft_kind: kind,
+        namespace: namespace || undefined,
+        project_key: projectKey || undefined,
+        generate_code: generateCode,
+      });
+      setRequiredPackNames(defaults.required_pack_names);
+      if (!didManuallyEditNewSessionPacks) {
+        setSelectedContextPackIds(defaults.recommended_context_pack_ids);
+        return;
+      }
+      if (options?.promptOnReset && defaults.recommended_context_pack_ids.join(",") !== selectedContextPackIds.join(",")) {
+        const shouldReset = confirm("Reset context packs to recommended defaults?");
+        if (shouldReset) {
+          setSelectedContextPackIds(defaults.recommended_context_pack_ids);
+          setDidManuallyEditNewSessionPacks(false);
+        }
+      }
+    },
+    [
+      didManuallyEditNewSessionPacks,
+      newSessionGenerateCode,
+      newSessionKind,
+      newSessionNamespace,
+      newSessionProjectKey,
+      selectedContextPackIds,
+    ]
+  );
+
+  useEffect(() => {
+    if (contextPacks.length === 0) return;
+    refreshRecommendedContextPacks().catch((err) => setError((err as Error).message));
+  }, [contextPacks.length, refreshRecommendedContextPacks]);
 
   const handleCreate = async () => {
     try {
@@ -437,8 +528,11 @@ export default function BlueprintsPage() {
       return draftSessions[0].id;
     }
     const created = await createBlueprintDraftSession(selectedId, {
-      blueprint_kind: "solution",
-      context_pack_ids: selectedContextPackIds,
+      title: "Untitled draft",
+      kind: "blueprint",
+      namespace: newSessionNamespace || undefined,
+      project_key: newSessionProjectKey || undefined,
+      selected_context_pack_ids: selectedContextPackIds,
     });
     await refreshVoiceNotes();
     setSelectedSessionId(created.session_id);
@@ -451,8 +545,16 @@ export default function BlueprintsPage() {
       setCreatingSession(true);
       setError(null);
       const created = await createBlueprintDraftSession(selectedId, {
-        blueprint_kind: "solution",
-        context_pack_ids: selectedContextPackIds,
+        title: newSessionTitle.trim() || "Untitled draft",
+        kind: newSessionKind,
+        namespace: newSessionNamespace || undefined,
+        project_key: newSessionProjectKey || undefined,
+        generate_code: newSessionGenerateCode,
+        initial_prompt: newSessionPrompt.trim(),
+        selected_context_pack_ids: selectedContextPackIds.length > 0 ? selectedContextPackIds : undefined,
+        source_artifacts: newSessionTranscript.trim()
+          ? [{ type: "audio_transcript", content: newSessionTranscript.trim() }]
+          : undefined,
       });
       await refreshVoiceNotes();
       setSelectedSessionId(created.session_id);
@@ -489,6 +591,7 @@ export default function BlueprintsPage() {
 
   const handleContextPackSelect = (event: React.ChangeEvent<HTMLSelectElement>) => {
     const ids = Array.from(event.target.selectedOptions).map((opt) => opt.value);
+    setDidManuallyEditNewSessionPacks(true);
     setSelectedContextPackIds(ids);
   };
 
@@ -503,7 +606,17 @@ export default function BlueprintsPage() {
       const detail = await getDraftSession(selectedSessionId);
       setSelectedSession(detail);
       setDraftJsonText(detail.draft ? JSON.stringify(detail.draft, null, 2) : "");
-      setSessionContextPackIds(detail.context_pack_ids ?? []);
+      setRevisionInstruction(detail.revision_instruction ?? "");
+      const ids = detail.selected_context_pack_ids ?? detail.context_pack_ids ?? [];
+      setSessionContextPackIds(ids);
+      const defaults = await getContextPackDefaults({
+        draft_kind: detail.kind === "solution" ? "solution" : "blueprint",
+        namespace: detail.namespace ?? undefined,
+        project_key: detail.project_key ?? undefined,
+        generate_code: detail.kind === "solution",
+      });
+      setRecommendedSessionPackIds(defaults.recommended_context_pack_ids);
+      setRequiredPackNames(defaults.required_pack_names);
     } catch (err) {
       setError((err as Error).message);
     }
@@ -526,6 +639,10 @@ export default function BlueprintsPage() {
 
   const handleReviseDraft = async () => {
     if (!selectedSessionId) return;
+    if (!selectedSession?.has_generated_output) {
+      setError("Revision instruction is only available after initial output is generated.");
+      return;
+    }
     try {
       setLoading(true);
       setError(null);
@@ -547,6 +664,62 @@ export default function BlueprintsPage() {
       setError(null);
       await resolveDraftSessionContext(selectedSessionId, { context_pack_ids: sessionContextPackIds });
       setMessage("Context resolved.");
+      await refreshSelectedSession();
+    } catch (err) {
+      setError((err as Error).message);
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const handleUpdateSessionMetadata = async () => {
+    if (!selectedSessionId || !selectedSession) return;
+    try {
+      setLoading(true);
+      setError(null);
+      await updateDraftSession(selectedSessionId, {
+        title: selectedSession.title || selectedSession.id,
+        kind: (selectedSession.kind as "blueprint" | "solution") || "blueprint",
+        namespace: selectedSession.namespace || undefined,
+        project_key: selectedSession.project_key || undefined,
+        initial_prompt: selectedSession.initial_prompt || "",
+        revision_instruction: revisionInstruction || selectedSession.revision_instruction || "",
+        selected_context_pack_ids: sessionContextPackIds,
+        source_artifacts: selectedSession.source_artifacts,
+      });
+      await refreshSelectedSession();
+      setMessage("Draft session updated.");
+    } catch (err) {
+      setError((err as Error).message);
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const handleSubmitSession = async () => {
+    if (!selectedSessionId || !selectedSession) return;
+    const initialPrompt = (selectedSession.initial_prompt || "").trim();
+    if (!initialPrompt) {
+      setError("Initial prompt is required before submission.");
+      return;
+    }
+    const packNamesById = new Map(contextPacks.map((pack) => [pack.id, pack.name]));
+    const selectedNames = new Set((sessionContextPackIds || []).map((id) => packNamesById.get(id)).filter(Boolean));
+    const missingRequired = requiredPackNames.filter((name) => !selectedNames.has(name));
+    if (missingRequired.length > 0) {
+      setError(`Missing required context packs: ${missingRequired.join(", ")}`);
+      return;
+    }
+    try {
+      setLoading(true);
+      setError(null);
+      const result = await submitDraftSession(selectedSessionId, {
+        initial_prompt: initialPrompt,
+        selected_context_pack_ids: sessionContextPackIds,
+        source_artifacts: selectedSession.source_artifacts,
+        generate_code: selectedSession.kind === "solution",
+      });
+      setMessage(`Submitted ${selectedSession.kind === "solution" ? "as Solution" : "as Blueprint"} (${result.status}).`);
       await refreshSelectedSession();
     } catch (err) {
       setError((err as Error).message);
@@ -968,8 +1141,8 @@ export default function BlueprintsPage() {
                       onClick={() => setSelectedSessionId(session.id)}
                     >
                       <div>
-                        <strong>{session.name}</strong>
-                        <span className="muted small">{session.blueprint_kind}</span>
+                        <strong>{session.title || session.name}</strong>
+                        <span className="muted small">{session.kind || session.blueprint_kind}</span>
                       </div>
                       <span className="muted small">{session.status}</span>
                     </button>
@@ -979,6 +1152,64 @@ export default function BlueprintsPage() {
                   <p className="muted">Select a draft session to view details.</p>
                 ) : (
                   <div className="stack">
+                    <label>
+                      Title
+                      <input
+                        value={selectedSession.title || ""}
+                        onChange={(event) =>
+                          setSelectedSession((prev) =>
+                            prev ? { ...prev, title: event.target.value } : prev
+                          )
+                        }
+                      />
+                    </label>
+                    <div className="form-grid">
+                      <label>
+                        Draft kind
+                        <select
+                          value={selectedSession.kind || "blueprint"}
+                          onChange={async (event) => {
+                            const nextKind = event.target.value as "blueprint" | "solution";
+                            setSelectedSession((prev) =>
+                              prev ? { ...prev, kind: nextKind } : prev
+                            );
+                            const defaults = await getContextPackDefaults({
+                              draft_kind: nextKind,
+                              namespace: selectedSession.namespace ?? undefined,
+                              project_key: selectedSession.project_key ?? undefined,
+                              generate_code: nextKind === "solution",
+                            });
+                            setRecommendedSessionPackIds(defaults.recommended_context_pack_ids);
+                            setRequiredPackNames(defaults.required_pack_names);
+                          }}
+                        >
+                          <option value="blueprint">Blueprint draft</option>
+                          <option value="solution">Solution draft</option>
+                        </select>
+                      </label>
+                      <label>
+                        Namespace
+                        <input
+                          value={selectedSession.namespace ?? ""}
+                          onChange={(event) =>
+                            setSelectedSession((prev) =>
+                              prev ? { ...prev, namespace: event.target.value } : prev
+                            )
+                          }
+                        />
+                      </label>
+                      <label className="span-full">
+                        Project key
+                        <input
+                          value={selectedSession.project_key ?? ""}
+                          onChange={(event) =>
+                            setSelectedSession((prev) =>
+                              prev ? { ...prev, project_key: event.target.value } : prev
+                            )
+                          }
+                        />
+                      </label>
+                    </div>
                     <div className="detail-grid">
                       <div>
                         <div className="label">Status</div>
@@ -1002,19 +1233,54 @@ export default function BlueprintsPage() {
                     )}
                     <label>
                       Context packs for session
+                      <div className="inline-actions">
+                        <select
+                          value={contextPackPurposeFilter}
+                          onChange={(event) =>
+                            setContextPackPurposeFilter(event.target.value as "all" | "planner" | "coder")
+                          }
+                        >
+                          <option value="all">Purpose: all</option>
+                          <option value="planner">Purpose: planner</option>
+                          <option value="coder">Purpose: coder</option>
+                        </select>
+                        <select
+                          value={contextPackScopeFilter}
+                          onChange={(event) =>
+                            setContextPackScopeFilter(
+                              event.target.value as "all" | "global" | "namespace" | "project"
+                            )
+                          }
+                        >
+                          <option value="all">Scope: all</option>
+                          <option value="global">Scope: global</option>
+                          <option value="namespace">Scope: namespace</option>
+                          <option value="project">Scope: project</option>
+                        </select>
+                      </div>
                       <select
                         multiple
-                        size={Math.min(Math.max(contextPacks.length, 3), 8)}
+                        size={Math.min(Math.max(filteredContextPacks.length, 3), 8)}
                         value={sessionContextPackIds}
                         onChange={handleSessionContextPackSelect}
                       >
-                        {contextPacks.map((pack) => (
+                        {filteredContextPacks.map((pack) => (
                           <option key={pack.id} value={pack.id}>
-                            {pack.name} ({pack.scope}) v{pack.version}
+                            {pack.name} ({pack.scope}) v{pack.version} [{pack.purpose}]
+                            {pack.namespace ? ` ns:${pack.namespace}` : ""}
+                            {pack.project_key ? ` project:${pack.project_key}` : ""}
                           </option>
                         ))}
                       </select>
                     </label>
+                    <span className="muted small">
+                      Recommended defaults:{" "}
+                      {recommendedSessionPackIds.length > 0
+                        ? recommendedSessionPackIds
+                            .map((id) => contextPacks.find((pack) => pack.id === id)?.name ?? id)
+                            .join(", ")
+                        : "none"}
+                    </span>
                     <div className="inline-actions">
                       <button className="ghost" onClick={handleResolveContext} disabled={loading}>
                         Resolve context
@@ -1025,16 +1291,67 @@ export default function BlueprintsPage() {
                       <button className="ghost" onClick={handlePublishDraft} disabled={loading}>
                         Publish draft
                       </button>
+                      <button className="primary" onClick={handleSubmitSession} disabled={loading}>
+                        {selectedSession.kind === "solution" ? "Submit as Solution" : "Submit as Blueprint"}
+                      </button>
+                      <button className="ghost" onClick={handleUpdateSessionMetadata} disabled={loading}>
+                        Save session metadata
+                      </button>
                     </div>
                     <label>
-                      Revision instruction
+                      Initial prompt
                       <textarea
-                        rows={4}
-                        value={revisionInstruction}
-                        onChange={(event) => setRevisionInstruction(event.target.value)}
+                        rows={6}
+                        value={selectedSession.initial_prompt ?? ""}
+                        onChange={(event) =>
+                          setSelectedSession((prev) =>
+                            prev ? { ...prev, initial_prompt: event.target.value } : prev
+                          )
+                        }
                       />
                     </label>
-                    <button className="ghost" onClick={handleReviseDraft} disabled={loading}>
+                    <label>
+                      Prompt sources: Add transcript text
+                      <textarea
+                        rows={4}
+                        value={
+                          (selectedSession.source_artifacts ?? []).find((item) => item.type === "audio_transcript")
+                            ?.content ?? ""
+                        }
+                        onChange={(event) =>
+                          setSelectedSession((prev) => {
+                            if (!prev) return prev;
+                            const others = (prev.source_artifacts ?? []).filter(
+                              (item) => item.type !== "audio_transcript"
+                            );
+                            const next = event.target.value.trim();
+                            return {
+                              ...prev,
+                              source_artifacts: next
+                                ? [...others, { type: "audio_transcript", content: next }]
+                                : others,
+                            };
+                          })
+                        }
+                      />
+                    </label>
+                    <label>
+                      Revision instruction (for changes after initial draft)
+                      <textarea
+                        rows={4}
+                        value={revisionInstruction || selectedSession.revision_instruction || ""}
+                        onChange={(event) => setRevisionInstruction(event.target.value)}
+                        disabled={!selectedSession.has_generated_output || !(selectedSession.initial_prompt ?? "").trim()}
+                      />
+                    </label>
+                    <span className="muted small">
+                      Use this only after an initial draft has been generated.
+                    </span>
+                    <button
+                      className="ghost"
+                      onClick={handleReviseDraft}
+                      disabled={loading || !selectedSession.has_generated_output}
+                    >
                       Revise draft
                     </button>
                     <label>
@@ -1104,21 +1421,104 @@ export default function BlueprintsPage() {
               </div>
             </div>
             <div className="stack">
+              <div className="form-grid">
+                <label className="span-full">
+                  New draft title
+                  <input value={newSessionTitle} onChange={(event) => setNewSessionTitle(event.target.value)} />
+                </label>
+                <label>
+                  Draft kind
+                  <select
+                    value={newSessionKind}
+                    onChange={async (event) => {
+                      const nextKind = event.target.value as "blueprint" | "solution";
+                      setNewSessionKind(nextKind);
+                      if (nextKind === "blueprint") {
+                        setNewSessionGenerateCode(false);
+                      }
+                      await refreshRecommendedContextPacks({
+                        kind: nextKind,
+                        generateCode: nextKind === "solution" ? newSessionGenerateCode : false,
+                        promptOnReset: true,
+                      });
+                    }}
+                  >
+                    <option value="blueprint">Blueprint draft</option>
+                    <option value="solution">Solution draft</option>
+                  </select>
+                </label>
+                <label>
+                  Namespace (optional)
+                  <input
+                    value={newSessionNamespace}
+                    onChange={async (event) => {
+                      const namespace = event.target.value;
+                      setNewSessionNamespace(namespace);
+                      await refreshRecommendedContextPacks({ namespace, promptOnReset: true });
+                    }}
+                  />
+                </label>
+                <label className="span-full">
+                  Project key (optional)
+                  <input
+                    value={newSessionProjectKey}
+                    onChange={async (event) => {
+                      const projectKey = event.target.value;
+                      setNewSessionProjectKey(projectKey);
+                      await refreshRecommendedContextPacks({ projectKey, promptOnReset: true });
+                    }}
+                  />
+                </label>
+                <label className="span-full">
+                  <input
+                    type="checkbox"
+                    checked={newSessionGenerateCode}
+                    disabled={newSessionKind === "blueprint"}
+                    onChange={async (event) => {
+                      const checked = event.target.checked;
+                      setNewSessionGenerateCode(checked);
+                      await refreshRecommendedContextPacks({ generateCode: checked, promptOnReset: true });
+                    }}
+                  />{" "}
+                  Generate implementation/code
+                </label>
+                <label className="span-full">
+                  Initial Prompt
+                  <textarea
+                    rows={5}
+                    value={newSessionPrompt}
+                    onChange={(event) => setNewSessionPrompt(event.target.value)}
+                  />
+                </label>
+                <label className="span-full">
+                  Add transcript text (optional)
+                  <textarea
+                    rows={3}
+                    value={newSessionTranscript}
+                    onChange={(event) => setNewSessionTranscript(event.target.value)}
+                  />
+                </label>
+              </div>
               <label>
                 Context packs for new draft sessions
                 <select
                   multiple
-                  size={Math.min(Math.max(contextPacks.length, 3), 8)}
+                  size={Math.min(Math.max(filteredContextPacks.length, 3), 8)}
                   value={selectedContextPackIds}
                   onChange={handleContextPackSelect}
                 >
-                  {contextPacks.map((pack) => (
+                  {filteredContextPacks.map((pack) => (
                     <option key={pack.id} value={pack.id}>
-                      {pack.name} ({pack.scope}) v{pack.version}
+                      {pack.name} ({pack.scope}) v{pack.version} [{pack.purpose}]
+                      {pack.namespace ? ` ns:${pack.namespace}` : ""}
+                      {pack.project_key ? ` project:${pack.project_key}` : ""}
                     </option>
                   ))}
                 </select>
               </label>
+              <span className="muted small">
+                Required defaults: {requiredPackNames.length > 0 ? requiredPackNames.join(", ") : "none"}
+              </span>
               {contextPacks.length === 0 && (
                 <span className="muted small">No active context packs available.</span>
               )}
