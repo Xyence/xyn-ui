@@ -8,6 +8,8 @@ import RegistriesPage from "./pages/RegistriesPage";
 import EnvironmentsPage from "./pages/EnvironmentsPage";
 import IdentityProvidersPage from "./pages/IdentityProvidersPage";
 import OidcAppClientsPage from "./pages/OidcAppClientsPage";
+import SecretStoresPage from "./pages/SecretStoresPage";
+import SecretRefsPage from "./pages/SecretRefsPage";
 import ReleasePlansPage from "./pages/ReleasePlansPage";
 import ReleasesPage from "./pages/ReleasesPage";
 import RunsPage from "./pages/RunsPage";
@@ -252,6 +254,22 @@ export default function AppShell() {
               >
                 OIDC App Clients
               </NavLink>
+              {isPlatformAdmin && (
+                <>
+                  <NavLink
+                    className={({ isActive }) => (isActive ? "app-nav-link active" : "app-nav-link")}
+                    to="/app/platform/secret-stores"
+                  >
+                    Secret Stores
+                  </NavLink>
+                  <NavLink
+                    className={({ isActive }) => (isActive ? "app-nav-link active" : "app-nav-link")}
+                    to="/app/platform/secret-refs"
+                  >
+                    Secret Refs
+                  </NavLink>
+                </>
+              )}
               <NavLink
                 className={({ isActive }) => (isActive ? "app-nav-link active" : "app-nav-link")}
                 to="/app/platform/branding"
@@ -301,6 +319,8 @@ export default function AppShell() {
                 <Route path="platform/control-plane" element={<ControlPlanePage />} />
                 <Route path="platform/identity-providers" element={<IdentityProvidersPage />} />
                 <Route path="platform/oidc-app-clients" element={<OidcAppClientsPage />} />
+                {isPlatformAdmin && <Route path="platform/secret-stores" element={<SecretStoresPage />} />}
+                {isPlatformAdmin && <Route path="platform/secret-refs" element={<SecretRefsPage />} />}
                 <Route path="platform/branding" element={<PlatformBrandingPage />} />
                 <Route path="platform/guides" element={<GuidesPage />} />
               </>

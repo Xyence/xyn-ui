@@ -4,12 +4,20 @@ import {
   createIdentityProvider,
   deleteIdentityProvider,
   listIdentityProviders,
+  listSecretStores,
   testIdentityProvider,
   updateIdentityProvider,
 } from "../../api/xyn";
-import type { IdentityProvider, SecretRef } from "../../api/types";
+import type { IdentityProvider, SecretRef, SecretStore } from "../../api/types";
 
-const emptyForm: IdentityProvider = {
+type ProviderForm = IdentityProvider & {
+  client: IdentityProvider["client"] & {
+    client_secret_value?: string;
+    store_id?: string | null;
+  };
+};
+
+const emptyForm: ProviderForm = {
   id: "",
   display_name: "",
   enabled: true,
@@ -24,6 +32,8 @@ const emptyForm: IdentityProvider = {
   client: {
     client_id: "",
     client_secret_ref: { type: "aws.secrets_manager", ref: "" },
+    client_secret_value: "",
+    store_id: "",
   },
   scopes: ["openid", "profile", "email"],
   pkce: true,
@@ -53,18 +63,21 @@ const splitCsv = (value: string) =>
     .map((item) => item.trim())
     .filter(Boolean);
 
-const normalizeProviderPayload = (payload: IdentityProvider): IdentityProvider => {
+const normalizeProviderPayload = (payload: ProviderForm): Record<string, unknown> => {
   const prompt = (payload.prompt || "").trim();
-  return {
+  const result: Record<string, unknown> = {
     ...payload,
     prompt: prompt ? prompt : null,
   };
+  return result;
 };
 
 export default function IdentityProvidersPage() {
   const [items, setItems] = useState<IdentityProvider[]>([]);
+  const [stores, setStores] = useState<SecretStore[]>([]);
   const [selectedId, setSelectedId] = useState<string | null>(null);
-  const [form, setForm] = useState<IdentityProvider>(emptyForm);
+  const [form, setForm] = useState<ProviderForm>(emptyForm);
+  const [useExistingSecretRef, setUseExistingSecretRef] = useState<boolean>(false);
   const [loading, setLoading] = useState(false);
   const [message, setMessage] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
@@ -79,12 +92,13 @@ export default function IdentityProvidersPage() {
   const load = useCallback(async () => {
     try {
       setError(null);
-      const data = await listIdentityProviders();
-      setItems(data.identity_providers);
+      const [providersData, storesData] = await Promise.all([listIdentityProviders(), listSecretStores()]);
+      setItems(providersData.identity_providers);
+      setStores(storesData.secret_stores);
       setSelectedId((current) => {
         if (current) return current;
         if (didAutoSelectRef.current) return current;
-        const first = data.identity_providers[0];
+        const first = providersData.identity_providers[0];
         if (!first) return current;
         didAutoSelectRef.current = true;
         return first.id;
@@ -101,8 +115,10 @@ export default function IdentityProvidersPage() {
   useEffect(() => {
     if (!selected) {
       setForm(emptyForm);
+      setUseExistingSecretRef(false);
       return;
     }
+    const hasExistingRef = Boolean(selected.client?.client_secret_ref?.ref);
     setForm({
       ...emptyForm,
       ...selected,
@@ -111,6 +127,8 @@ export default function IdentityProvidersPage() {
         client_id: selected.client?.client_id || "",
         client_secret_ref:
           selected.client?.client_secret_ref || ({ type: "aws.secrets_manager", ref: "" } as SecretRef),
+        client_secret_value: "",
+        store_id: "",
       },
       scopes: selected.scopes?.length ? selected.scopes : ["openid", "profile", "email"],
       domain_rules: {
@@ -123,14 +141,44 @@ export default function IdentityProvidersPage() {
         acceptAzp: selected.audience_rules?.acceptAzp ?? true,
       },
     });
+    setUseExistingSecretRef(hasExistingRef);
   }, [selected]);
+
+  const buildPayload = () => {
+    const base = normalizeProviderPayload(form) as ProviderForm;
+    const client: ProviderForm["client"] = {
+      ...base.client,
+      client_secret_ref: base.client.client_secret_ref,
+    };
+
+    const secretValue = (base.client.client_secret_value || "").trim();
+    if (secretValue) {
+      client.client_secret_value = secretValue;
+      if (base.client.store_id) client.store_id = base.client.store_id;
+    } else {
+      delete client.client_secret_value;
+      delete client.store_id;
+      if (!useExistingSecretRef) {
+        client.client_secret_ref = base.client.client_secret_ref;
+      }
+    }
+
+    if (!useExistingSecretRef && !secretValue) {
+      delete client.client_secret_ref;
+    }
+
+    return {
+      ...base,
+      client,
+    };
+  };
 
   const handleCreate = async () => {
     try {
       setLoading(true);
       setError(null);
       setMessage(null);
-      const created = await createIdentityProvider(normalizeProviderPayload(form));
+      const created = await createIdentityProvider(buildPayload() as IdentityProvider);
       await load();
       setSelectedId(created.id);
       setMessage("Identity provider created.");
@@ -147,7 +195,7 @@ export default function IdentityProvidersPage() {
       setLoading(true);
       setError(null);
       setMessage(null);
-      await updateIdentityProvider(selectedId, normalizeProviderPayload(form));
+      await updateIdentityProvider(selectedId, buildPayload() as Partial<IdentityProvider>);
       await load();
       setMessage("Identity provider updated.");
     } catch (err) {
@@ -206,6 +254,7 @@ export default function IdentityProvidersPage() {
             onClick={() => {
               setSelectedId(null);
               setForm(emptyForm);
+              setUseExistingSecretRef(false);
               setTestResult(null);
             }}
             disabled={loading}
@@ -298,46 +347,96 @@ export default function IdentityProvidersPage() {
               />
             </label>
             <label>
-              Client secret ref type
-              <select
-                value={form.client.client_secret_ref?.type || "aws.secrets_manager"}
+              Client secret (write-only)
+              <input
+                className="input"
+                type="password"
+                autoComplete="new-password"
+                value={form.client.client_secret_value || ""}
                 onChange={(event) =>
                   setForm({
                     ...form,
-                    client: {
-                      ...form.client,
-                      client_secret_ref: {
-                        type: event.target.value,
-                        ref: form.client.client_secret_ref?.ref || "",
-                      },
-                    },
+                    client: { ...form.client, client_secret_value: event.target.value },
+                  })
+                }
+                placeholder={selectedId ? "Leave blank to keep existing" : "Enter client secret"}
+              />
+            </label>
+            <label>
+              Secret store (optional)
+              <select
+                value={form.client.store_id || ""}
+                onChange={(event) =>
+                  setForm({
+                    ...form,
+                    client: { ...form.client, store_id: event.target.value },
                   })
                 }
               >
-                <option value="aws.secrets_manager">AWS Secrets Manager</option>
-                <option value="aws.ssm">AWS SSM</option>
-                <option value="env">Env (bootstrap only)</option>
+                <option value="">Default store</option>
+                {stores.map((store) => (
+                  <option key={store.id} value={store.id}>
+                    {store.name}
+                    {store.is_default ? " (default)" : ""}
+                  </option>
+                ))}
               </select>
             </label>
             <label>
-              Client secret ref
-              <input
-                className="input"
-                value={form.client.client_secret_ref?.ref || ""}
-                onChange={(event) =>
-                  setForm({
-                    ...form,
-                    client: {
-                      ...form.client,
-                      client_secret_ref: {
-                        type: form.client.client_secret_ref?.type || "aws.secrets_manager",
-                        ref: event.target.value,
-                      },
-                    },
-                  })
-                }
-              />
+              Advanced: use existing secret ref
+              <select
+                value={useExistingSecretRef ? "yes" : "no"}
+                onChange={(event) => setUseExistingSecretRef(event.target.value === "yes")}
+              >
+                <option value="no">No</option>
+                <option value="yes">Yes</option>
+              </select>
             </label>
+            {useExistingSecretRef && (
+              <>
+                <label>
+                  Client secret ref type
+                  <select
+                    value={form.client.client_secret_ref?.type || "aws.secrets_manager"}
+                    onChange={(event) =>
+                      setForm({
+                        ...form,
+                        client: {
+                          ...form.client,
+                          client_secret_ref: {
+                            type: event.target.value,
+                            ref: form.client.client_secret_ref?.ref || "",
+                          },
+                        },
+                      })
+                    }
+                  >
+                    <option value="aws.secrets_manager">AWS Secrets Manager</option>
+                    <option value="aws.ssm">AWS SSM</option>
+                    <option value="env">Env (bootstrap only)</option>
+                  </select>
+                </label>
+                <label>
+                  Client secret ref
+                  <input
+                    className="input"
+                    value={form.client.client_secret_ref?.ref || ""}
+                    onChange={(event) =>
+                      setForm({
+                        ...form,
+                        client: {
+                          ...form.client,
+                          client_secret_ref: {
+                            type: form.client.client_secret_ref?.type || "aws.secrets_manager",
+                            ref: event.target.value,
+                          },
+                        },
+                      })
+                    }
+                  />
+                </label>
+              </>
+            )}
             <label>
               Scopes (comma)
               <input

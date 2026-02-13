@@ -63,6 +63,9 @@ import type {
   Device,
   ControlPlaneStateResponse,
   XynMapResponse,
+  SecretStore,
+  SecretStoreListResponse,
+  SecretRefListResponse,
 } from "./types";
 import { authHeaders, resolveApiBaseUrl } from "./client";
 
@@ -1259,6 +1262,64 @@ export async function listIdentityProviders(): Promise<IdentityProviderListRespo
     credentials: "include",
   });
   return handle<IdentityProviderListResponse>(response);
+}
+
+export async function listSecretStores(): Promise<SecretStoreListResponse> {
+  const apiBaseUrl = resolveApiBaseUrl();
+  const response = await apiFetch(`${apiBaseUrl}/xyn/internal/secret-stores`, {
+    credentials: "include",
+  });
+  return handle<SecretStoreListResponse>(response);
+}
+
+export async function createSecretStore(payload: {
+  name: string;
+  kind?: "aws_secrets_manager";
+  is_default?: boolean;
+  config_json?: SecretStore["config_json"];
+}): Promise<{ id: string }> {
+  const apiBaseUrl = resolveApiBaseUrl();
+  const response = await apiFetch(`${apiBaseUrl}/xyn/internal/secret-stores`, {
+    method: "POST",
+    headers: buildHeaders(),
+    credentials: "include",
+    body: JSON.stringify(payload),
+  });
+  return handle<{ id: string }>(response);
+}
+
+export async function updateSecretStore(id: string, payload: Partial<SecretStore>): Promise<{ id: string }> {
+  const apiBaseUrl = resolveApiBaseUrl();
+  const response = await apiFetch(`${apiBaseUrl}/xyn/internal/secret-stores/${id}`, {
+    method: "PATCH",
+    headers: buildHeaders(),
+    credentials: "include",
+    body: JSON.stringify(payload),
+  });
+  return handle<{ id: string }>(response);
+}
+
+export async function setDefaultSecretStore(id: string): Promise<{ id: string; is_default: boolean }> {
+  const apiBaseUrl = resolveApiBaseUrl();
+  const response = await apiFetch(`${apiBaseUrl}/xyn/internal/secret-stores/${id}/set_default`, {
+    method: "POST",
+    credentials: "include",
+  });
+  return handle<{ id: string; is_default: boolean }>(response);
+}
+
+export async function listSecretRefs(filters?: {
+  scope_kind?: string;
+  scope_id?: string;
+}): Promise<SecretRefListResponse> {
+  const apiBaseUrl = resolveApiBaseUrl();
+  const url = new URL(`${apiBaseUrl}/xyn/internal/secret-refs`);
+  if (filters?.scope_kind) url.searchParams.set("scope_kind", filters.scope_kind);
+  if (filters?.scope_id) url.searchParams.set("scope_id", filters.scope_id);
+  const response = await apiFetch(url.toString(), {
+    credentials: "include",
+  });
+  return handle<SecretRefListResponse>(response);
 }
 
 export async function createIdentityProvider(payload: IdentityProviderPayload): Promise<{ id: string }> {

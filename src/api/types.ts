@@ -554,6 +554,46 @@ export type EnvironmentCreatePayload = {
 export type SecretRef = {
   type: string;
   ref: string;
+  version?: string | null;
+};
+
+export type SecretStore = {
+  id: string;
+  name: string;
+  kind: "aws_secrets_manager";
+  is_default: boolean;
+  config_json: {
+    aws_region?: string;
+    name_prefix?: string;
+    kms_key_id?: string | null;
+    tags?: Record<string, string>;
+  };
+  created_at?: string;
+  updated_at?: string;
+};
+
+export type SecretStoreListResponse = {
+  secret_stores: SecretStore[];
+};
+
+export type SecretRefMetadata = {
+  id: string;
+  name: string;
+  scope_kind: "platform" | "tenant" | "user" | "team";
+  scope_id?: string | null;
+  store_id: string;
+  store_name?: string;
+  external_ref: string;
+  type: string;
+  version?: string | null;
+  description?: string;
+  metadata_json?: Record<string, unknown>;
+  created_at?: string;
+  updated_at?: string;
+};
+
+export type SecretRefListResponse = {
+  secret_refs: SecretRefMetadata[];
 };
 
 export type IdentityProvider = {
@@ -571,6 +611,8 @@ export type IdentityProvider = {
   client: {
     client_id: string;
     client_secret_ref?: SecretRef | null;
+    client_secret_value?: string;
+    store_id?: string | null;
   };
   scopes?: string[];
   pkce?: boolean;
