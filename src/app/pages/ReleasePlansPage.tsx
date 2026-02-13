@@ -173,7 +173,12 @@ export default function ReleasePlansPage() {
         const byBlueprint = detail.blueprint_id
           ? releases.filter((item) => item.blueprint_id === detail.blueprint_id)
           : [];
-        const selectedCandidate = byBlueprint[0] || matching[0];
+        const selectedCandidate =
+          (detail.current_release_id
+            ? releases.find((item) => item.id === detail.current_release_id) || allReleases.find((item) => item.id === detail.current_release_id)
+            : null) ||
+          matching[0] ||
+          byBlueprint[0];
         if (selectedCandidate) setSelectedReleaseId(selectedCandidate.id);
         const legacyDraft = allReleases.find(
           (item) =>
@@ -265,7 +270,10 @@ export default function ReleasePlansPage() {
       setLoading(true);
       setError(null);
       setMessage(null);
-      await updateReleasePlan(selectedId, form);
+      await updateReleasePlan(selectedId, {
+        ...form,
+        selected_release_id: selectedReleaseId || null,
+      });
       await load();
       setMessage("Release plan updated.");
     } catch (err) {

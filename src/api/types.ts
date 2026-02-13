@@ -249,6 +249,8 @@ export type ReleasePlanSummary = {
 
 export type ReleasePlanDetail = ReleasePlanSummary & {
   milestones_json?: Record<string, unknown> | null;
+  current_release_id?: string | null;
+  current_release_version?: string | null;
   deployments?: Array<{
     instance_id: string;
     instance_name: string;
@@ -266,6 +268,8 @@ export type ReleasePlanCreatePayload = {
   milestones_json?: Record<string, unknown>;
   blueprint_id?: string | null;
   environment_id?: string | null;
+  release_id?: string | null;
+  selected_release_id?: string | null;
 };
 
 export type ReleasePlanListResponse = PaginatedResponse<ReleasePlanSummary, "release_plans">;

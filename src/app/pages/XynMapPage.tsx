@@ -53,6 +53,14 @@ const nodeTypes = {
   mapNode: XynMapCardNode,
 };
 
+function mapNodeColor(node: Node<FlowNodeData>): string {
+  const status = node.data?.status;
+  if (status === "ok") return "#15803d";
+  if (status === "warn") return "#d97706";
+  if (status === "error") return "#dc2626";
+  return "#64748b";
+}
+
 function buildLayout(nodes: XynMapNode[], edges: XynMapEdge[]): { nodes: FlowNode[]; edges: FlowEdge[] } {
   const byKind = new Map<XynMapNodeKind, XynMapNode[]>();
   for (const kind of KIND_ORDER) {
@@ -310,7 +318,15 @@ export default function XynMapPage() {
                 fitView
                 onNodeClick={(_event, node) => setSelectedNodeId(node.id)}
               >
-                <MiniMap pannable zoomable />
+                <MiniMap
+                  pannable
+                  zoomable
+                  nodeColor={mapNodeColor}
+                  nodeStrokeColor="#0f172a"
+                  nodeStrokeWidth={1}
+                  maskColor="rgba(15, 23, 42, 0.16)"
+                  style={{ backgroundColor: "#e2e8f0" }}
+                />
                 <Controls />
                 <Background gap={18} size={1} />
               </ReactFlow>
