@@ -1187,89 +1187,95 @@ export default function BlueprintsPage() {
                 {!selectedSession ? (
                   <p className="muted">Select a draft session to view details.</p>
                 ) : (
-                  <div className="stack">
-                    <label>
-                      Title
-                      <input
-                        value={selectedSession.title || ""}
-                        onChange={(event) =>
-                          setSelectedSession((prev) =>
-                            prev ? { ...prev, title: event.target.value } : prev
-                          )
-                        }
-                      />
-                    </label>
-                    <div className="form-grid">
-                      <label>
-                        Draft kind
-                        <select
-                          value={selectedSession.kind || "blueprint"}
-                          onChange={async (event) => {
-                            const nextKind = event.target.value as "blueprint" | "solution";
-                            setSelectedSession((prev) =>
-                              prev ? { ...prev, kind: nextKind } : prev
-                            );
-                            const defaults = await getContextPackDefaults({
-                              draft_kind: nextKind,
-                              namespace: selectedSession.namespace ?? undefined,
-                              project_key: selectedSession.project_key ?? undefined,
-                              generate_code: nextKind === "solution",
-                            });
-                            setRecommendedSessionPackIds(defaults.recommended_context_pack_ids);
-                            setRequiredPackNames(defaults.required_pack_names);
-                          }}
-                        >
-                          <option value="blueprint">Blueprint draft</option>
-                          <option value="solution">Solution draft</option>
-                        </select>
-                      </label>
-                      <label>
-                        Namespace
+                  <div className="draft-session-layout">
+                    <section className="draft-section">
+                      <div className="card-header">
+                        <h4>Session</h4>
+                        <div className="inline-actions">
+                          <button className="ghost" onClick={handleUpdateSessionMetadata} disabled={loading}>
+                            Save metadata
+                          </button>
+                          <button className="danger" onClick={handleDeleteSession} disabled={loading}>
+                            Delete session
+                          </button>
+                        </div>
+                      </div>
+                      <label className="stacked-field">
+                        Title
                         <input
-                          value={selectedSession.namespace ?? ""}
+                          value={selectedSession.title || ""}
                           onChange={(event) =>
-                            setSelectedSession((prev) =>
-                              prev ? { ...prev, namespace: event.target.value } : prev
-                            )
+                            setSelectedSession((prev) => (prev ? { ...prev, title: event.target.value } : prev))
                           }
                         />
                       </label>
-                      <label className="span-full">
-                        Project key
-                        <input
-                          value={selectedSession.project_key ?? ""}
-                          onChange={(event) =>
-                            setSelectedSession((prev) =>
-                              prev ? { ...prev, project_key: event.target.value } : prev
-                            )
-                          }
-                        />
-                      </label>
-                    </div>
-                    <div className="detail-grid">
-                      <div>
-                        <div className="label">Status</div>
-                        <span className="muted">{selectedSession.status}</span>
+                      <div className="form-grid">
+                        <label>
+                          Draft kind
+                          <select
+                            value={selectedSession.kind || "blueprint"}
+                            onChange={async (event) => {
+                              const nextKind = event.target.value as "blueprint" | "solution";
+                              setSelectedSession((prev) => (prev ? { ...prev, kind: nextKind } : prev));
+                              const defaults = await getContextPackDefaults({
+                                draft_kind: nextKind,
+                                namespace: selectedSession.namespace ?? undefined,
+                                project_key: selectedSession.project_key ?? undefined,
+                                generate_code: nextKind === "solution",
+                              });
+                              setRecommendedSessionPackIds(defaults.recommended_context_pack_ids);
+                              setRequiredPackNames(defaults.required_pack_names);
+                            }}
+                          >
+                            <option value="blueprint">Blueprint draft</option>
+                            <option value="solution">Solution draft</option>
+                          </select>
+                        </label>
+                        <label>
+                          Namespace
+                          <input
+                            value={selectedSession.namespace ?? ""}
+                            onChange={(event) =>
+                              setSelectedSession((prev) => (prev ? { ...prev, namespace: event.target.value } : prev))
+                            }
+                          />
+                        </label>
+                        <label className="span-full">
+                          Project key
+                          <input
+                            value={selectedSession.project_key ?? ""}
+                            onChange={(event) =>
+                              setSelectedSession((prev) => (prev ? { ...prev, project_key: event.target.value } : prev))
+                            }
+                          />
+                        </label>
                       </div>
-                      <div>
-                        <div className="label">Job ID</div>
-                        <span className="muted">{selectedSession.job_id ?? "—"}</span>
+                      <div className="detail-grid draft-session-meta">
+                        <div>
+                          <div className="label">Status</div>
+                          <span className="muted">{selectedSession.status}</span>
+                        </div>
+                        <div>
+                          <div className="label">Job ID</div>
+                          <span className="muted draft-inline-wrap">{selectedSession.job_id ?? "—"}</span>
+                        </div>
+                        <div>
+                          <div className="label">Context Hash</div>
+                          <span className="muted draft-inline-wrap">{selectedSession.effective_context_hash ?? "—"}</span>
+                        </div>
+                        <div>
+                          <div className="label">Blueprint Kind</div>
+                          <span className="muted">{selectedSession.blueprint_kind}</span>
+                        </div>
                       </div>
-                      <div>
-                        <div className="label">Context Hash</div>
-                        <span className="muted">{selectedSession.effective_context_hash ?? "—"}</span>
-                      </div>
-                      <div>
-                        <div className="label">Blueprint Kind</div>
-                        <span className="muted">{selectedSession.blueprint_kind}</span>
-                      </div>
-                    </div>
-                    {selectedSession.last_error && (
-                      <InlineMessage tone="error" title="Last error" body={selectedSession.last_error} />
-                    )}
-                    <label>
-                      Context packs for session
-                      <div className="inline-actions">
+                      {selectedSession.last_error && (
+                        <InlineMessage tone="error" title="Last error" body={selectedSession.last_error} />
+                      )}
+                    </section>
+
+                    <section className="draft-section">
+                      <h4>Context packs</h4>
+                      <div className="inline-actions draft-context-filters">
                         <select
                           value={contextPackPurposeFilter}
                           onChange={(event) =>
@@ -1283,9 +1289,7 @@ export default function BlueprintsPage() {
                         <select
                           value={contextPackScopeFilter}
                           onChange={(event) =>
-                            setContextPackScopeFilter(
-                              event.target.value as "all" | "global" | "namespace" | "project"
-                            )
+                            setContextPackScopeFilter(event.target.value as "all" | "global" | "namespace" | "project")
                           }
                         >
                           <option value="all">Scope: all</option>
@@ -1294,148 +1298,160 @@ export default function BlueprintsPage() {
                           <option value="project">Scope: project</option>
                         </select>
                       </div>
-                      <select
-                        multiple
-                        size={Math.min(Math.max(filteredContextPacks.length, 3), 8)}
-                        value={sessionContextPackIds}
-                        onChange={handleSessionContextPackSelect}
+                      <label className="stacked-field">
+                        Context packs for session
+                        <select
+                          className="draft-pack-select"
+                          multiple
+                          size={Math.min(Math.max(filteredContextPacks.length, 3), 8)}
+                          value={sessionContextPackIds}
+                          onChange={handleSessionContextPackSelect}
+                        >
+                          {filteredContextPacks.map((pack) => (
+                            <option key={pack.id} value={pack.id}>
+                              {pack.name} ({pack.scope}) v{pack.version} [{pack.purpose}]
+                              {pack.namespace ? ` ns:${pack.namespace}` : ""}
+                              {pack.project_key ? ` project:${pack.project_key}` : ""}
+                            </option>
+                          ))}
+                        </select>
+                      </label>
+                      <span className="muted small">
+                        Required defaults: {requiredPackNames.length > 0 ? requiredPackNames.join(", ") : "none"}
+                      </span>
+                      <span className="muted small">
+                        Recommended defaults:{" "}
+                        {recommendedSessionPackIds.length > 0
+                          ? recommendedSessionPackIds
+                              .map((id) => contextPacks.find((pack) => pack.id === id)?.name ?? id)
+                              .join(", ")
+                          : "none"}
+                      </span>
+                    </section>
+
+                    <section className="draft-section">
+                      <h4>Workflow</h4>
+                      <div className="inline-actions draft-workflow-actions">
+                        <button className="ghost" onClick={handleResolveContext} disabled={loading}>
+                          1. Resolve context
+                        </button>
+                        <button className="ghost" onClick={handleGenerateDraft} disabled={loading}>
+                          2. Generate draft
+                        </button>
+                        <button className="ghost" onClick={handlePublishDraft} disabled={loading}>
+                          3. Publish draft
+                        </button>
+                        <button className="primary" onClick={handleSubmitSession} disabled={loading}>
+                          4. {selectedSession.kind === "solution" ? "Submit as Solution" : "Submit as Blueprint"}
+                        </button>
+                      </div>
+                    </section>
+
+                    <section className="draft-section">
+                      <h4>Prompt</h4>
+                      <label className="stacked-field">
+                        Initial prompt
+                        <textarea
+                          rows={8}
+                          value={selectedSession.initial_prompt ?? ""}
+                          onChange={(event) =>
+                            setSelectedSession((prev) => (prev ? { ...prev, initial_prompt: event.target.value } : prev))
+                          }
+                        />
+                      </label>
+                      <label className="stacked-field">
+                        Prompt sources (transcript text)
+                        <textarea
+                          rows={6}
+                          value={
+                            (selectedSession.source_artifacts ?? []).find((item) => item.type === "audio_transcript")
+                              ?.content ?? ""
+                          }
+                          onChange={(event) =>
+                            setSelectedSession((prev) => {
+                              if (!prev) return prev;
+                              const others = (prev.source_artifacts ?? []).filter((item) => item.type !== "audio_transcript");
+                              const next = event.target.value.trim();
+                              return {
+                                ...prev,
+                                source_artifacts: next
+                                  ? [...others, { type: "audio_transcript", content: next }]
+                                  : others,
+                              };
+                            })
+                          }
+                        />
+                      </label>
+                    </section>
+
+                    <section className="draft-section">
+                      <h4>Revision</h4>
+                      <label className="stacked-field">
+                        Revision instruction (for changes after initial draft)
+                        <textarea
+                          rows={4}
+                          value={revisionInstruction || selectedSession.revision_instruction || ""}
+                          onChange={(event) => setRevisionInstruction(event.target.value)}
+                          disabled={!selectedSession.has_generated_output || !(selectedSession.initial_prompt ?? "").trim()}
+                        />
+                      </label>
+                      <span className="muted small">Use this only after an initial draft has been generated.</span>
+                      <button
+                        className="ghost"
+                        onClick={handleReviseDraft}
+                        disabled={loading || !selectedSession.has_generated_output}
                       >
-                        {filteredContextPacks.map((pack) => (
-                          <option key={pack.id} value={pack.id}>
-                            {pack.name} ({pack.scope}) v{pack.version} [{pack.purpose}]
-                            {pack.namespace ? ` ns:${pack.namespace}` : ""}
-                            {pack.project_key ? ` project:${pack.project_key}` : ""}
-                          </option>
-                        ))}
-                      </select>
-                    </label>
-                    <span className="muted small">
-                      Recommended defaults:{" "}
-                      {recommendedSessionPackIds.length > 0
-                        ? recommendedSessionPackIds
-                            .map((id) => contextPacks.find((pack) => pack.id === id)?.name ?? id)
-                            .join(", ")
-                        : "none"}
-                    </span>
-                    <div className="inline-actions">
-                      <button className="ghost" onClick={handleResolveContext} disabled={loading}>
-                        Resolve context
+                        Revise draft
                       </button>
-                      <button className="ghost" onClick={handleGenerateDraft} disabled={loading}>
-                        Generate draft
-                      </button>
-                      <button className="ghost" onClick={handlePublishDraft} disabled={loading}>
-                        Publish draft
-                      </button>
-                      <button className="primary" onClick={handleSubmitSession} disabled={loading}>
-                        {selectedSession.kind === "solution" ? "Submit as Solution" : "Submit as Blueprint"}
-                      </button>
-                      <button className="ghost" onClick={handleUpdateSessionMetadata} disabled={loading}>
-                        Save session metadata
-                      </button>
-                      <button className="danger" onClick={handleDeleteSession} disabled={loading}>
-                        Delete session
-                      </button>
-                    </div>
-                    <label className="stacked-field">
-                      Initial prompt
-                      <textarea
-                        rows={6}
-                        value={selectedSession.initial_prompt ?? ""}
-                        onChange={(event) =>
-                          setSelectedSession((prev) =>
-                            prev ? { ...prev, initial_prompt: event.target.value } : prev
-                          )
-                        }
-                      />
-                    </label>
-                    <label className="stacked-field">
-                      Prompt sources: Add transcript text
-                      <textarea
-                        rows={4}
-                        value={
-                          (selectedSession.source_artifacts ?? []).find((item) => item.type === "audio_transcript")
-                            ?.content ?? ""
-                        }
-                        onChange={(event) =>
-                          setSelectedSession((prev) => {
-                            if (!prev) return prev;
-                            const others = (prev.source_artifacts ?? []).filter(
-                              (item) => item.type !== "audio_transcript"
-                            );
-                            const next = event.target.value.trim();
-                            return {
-                              ...prev,
-                              source_artifacts: next
-                                ? [...others, { type: "audio_transcript", content: next }]
-                                : others,
-                            };
-                          })
-                        }
-                      />
-                    </label>
-                    <label className="stacked-field">
-                      Revision instruction (for changes after initial draft)
-                      <textarea
-                        rows={4}
-                        value={revisionInstruction || selectedSession.revision_instruction || ""}
-                        onChange={(event) => setRevisionInstruction(event.target.value)}
-                        disabled={!selectedSession.has_generated_output || !(selectedSession.initial_prompt ?? "").trim()}
-                      />
-                    </label>
-                    <span className="muted small">
-                      Use this only after an initial draft has been generated.
-                    </span>
-                    <button
-                      className="ghost"
-                      onClick={handleReviseDraft}
-                      disabled={loading || !selectedSession.has_generated_output}
-                    >
-                      Revise draft
-                    </button>
-                    <label>
-                      Draft JSON
-                      <textarea
-                        rows={12}
-                        value={draftJsonText}
-                        onChange={(event) => setDraftJsonText(event.target.value)}
-                      />
-                    </label>
-                    <div className="inline-actions">
-                      <button className="ghost" onClick={handleSaveDraft} disabled={loading}>
-                        Save draft
-                      </button>
-                    </div>
-                    {selectedSession.requirements_summary && (
-                      <div className="stack">
-                        <strong>Requirements summary</strong>
-                        <pre style={{ whiteSpace: "pre-wrap" }}>{selectedSession.requirements_summary}</pre>
+                    </section>
+
+                    <section className="draft-section">
+                      <div className="card-header">
+                        <h4>Draft output</h4>
+                        <button className="ghost" onClick={handleSaveDraft} disabled={loading}>
+                          Save draft JSON
+                        </button>
                       </div>
-                    )}
-                    {selectedSession.diff_summary && (
-                      <div className="stack">
-                        <strong>Diff summary</strong>
-                        <pre style={{ whiteSpace: "pre-wrap" }}>{selectedSession.diff_summary}</pre>
-                      </div>
-                    )}
-                    <div className="stack">
-                      <strong>Validation errors</strong>
-                      {(selectedSession.validation_errors ?? []).length === 0 ? (
-                        <span className="muted">No validation errors.</span>
-                      ) : (
-                        (selectedSession.validation_errors ?? []).map((err) => (
-                          <span key={err} className="muted">
-                            {err}
-                          </span>
-                        ))
+                      <label className="stacked-field">
+                        Draft JSON
+                        <textarea
+                          className="draft-json-editor"
+                          rows={16}
+                          value={draftJsonText}
+                          onChange={(event) => setDraftJsonText(event.target.value)}
+                        />
+                      </label>
+                      {selectedSession.requirements_summary && (
+                        <div className="stack">
+                          <strong>Requirements summary</strong>
+                          <pre className="draft-output-pre">{selectedSession.requirements_summary}</pre>
+                        </div>
                       )}
-                    </div>
-                    <div className="stack">
-                      <strong>Effective context preview</strong>
-                      <pre style={{ whiteSpace: "pre-wrap" }}>
-                        {selectedSession.effective_context_preview ?? "No context preview."}
-                      </pre>
-                    </div>
+                      {selectedSession.diff_summary && (
+                        <div className="stack">
+                          <strong>Diff summary</strong>
+                          <pre className="draft-output-pre">{selectedSession.diff_summary}</pre>
+                        </div>
+                      )}
+                      <div className="stack">
+                        <strong>Validation errors</strong>
+                        {(selectedSession.validation_errors ?? []).length === 0 ? (
+                          <span className="muted">No validation errors.</span>
+                        ) : (
+                          (selectedSession.validation_errors ?? []).map((err) => (
+                            <span key={err} className="muted">
+                              {err}
+                            </span>
+                          ))
+                        )}
+                      </div>
+                      <div className="stack">
+                        <strong>Effective context preview</strong>
+                        <pre className="draft-output-pre">
+                          {selectedSession.effective_context_preview ?? "No context preview."}
+                        </pre>
+                      </div>
+                    </section>
                   </div>
                 )}
               </div>
