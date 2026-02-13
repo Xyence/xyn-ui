@@ -891,3 +891,99 @@ export type XynMapResponse = {
   edges: XynMapEdge[];
   suggested_layout?: string;
 };
+
+export type ReportPriority = "p0" | "p1" | "p2" | "p3";
+export type ReportType = "bug" | "feature";
+
+export type ReportContext = {
+  url?: string;
+  route?: string;
+  build?: { version?: string; commit?: string };
+  user?: { id?: string; email?: string };
+  blueprint_ids?: string[];
+  release_ids?: string[];
+  instance_ids?: string[];
+  client?: { user_agent?: string; viewport?: { w?: number; h?: number } };
+  occurred_at_iso?: string;
+  [key: string]: unknown;
+};
+
+export type ReportAttachmentMetadata = {
+  id: string;
+  filename: string;
+  content_type: string;
+  size_bytes: number;
+  storage: {
+    provider: "s3" | "local";
+    bucket?: string;
+    key?: string;
+    url_expires_at?: string;
+  };
+  created_at_iso?: string;
+};
+
+export type ReportPayload = {
+  type: ReportType;
+  title: string;
+  description: string;
+  priority?: ReportPriority;
+  tags?: string[];
+  context?: ReportContext;
+};
+
+export type ReportRecord = {
+  id: string;
+  type: ReportType;
+  title: string;
+  description: string;
+  priority: ReportPriority;
+  tags: string[];
+  context?: ReportContext;
+  attachments: ReportAttachmentMetadata[];
+  created_at_iso?: string;
+  created_by?: { id?: string; email?: string };
+};
+
+export type PlatformConfig = {
+  storage: {
+    primary: { type: "s3" | "local"; name: string };
+    providers: Array<{
+      name: string;
+      type: "s3" | "local";
+      s3?: {
+        bucket?: string;
+        region?: string;
+        prefix?: string;
+        acl?: string;
+        kms_key_id?: string | null;
+        use_presigned_put?: boolean;
+        public_base_url?: string;
+      };
+      local?: { base_path?: string };
+    }>;
+  };
+  notifications: {
+    enabled: boolean;
+    channels: Array<{
+      name: string;
+      type: "discord" | "aws_sns";
+      enabled?: boolean;
+      discord?: {
+        webhook_url_ref?: string;
+        username?: string;
+        avatar_url?: string;
+      };
+      aws_sns?: {
+        topic_arn?: string;
+        region?: string;
+        subject_prefix?: string;
+        message_attributes?: Record<string, string>;
+      };
+    }>;
+  };
+};
+
+export type PlatformConfigResponse = {
+  version: number;
+  config: PlatformConfig;
+};

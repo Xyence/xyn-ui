@@ -25,13 +25,19 @@ import MyTenantsPage from "./pages/MyTenantsPage";
 import ControlPlanePage from "./pages/ControlPlanePage";
 import GuidesPage from "./pages/GuidesPage";
 import XynMapPage from "./pages/XynMapPage";
+import PlatformSettingsPage from "./pages/PlatformSettingsPage";
+import { useGlobalHotkeys } from "./hooks/useGlobalHotkeys";
+import ReportOverlay from "./components/ReportOverlay";
 
 export default function AppShell() {
   const [authed, setAuthed] = useState(false);
   const [roles, setRoles] = useState<string[]>([]);
+  const [userContext, setUserContext] = useState<{ id?: string; email?: string }>({});
   const [authLoaded, setAuthLoaded] = useState(false);
   const [brandName, setBrandName] = useState<string>("Xyn Console");
   const [brandLogo, setBrandLogo] = useState<string>("/xyence-logo.png");
+  const [reportOpen, setReportOpen] = useState(false);
+  const [toast, setToast] = useState<string>("");
   useEffect(() => {
     let mounted = true;
     (async () => {
@@ -40,6 +46,10 @@ export default function AppShell() {
         if (!mounted) return;
         setAuthed(Boolean(me?.user));
         setRoles(me?.roles ?? []);
+        setUserContext({
+          id: (me?.user?.subject as string | null) || "",
+          email: (me?.user?.email as string | null) || "",
+        });
         if (me?.user) {
           try {
             const profile = await getMyProfile();
@@ -83,6 +93,20 @@ export default function AppShell() {
   const isPlatformArchitect = roles.includes("platform_architect");
   const isPlatformManager = isPlatformAdmin || isPlatformArchitect;
 
+  useGlobalHotkeys((event) => {
+    const metaOrCtrl = event.metaKey || event.ctrlKey;
+    if (!metaOrCtrl || !event.shiftKey) return;
+    if (event.key.toLowerCase() !== "b") return;
+    event.preventDefault();
+    setReportOpen(true);
+  });
+
+  useEffect(() => {
+    if (!toast) return;
+    const timer = window.setTimeout(() => setToast(""), 3500);
+    return () => window.clearTimeout(timer);
+  }, [toast]);
+
   if (!authLoaded) {
     return (
       <div className="app-shell">
@@ -110,6 +134,9 @@ export default function AppShell() {
           </div>
         </div>
         <div className="header-meta">
+          <button className="ghost" onClick={() => setReportOpen(true)}>
+            Report (Ctrl/Cmd+Shift+B)
+          </button>
           {authed ? (
             <button
               className="ghost"
@@ -276,6 +303,14 @@ export default function AppShell() {
               >
                 Branding
               </NavLink>
+              {isPlatformAdmin && (
+                <NavLink
+                  className={({ isActive }) => (isActive ? "app-nav-link active" : "app-nav-link")}
+                  to="/app/platform/settings"
+                >
+                  Platform Settings
+                </NavLink>
+              )}
               <NavLink
                 className={({ isActive }) => (isActive ? "app-nav-link active" : "app-nav-link")}
                 to="/app/platform/guides"
@@ -322,12 +357,20 @@ export default function AppShell() {
                 {isPlatformAdmin && <Route path="platform/secret-stores" element={<SecretStoresPage />} />}
                 {isPlatformAdmin && <Route path="platform/secret-refs" element={<SecretRefsPage />} />}
                 <Route path="platform/branding" element={<PlatformBrandingPage />} />
+                {isPlatformAdmin && <Route path="platform/settings" element={<PlatformSettingsPage />} />}
                 <Route path="platform/guides" element={<GuidesPage />} />
               </>
             )}
           </Routes>
         </main>
       </div>
+      {toast && <div className="app-toast">{toast}</div>}
+      <ReportOverlay
+        open={reportOpen}
+        onClose={() => setReportOpen(false)}
+        user={userContext}
+        onSubmitted={(reportId) => setToast(`Report submitted: ${reportId}`)}
+      />
     </div>
   );
 }

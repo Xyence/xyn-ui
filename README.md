@@ -25,6 +25,19 @@ This UI relies on existing xyn-api staff session cookies in dev mode.
   - `/auth/login?appId=<appId>&returnTo=<url>`
 - Do not implement app-specific provider pickers in individual apps.
 
+## Bug / Feature Report Overlay
+- Open with `Ctrl+Shift+B` (or `Cmd+Shift+B` on macOS).
+- Supports:
+  - report type, title, description, priority, tags
+  - drag/drop or paste image attachments
+  - context capture preview
+  - `Copy debug bundle` (copies captured context JSON to clipboard)
+
+## Platform Settings
+- Admin screen at `Platform -> Platform Settings` manages:
+  - attachment storage provider config (`local` / `s3`)
+  - report notifications config (Discord + SNS)
+
 ## SPA routing fallback
 When deploying behind a reverse proxy, ensure all public routes (e.g. `/about`, `/articles`, `/articles/:slug`) resolve to `index.html`. The provided `nginx.conf` already includes:
 

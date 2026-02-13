@@ -66,6 +66,10 @@ import type {
   SecretStore,
   SecretStoreListResponse,
   SecretRefListResponse,
+  ReportPayload,
+  ReportRecord,
+  PlatformConfig,
+  PlatformConfigResponse,
 } from "./types";
 import { authHeaders, resolveApiBaseUrl } from "./client";
 
@@ -1320,6 +1324,48 @@ export async function listSecretRefs(filters?: {
     credentials: "include",
   });
   return handle<SecretRefListResponse>(response);
+}
+
+export async function createReport(payload: ReportPayload, files: File[]): Promise<ReportRecord> {
+  const apiBaseUrl = resolveApiBaseUrl();
+  const form = new FormData();
+  form.append("payload", JSON.stringify(payload));
+  for (const file of files) {
+    form.append("attachments", file);
+  }
+  const response = await apiFetch(`${apiBaseUrl}/api/v1/reports`, {
+    method: "POST",
+    credentials: "include",
+    body: form,
+  });
+  return handle<ReportRecord>(response);
+}
+
+export async function getReport(id: string): Promise<ReportRecord> {
+  const apiBaseUrl = resolveApiBaseUrl();
+  const response = await apiFetch(`${apiBaseUrl}/api/v1/reports/${id}`, {
+    credentials: "include",
+  });
+  return handle<ReportRecord>(response);
+}
+
+export async function getPlatformConfig(): Promise<PlatformConfigResponse> {
+  const apiBaseUrl = resolveApiBaseUrl();
+  const response = await apiFetch(`${apiBaseUrl}/api/v1/platform-config`, {
+    credentials: "include",
+  });
+  return handle<PlatformConfigResponse>(response);
+}
+
+export async function updatePlatformConfig(config: PlatformConfig): Promise<PlatformConfigResponse> {
+  const apiBaseUrl = resolveApiBaseUrl();
+  const response = await apiFetch(`${apiBaseUrl}/api/v1/platform-config`, {
+    method: "PUT",
+    credentials: "include",
+    headers: buildHeaders(),
+    body: JSON.stringify(config),
+  });
+  return handle<PlatformConfigResponse>(response);
 }
 
 export async function createIdentityProvider(payload: IdentityProviderPayload): Promise<{ id: string }> {
