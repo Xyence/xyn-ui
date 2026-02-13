@@ -31,11 +31,13 @@ import XynMapPage from "./pages/XynMapPage";
 import PlatformSettingsPage from "./pages/PlatformSettingsPage";
 import { useGlobalHotkeys } from "./hooks/useGlobalHotkeys";
 import ReportOverlay from "./components/ReportOverlay";
+import UserMenu from "./components/common/UserMenu";
 
 export default function AppShell() {
   const location = useLocation();
   const [authed, setAuthed] = useState(false);
   const [roles, setRoles] = useState<string[]>([]);
+  const [authUser, setAuthUser] = useState<Record<string, unknown> | null>(null);
   const [userContext, setUserContext] = useState<{ id?: string; email?: string }>({});
   const [authLoaded, setAuthLoaded] = useState(false);
   const [brandName, setBrandName] = useState<string>("Xyn Console");
@@ -50,9 +52,10 @@ export default function AppShell() {
         const me = await getMe();
         if (!mounted) return;
         setAuthed(Boolean(me?.user));
+        setAuthUser((me?.user as Record<string, unknown>) || null);
         setRoles(me?.roles ?? []);
         setUserContext({
-          id: (me?.user?.subject as string | null) || "",
+          id: (me?.user?.subject as string | null) || (me?.user?.sub as string | null) || "",
           email: (me?.user?.email as string | null) || "",
         });
         if (me?.user) {
@@ -77,6 +80,7 @@ export default function AppShell() {
       } catch {
         if (!mounted) return;
         setAuthed(false);
+        setAuthUser(null);
         setRoles([]);
       } finally {
         if (mounted) {
@@ -93,6 +97,12 @@ export default function AppShell() {
     const returnTo = window.location.pathname || "/app";
     window.location.href = `/auth/login?appId=xyn-ui&returnTo=${encodeURIComponent(returnTo)}`;
   };
+
+  const signOut = () =>
+    fetch("/auth/logout", { method: "POST", credentials: "include" }).then(() => {
+      setAuthed(false);
+      setAuthUser(null);
+    });
 
   const isPlatformAdmin = roles.includes("platform_admin");
   const isPlatformArchitect = roles.includes("platform_architect");
@@ -145,18 +155,8 @@ export default function AppShell() {
           </div>
         </div>
         <div className="header-meta">
-          <button className="ghost" onClick={() => setReportOpen(true)}>
-            Report (Ctrl/Cmd+Shift+B)
-          </button>
           {authed ? (
-            <button
-              className="ghost"
-              onClick={() =>
-                fetch("/auth/logout", { method: "POST", credentials: "include" }).then(() => setAuthed(false))
-              }
-            >
-              Sign out
-            </button>
+            <UserMenu user={authUser || {}} onReport={() => setReportOpen(true)} onSignOut={signOut} />
           ) : (
             <button className="ghost" onClick={startLogin}>
               Sign in
