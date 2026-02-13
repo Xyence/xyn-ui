@@ -53,8 +53,10 @@ describe("Sidebar", () => {
     expect(screen.queryByText("Modules")).not.toBeInTheDocument();
   });
 
-  it("hides admin items when user lacks roles", () => {
+  it("hides admin-only items when user lacks role", async () => {
+    const user = userEvent.setup();
     renderSidebar("/app/map", []);
-    expect(screen.queryByText("Platform Control Plane")).not.toBeInTheDocument();
+    await user.type(screen.getByRole("textbox", { name: "Search" }), "secret stores");
+    expect(screen.queryByText("Secret Stores")).not.toBeInTheDocument();
   });
 });

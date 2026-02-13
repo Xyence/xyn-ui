@@ -169,7 +169,7 @@ export default function AppShell() {
         <main className="app-content">
           {breadcrumbTrail.length > 0 && (
             <div className="app-breadcrumbs" aria-label="Breadcrumb">
-              {breadcrumbTrail.join(" / ")}
+              {breadcrumbTrail.map((crumb) => crumb.label).join(" / ")}
             </div>
           )}
           <Routes>

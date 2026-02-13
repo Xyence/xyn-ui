@@ -9,8 +9,8 @@ import {
 } from "./nav.config";
 
 export type NavState = {
-  expandedGroups: string[];
-  expandedSubgroups: string[];
+  expandedGroupIds: string[];
+  expandedSubgroupIds: string[];
   collapsed: boolean;
 };
 
@@ -26,14 +26,19 @@ export type NavMatch = {
   item: NavItem;
 };
 
+export type NavBreadcrumb = {
+  label: string;
+  path?: string;
+};
+
 export type FilteredNav = {
   groups: NavGroup[];
   matches: NavMatch[];
 };
 
 const DEFAULT_STATE: NavState = {
-  expandedGroups: ["overview", "design", "package", "deploy-runtime", "observability"],
-  expandedSubgroups: [],
+  expandedGroupIds: ["overview", "design", "package", "deploy-runtime", "observability"],
+  expandedSubgroupIds: [],
   collapsed: false,
 };
 
@@ -41,7 +46,7 @@ function uniq(values: string[]): string[] {
   return Array.from(new Set(values.filter(Boolean)));
 }
 
-function normalize(pathname: string): string {
+export function normalizePath(pathname: string): string {
   if (!pathname) return "/";
   const hash = pathname.split("#")[0];
   const clean = hash.split("?")[0];
@@ -50,8 +55,8 @@ function normalize(pathname: string): string {
 }
 
 function pathMatches(itemPath: string, pathname: string): boolean {
-  const item = normalize(itemPath);
-  const current = normalize(pathname);
+  const item = normalizePath(itemPath);
+  const current = normalizePath(pathname);
   return current === item || current.startsWith(`${item}/`);
 }
 
@@ -69,12 +74,13 @@ function hasAny(haystack: string[], needles: string[]): boolean {
 }
 
 export function canViewNavItem(user: NavUserContext, node: NavVisibility): boolean {
-  // TODO: replace fallback behavior once permissions are exposed consistently by auth context.
+  // TODO: connect requiredPermissions once the auth payload provides permission claims.
   const roles = user.roles || [];
   const permissions = user.permissions || [];
   const requiredRoles = node.requiredRoles || [];
   const requiredPermissions = node.requiredPermissions || [];
   const hiddenRoles = node.hiddenRoles || [];
+
   if (hiddenRoles.length > 0 && hasAny(roles, hiddenRoles)) {
     return false;
   }
@@ -86,10 +92,14 @@ export function hydrateNavState(): NavState {
   try {
     const raw = window.localStorage.getItem(NAV_STATE_STORAGE_KEY);
     if (!raw) return DEFAULT_STATE;
-    const parsed = JSON.parse(raw) as Partial<NavState>;
+    const parsed = JSON.parse(raw) as Partial<
+      NavState & { expandedGroups?: string[]; expandedSubgroups?: string[] }
+    >;
     return {
-      expandedGroups: uniq(parsed.expandedGroups || DEFAULT_STATE.expandedGroups),
-      expandedSubgroups: uniq(parsed.expandedSubgroups || DEFAULT_STATE.expandedSubgroups),
+      expandedGroupIds: uniq(parsed.expandedGroupIds || parsed.expandedGroups || DEFAULT_STATE.expandedGroupIds),
+      expandedSubgroupIds: uniq(
+        parsed.expandedSubgroupIds || parsed.expandedSubgroups || DEFAULT_STATE.expandedSubgroupIds,
+      ),
       collapsed: Boolean(parsed.collapsed),
     };
   } catch {
@@ -97,11 +107,11 @@ export function hydrateNavState(): NavState {
   }
 }
 
-export function persistNavState(state: NavState) {
+export function persistNavState(state: NavState): void {
   if (typeof window === "undefined") return;
   const normalized: NavState = {
-    expandedGroups: uniq(state.expandedGroups),
-    expandedSubgroups: uniq(state.expandedSubgroups),
+    expandedGroupIds: uniq(state.expandedGroupIds),
+    expandedSubgroupIds: uniq(state.expandedSubgroupIds),
     collapsed: Boolean(state.collapsed),
   };
   window.localStorage.setItem(NAV_STATE_STORAGE_KEY, JSON.stringify(normalized));
@@ -109,11 +119,9 @@ export function persistNavState(state: NavState) {
 
 export function visibleNav(groups: NavGroup[], user: NavUserContext): NavGroup[] {
   return groups
-    .filter((group) => canViewNavItem(user, group))
     .map((group) => {
       const items = (group.items || []).filter((item) => canViewNavItem(user, item));
       const subgroups = (group.subgroups || [])
-        .filter((subgroup) => canViewNavItem(user, subgroup))
         .map((subgroup) => ({
           ...subgroup,
           items: subgroup.items.filter((item) => canViewNavItem(user, item)),
@@ -125,10 +133,11 @@ export function visibleNav(groups: NavGroup[], user: NavUserContext): NavGroup[]
         subgroups,
       };
     })
-    .filter((group) => (group.items || []).length > 0 || (group.subgroups || []).length > 0);
+    .filter((group) => (group.items || []).length > 0 || (group.subgroups || []).length > 0)
+    .filter((group) => canViewNavItem(user, group));
 }
 
-export function findActiveNavItem(pathname: string, groups: NavGroup[] = NAV_GROUPS): ActiveNavMatch | null {
+export function findActiveItem(pathname: string, groups: NavGroup[] = NAV_GROUPS): ActiveNavMatch | null {
   for (const group of groups) {
     for (const item of group.items || []) {
       if (pathMatches(item.path, pathname)) return { groupId: group.id, item };
@@ -142,14 +151,24 @@ export function findActiveNavItem(pathname: string, groups: NavGroup[] = NAV_GRO
   return null;
 }
 
-export function getBreadcrumbs(pathname: string, groups: NavGroup[] = NAV_GROUPS): string[] {
-  const active = findActiveNavItem(pathname, groups);
+export function findActiveNavItem(pathname: string, groups: NavGroup[] = NAV_GROUPS): ActiveNavMatch | null {
+  return findActiveItem(pathname, groups);
+}
+
+export function getBreadcrumbs(pathname: string, groups: NavGroup[] = NAV_GROUPS): NavBreadcrumb[] {
+  const active = findActiveItem(pathname, groups);
   if (!active) return [];
   const group = groups.find((entry) => entry.id === active.groupId);
   if (!group) return [];
-  if (!active.subgroupId) return [group.label, active.item.label];
+
+  if (!active.subgroupId) {
+    return [{ label: group.label }, { label: active.item.label, path: active.item.path }];
+  }
+
   const subgroup = (group.subgroups || []).find((entry) => entry.id === active.subgroupId);
-  return subgroup ? [group.label, subgroup.label, active.item.label] : [group.label, active.item.label];
+  return subgroup
+    ? [{ label: group.label }, { label: subgroup.label }, { label: active.item.label, path: active.item.path }]
+    : [{ label: group.label }, { label: active.item.label, path: active.item.path }];
 }
 
 export function filterNav(groups: NavGroup[], query: string): FilteredNav {
@@ -170,9 +189,7 @@ export function filterNav(groups: NavGroup[], query: string): FilteredNav {
     .map((group) => {
       const matchedItems = (group.items || []).filter((item) => {
         const ok = textMatch(q, item.label, ...(item.keywords || []), group.label);
-        if (ok) {
-          matches.push({ groupId: group.id, item });
-        }
+        if (ok) matches.push({ groupId: group.id, item });
         return ok;
       });
 
@@ -181,20 +198,14 @@ export function filterNav(groups: NavGroup[], query: string): FilteredNav {
           const subgroupLabelMatched = textMatch(q, subgroup.label, group.label);
           const items = subgroup.items.filter((item) => {
             const ok = subgroupLabelMatched || textMatch(q, item.label, ...(item.keywords || []), subgroup.label, group.label);
-            if (ok) {
-              matches.push({ groupId: group.id, subgroupId: subgroup.id, item });
-            }
+            if (ok) matches.push({ groupId: group.id, subgroupId: subgroup.id, item });
             return ok;
           });
           return { ...subgroup, items };
         })
         .filter((subgroup) => subgroup.items.length > 0);
 
-      return {
-        ...group,
-        items: matchedItems,
-        subgroups: matchedSubgroups,
-      };
+      return { ...group, items: matchedItems, subgroups: matchedSubgroups };
     })
     .filter((group) => (group.items || []).length > 0 || (group.subgroups || []).length > 0);
 
@@ -207,38 +218,32 @@ export function mergedExpandedState(
   filtered: FilteredNav,
   groups: NavGroup[],
   query: string,
-): Pick<NavState, "expandedGroups" | "expandedSubgroups"> {
-  const expandedGroups = new Set(state.expandedGroups);
-  const expandedSubgroups = new Set(state.expandedSubgroups);
+): Pick<NavState, "expandedGroupIds" | "expandedSubgroupIds"> {
+  const expandedGroupIds = new Set(state.expandedGroupIds);
+  const expandedSubgroupIds = new Set(state.expandedSubgroupIds);
 
   if (query.trim()) {
     filtered.matches.forEach((match) => {
-      expandedGroups.add(match.groupId);
-      if (match.subgroupId) {
-        expandedSubgroups.add(match.subgroupId);
-      }
+      expandedGroupIds.add(match.groupId);
+      if (match.subgroupId) expandedSubgroupIds.add(match.subgroupId);
     });
   }
 
-  const active = findActiveNavItem(pathname, groups);
+  const active = findActiveItem(pathname, groups);
   if (active) {
-    expandedGroups.add(active.groupId);
-    if (active.subgroupId) {
-      expandedSubgroups.add(active.subgroupId);
-    }
+    expandedGroupIds.add(active.groupId);
+    if (active.subgroupId) expandedSubgroupIds.add(active.subgroupId);
   }
 
   return {
-    expandedGroups: Array.from(expandedGroups),
-    expandedSubgroups: Array.from(expandedSubgroups),
+    expandedGroupIds: Array.from(expandedGroupIds),
+    expandedSubgroupIds: Array.from(expandedSubgroupIds),
   };
 }
 
 export function findGroupBySubgroupId(groups: NavGroup[], subgroupId: string): NavGroup | null {
   for (const group of groups) {
-    if ((group.subgroups || []).some((subgroup) => subgroup.id === subgroupId)) {
-      return group;
-    }
+    if ((group.subgroups || []).some((subgroup) => subgroup.id === subgroupId)) return group;
   }
   return null;
 }

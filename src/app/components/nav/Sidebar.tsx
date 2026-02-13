@@ -1,11 +1,45 @@
-import { type KeyboardEvent, useEffect, useMemo, useState } from "react";
+import { type KeyboardEvent, type ReactNode, useEffect, useMemo, useState } from "react";
+import {
+  Activity,
+  Archive,
+  BookOpen,
+  BookText,
+  Box,
+  Building2,
+  ChevronLeft,
+  ChevronDown,
+  ChevronRight,
+  Compass,
+  Database,
+  Globe,
+  GitBranch,
+  KeyRound,
+  KeySquare,
+  Layers,
+  Lock,
+  Map,
+  Palette,
+  Package,
+  PlayCircle,
+  Plus,
+  Rocket,
+  Search,
+  Server,
+  Settings,
+  Shield,
+  ShieldCheck,
+  SlidersHorizontal,
+  Terminal,
+  Tag,
+  UserCheck,
+  Users,
+} from "lucide-react";
 import { NavLink, useLocation, useNavigate } from "react-router-dom";
 import { NAV_GROUPS, NavGroup, NavUserContext } from "../../nav/nav.config";
 import {
   canViewNavItem,
   filterNav,
-  findActiveNavItem,
-  findGroupBySubgroupId,
+  findActiveItem,
   flattenItems,
   hydrateNavState,
   mergedExpandedState,
@@ -13,6 +47,10 @@ import {
   persistNavState,
   visibleNav,
 } from "../../nav/nav.utils";
+import { Menu, MenuItem } from "../ui/Menu";
+import Popover from "../ui/Popover";
+import Tooltip from "../ui/Tooltip";
+import "./sidebar.css";
 
 type QuickAction = {
   id: string;
@@ -32,12 +70,53 @@ const QUICK_ACTIONS: QuickAction[] = [
   { id: "new-environment", label: "New Environment", path: "/app/platform/environments", requiredRoles: ["platform_admin"] },
 ];
 
-function iconText(value?: string): string {
-  return (value || "•").slice(0, 3).toUpperCase();
+const ICONS: Record<string, (props: { size?: number }) => ReactNode> = {
+  Compass: ({ size = 18 }) => <Compass size={size} />,
+  Layers: ({ size = 18 }) => <Layers size={size} />,
+  Package: ({ size = 18 }) => <Package size={size} />,
+  Rocket: ({ size = 18 }) => <Rocket size={size} />,
+  Activity: ({ size = 18 }) => <Activity size={size} />,
+  Shield: ({ size = 18 }) => <Shield size={size} />,
+  BookOpen: ({ size = 18 }) => <BookOpen size={size} />,
+  Map: ({ size = 18 }) => <Map size={size} />,
+  Box: ({ size = 18 }) => <Box size={size} />,
+  Database: ({ size = 18 }) => <Database size={size} />,
+  Archive: ({ size = 18 }) => <Archive size={size} />,
+  GitBranch: ({ size = 18 }) => <GitBranch size={size} />,
+  Tag: ({ size = 18 }) => <Tag size={size} />,
+  Server: ({ size = 18 }) => <Server size={size} />,
+  PlayCircle: ({ size = 18 }) => <PlayCircle size={size} />,
+  Terminal: ({ size = 18 }) => <Terminal size={size} />,
+  Building2: ({ size = 18 }) => <Building2 size={size} />,
+  Globe: ({ size = 18 }) => <Globe size={size} />,
+  Users: ({ size = 18 }) => <Users size={size} />,
+  UserCheck: ({ size = 18 }) => <UserCheck size={size} />,
+  KeyRound: ({ size = 18 }) => <KeyRound size={size} />,
+  ShieldCheck: ({ size = 18 }) => <ShieldCheck size={size} />,
+  Lock: ({ size = 18 }) => <Lock size={size} />,
+  KeySquare: ({ size = 18 }) => <KeySquare size={size} />,
+  Settings: ({ size = 18 }) => <Settings size={size} />,
+  Palette: ({ size = 18 }) => <Palette size={size} />,
+  SlidersHorizontal: ({ size = 18 }) => <SlidersHorizontal size={size} />,
+};
+
+function renderIcon(name?: string, size = 18) {
+  if (!name || !ICONS[name]) {
+    return <BookText size={size} />;
+  }
+  return ICONS[name]({ size });
 }
 
 function groupHasActive(group: NavGroup, pathname: string): boolean {
-  return Boolean(findActiveNavItem(pathname, [group]));
+  return Boolean(findActiveItem(pathname, [group]));
+}
+
+function NavTooltip({ content, disabled, children }: { content: string; disabled: boolean; children: ReactNode }) {
+  return (
+    <Tooltip content={content} disabled={disabled}>
+      {children}
+    </Tooltip>
+  );
 }
 
 export default function Sidebar({ user }: Props) {
@@ -46,6 +125,7 @@ export default function Sidebar({ user }: Props) {
   const [state, setState] = useState<NavState>(() => hydrateNavState());
   const [query, setQuery] = useState("");
   const [searchOpen, setSearchOpen] = useState(false);
+  const [createOpen, setCreateOpen] = useState(false);
 
   const allowedGroups = useMemo(() => visibleNav(NAV_GROUPS, user), [user]);
   const filtered = useMemo(() => filterNav(allowedGroups, query), [allowedGroups, query]);
@@ -55,26 +135,26 @@ export default function Sidebar({ user }: Props) {
   );
 
   useEffect(() => {
-    const active = findActiveNavItem(pathname, allowedGroups);
+    const active = findActiveItem(pathname, allowedGroups);
     if (!active) return;
-    const nextExpandedGroups = Array.from(new Set([...state.expandedGroups, active.groupId]));
-    const nextExpandedSubgroups = active.subgroupId
-      ? Array.from(new Set([...state.expandedSubgroups, active.subgroupId]))
-      : state.expandedSubgroups;
+    const nextExpandedGroupIds = Array.from(new Set([...state.expandedGroupIds, active.groupId]));
+    const nextExpandedSubgroupIds = active.subgroupId
+      ? Array.from(new Set([...state.expandedSubgroupIds, active.subgroupId]))
+      : state.expandedSubgroupIds;
     if (
-      nextExpandedGroups.length === state.expandedGroups.length &&
-      nextExpandedSubgroups.length === state.expandedSubgroups.length
+      nextExpandedGroupIds.length === state.expandedGroupIds.length &&
+      nextExpandedSubgroupIds.length === state.expandedSubgroupIds.length
     ) {
       return;
     }
     const next = {
       ...state,
-      expandedGroups: nextExpandedGroups,
-      expandedSubgroups: nextExpandedSubgroups,
+      expandedGroupIds: nextExpandedGroupIds,
+      expandedSubgroupIds: nextExpandedSubgroupIds,
     };
     setState(next);
     persistNavState(next);
-  }, [pathname, allowedGroups]); // keep concise to avoid re-persist churn
+  }, [pathname, allowedGroups]);
 
   const setAndPersist = (next: NavState) => {
     setState(next);
@@ -82,23 +162,23 @@ export default function Sidebar({ user }: Props) {
   };
 
   const toggleGroup = (groupId: string) => {
-    const has = state.expandedGroups.includes(groupId);
+    const has = state.expandedGroupIds.includes(groupId);
     const next = {
       ...state,
-      expandedGroups: has
-        ? state.expandedGroups.filter((value) => value !== groupId)
-        : [...state.expandedGroups, groupId],
+      expandedGroupIds: has
+        ? state.expandedGroupIds.filter((value) => value !== groupId)
+        : [...state.expandedGroupIds, groupId],
     };
     setAndPersist(next);
   };
 
   const toggleSubgroup = (subgroupId: string) => {
-    const has = state.expandedSubgroups.includes(subgroupId);
+    const has = state.expandedSubgroupIds.includes(subgroupId);
     const next = {
       ...state,
-      expandedSubgroups: has
-        ? state.expandedSubgroups.filter((value) => value !== subgroupId)
-        : [...state.expandedSubgroups, subgroupId],
+      expandedSubgroupIds: has
+        ? state.expandedSubgroupIds.filter((value) => value !== subgroupId)
+        : [...state.expandedSubgroupIds, subgroupId],
     };
     setAndPersist(next);
   };
@@ -106,30 +186,23 @@ export default function Sidebar({ user }: Props) {
   const toggleCollapsed = () => {
     const next = { ...state, collapsed: !state.collapsed };
     setAndPersist(next);
-    if (!next.collapsed) {
-      setSearchOpen(false);
-    }
+    if (!next.collapsed) setSearchOpen(false);
   };
 
   const onSearchKeyDown = (event: KeyboardEvent<HTMLInputElement>) => {
     if (event.key === "Escape") {
       setQuery("");
-      if (state.collapsed) {
-        setSearchOpen(false);
-      }
+      setSearchOpen(false);
       return;
     }
     if (event.key !== "Enter") return;
     if (filtered.matches.length === 1) {
       navigate(filtered.matches[0].item.path);
-      if (state.collapsed) {
-        setSearchOpen(false);
-      }
+      setSearchOpen(false);
     }
   };
 
   const quickActions = QUICK_ACTIONS.filter((action) => canViewNavItem(user, action));
-
   const filteredCount = flattenItems(filtered.groups).length;
 
   return (
@@ -152,30 +225,53 @@ export default function Sidebar({ user }: Props) {
             />
           </label>
         )}
+
         {state.collapsed && (
-          <button
-            type="button"
-            className="ghost sidebar-icon-button"
-            title="Search"
-            onClick={() => setSearchOpen((value) => !value)}
-            aria-label="Open search"
-          >
-            SR
-          </button>
+          <NavTooltip content="Search" disabled={!state.collapsed}>
+            <button
+              type="button"
+              className="ghost sidebar-icon-button"
+              onClick={() => setSearchOpen((value) => !value)}
+              aria-label="Open search"
+            >
+              <Search size={18} />
+            </button>
+          </NavTooltip>
         )}
-        <button
-          type="button"
-          className="ghost sidebar-icon-button"
-          onClick={toggleCollapsed}
-          title={state.collapsed ? "Expand sidebar" : "Collapse sidebar"}
-          aria-label={state.collapsed ? "Expand sidebar" : "Collapse sidebar"}
-        >
-          {state.collapsed ? ">" : "<"}
-        </button>
+
+        {!state.collapsed && quickActions.length > 0 && (
+          <div className="sidebar-create-wrap">
+            <button
+              type="button"
+              className="ghost sidebar-create-button"
+              onClick={() => setCreateOpen((value) => !value)}
+              aria-haspopup="menu"
+              aria-expanded={createOpen}
+            >
+              <Plus size={16} />
+              <span>Create</span>
+            </button>
+            <Popover open={createOpen} onClose={() => setCreateOpen(false)} className="sidebar-create-popover">
+              <Menu>
+                {quickActions.map((action) => (
+                  <MenuItem
+                    key={action.id}
+                    onSelect={() => {
+                      setCreateOpen(false);
+                      navigate(action.path);
+                    }}
+                  >
+                    {action.label}
+                  </MenuItem>
+                ))}
+              </Menu>
+            </Popover>
+          </div>
+        )}
       </div>
 
-      {state.collapsed && searchOpen && (
-        <div className="sidebar-search-popover">
+      {state.collapsed && (
+        <Popover open={searchOpen} onClose={() => setSearchOpen(false)} className="sidebar-search-popover">
           <input
             autoFocus
             className="input"
@@ -185,7 +281,7 @@ export default function Sidebar({ user }: Props) {
             onKeyDown={onSearchKeyDown}
             aria-label="Search"
           />
-        </div>
+        </Popover>
       )}
 
       {!state.collapsed && query.trim() && (
@@ -196,77 +292,77 @@ export default function Sidebar({ user }: Props) {
 
       <nav className="sidebar-scroll" aria-label="Primary">
         {filtered.groups.map((group) => {
-          const groupExpanded = expanded.expandedGroups.includes(group.id);
+          const groupExpanded = expanded.expandedGroupIds.includes(group.id);
           const groupActive = groupHasActive(group, pathname);
           return (
             <section key={group.id} className={`nav-group ${groupActive ? "active-scope" : ""}`}>
-              <button
-                type="button"
-                className="nav-group-toggle"
-                onClick={() => toggleGroup(group.id)}
-                aria-expanded={groupExpanded}
-                title={state.collapsed ? group.label : undefined}
-              >
-                <span className="nav-icon" aria-hidden="true">
-                  {iconText(group.icon)}
-                </span>
-                {!state.collapsed && <span className="nav-group-label">{group.label}</span>}
-                {!state.collapsed && <span className="nav-chevron">{groupExpanded ? "-" : "+"}</span>}
-              </button>
+              <NavTooltip content={group.label} disabled={!state.collapsed}>
+                <button
+                  type="button"
+                  className="nav-group-toggle"
+                  onClick={() => toggleGroup(group.id)}
+                  aria-expanded={groupExpanded}
+                >
+                  <span className="nav-icon" aria-hidden="true">
+                    {renderIcon(group.icon)}
+                  </span>
+                  {!state.collapsed && <span className="nav-group-label">{group.label}</span>}
+                  {!state.collapsed && <span className="nav-chevron">{groupExpanded ? <ChevronDown size={14} /> : <ChevronRight size={14} />}</span>}
+                </button>
+              </NavTooltip>
 
               {groupExpanded && (
                 <div className="nav-group-body">
                   {(group.items || []).map((item) => (
-                    <NavLink
-                      key={item.id}
-                      className={({ isActive }) => `app-nav-link nav-item-link ${isActive ? "active" : ""}`}
-                      title={state.collapsed ? item.label : undefined}
-                      to={item.path}
-                    >
-                      <span className="nav-icon" aria-hidden="true">
-                        {iconText(item.icon)}
-                      </span>
-                      {!state.collapsed && <span>{item.label}</span>}
-                    </NavLink>
+                    <NavTooltip key={item.id} content={item.label} disabled={!state.collapsed}>
+                      <NavLink
+                        className={({ isActive }) => `app-nav-link nav-item-link ${isActive ? "active" : ""}`}
+                        to={item.path}
+                      >
+                        <span className="nav-icon" aria-hidden="true">
+                          {renderIcon(item.icon)}
+                        </span>
+                        {!state.collapsed && <span>{item.label}</span>}
+                      </NavLink>
+                    </NavTooltip>
                   ))}
 
                   {(group.subgroups || []).map((subgroup) => {
-                    const subgroupExpanded = expanded.expandedSubgroups.includes(subgroup.id);
-                    const parentGroup = findGroupBySubgroupId([group], subgroup.id);
-                    const subgroupActive = parentGroup
-                      ? Boolean(findActiveNavItem(pathname, [{ ...parentGroup, items: [], subgroups: [subgroup] }]))
-                      : false;
+                    const subgroupExpanded = expanded.expandedSubgroupIds.includes(subgroup.id);
+                    const subgroupActive = subgroup.items.some((item) => pathname.startsWith(item.path));
                     return (
                       <div key={subgroup.id} className={`nav-subgroup ${subgroupActive ? "active-scope" : ""}`}>
-                        <button
-                          type="button"
-                          className="nav-subgroup-toggle"
-                          onClick={() => toggleSubgroup(subgroup.id)}
-                          aria-expanded={subgroupExpanded}
-                          title={state.collapsed ? subgroup.label : undefined}
-                        >
-                          <span className="nav-icon" aria-hidden="true">
-                            {iconText(subgroup.icon)}
-                          </span>
-                          {!state.collapsed && <span className="nav-subgroup-label">{subgroup.label}</span>}
-                          {!state.collapsed && <span className="nav-chevron">{subgroupExpanded ? "-" : "+"}</span>}
-                        </button>
+                        <NavTooltip content={subgroup.label} disabled={!state.collapsed}>
+                          <button
+                            type="button"
+                            className="nav-subgroup-toggle"
+                            onClick={() => toggleSubgroup(subgroup.id)}
+                            aria-expanded={subgroupExpanded}
+                          >
+                            <span className="nav-icon" aria-hidden="true">
+                              {renderIcon(subgroup.icon)}
+                            </span>
+                            {!state.collapsed && <span className="nav-subgroup-label">{subgroup.label}</span>}
+                            {!state.collapsed && <span className="nav-chevron">{subgroupExpanded ? <ChevronDown size={14} /> : <ChevronRight size={14} />}</span>}
+                          </button>
+                        </NavTooltip>
+
                         {subgroupExpanded && (
                           <div className="nav-subgroup-items">
                             {subgroup.items.map((item) => (
-                              <NavLink
-                                key={item.id}
-                                className={({ isActive }) =>
-                                  `app-nav-link app-nav-link-sub nav-item-link ${isActive ? "active" : ""}`
-                                }
-                                title={state.collapsed ? item.label : undefined}
-                                to={item.path}
-                              >
-                                <span className="nav-icon" aria-hidden="true">
-                                  {iconText(item.icon)}
-                                </span>
-                                {!state.collapsed && <span>{item.label}</span>}
-                              </NavLink>
+                              <NavTooltip key={item.id} content={item.label} disabled={!state.collapsed}>
+                                <NavLink
+                                  className={({ isActive }) =>
+                                    `app-nav-link app-nav-link-sub nav-item-link ${isActive ? "active" : ""}`
+                                  }
+                                  to={item.path}
+                                >
+                                  <span className="nav-icon" aria-hidden="true">
+                                    {renderIcon(item.icon)}
+                                  </span>
+                                  {!state.collapsed && <span>{item.label}</span>}
+                                </NavLink>
+                              </NavTooltip>
                             ))}
                           </div>
                         )}
@@ -280,18 +376,19 @@ export default function Sidebar({ user }: Props) {
         })}
       </nav>
 
-      {!state.collapsed && quickActions.length > 0 && (
-        <div className="sidebar-quick-actions">
-          <div className="nav-section">Quick Actions</div>
-          <div className="stack">
-            {quickActions.map((action) => (
-              <NavLink key={action.id} className="app-nav-link app-nav-link-sub nav-item-link" to={action.path}>
-                {action.label}
-              </NavLink>
-            ))}
-          </div>
-        </div>
-      )}
+      <div className="sidebar-bottom-controls">
+        <NavTooltip content={state.collapsed ? "Expand sidebar" : "Collapse sidebar"} disabled={!state.collapsed}>
+          <button
+            type="button"
+            className="ghost sidebar-collapse-button"
+            onClick={toggleCollapsed}
+            aria-label={state.collapsed ? "Expand sidebar" : "Collapse sidebar"}
+          >
+            {state.collapsed ? <ChevronRight size={16} /> : <ChevronLeft size={16} />}
+            {!state.collapsed && <span>{state.collapsed ? "Expand" : "Collapse"}</span>}
+          </button>
+        </NavTooltip>
+      </div>
     </aside>
   );
 }
