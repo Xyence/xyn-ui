@@ -466,6 +466,128 @@ button:disabled {
   gap: 10px;
 }
 
+.map-toolbar {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
+  gap: 12px;
+  align-items: end;
+}
+
+.map-legend-row {
+  margin-top: 12px;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 12px;
+}
+
+.map-legend {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  align-items: center;
+  padding: 8px 10px;
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  background: #f8fbff;
+}
+
+.map-status-key {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 0.85rem;
+}
+
+.map-status-dot {
+  width: 10px;
+  height: 10px;
+  border-radius: 50%;
+  display: inline-block;
+}
+
+.map-status-dot.ok {
+  background: var(--good);
+}
+
+.map-status-dot.warn {
+  background: var(--warn);
+}
+
+.map-status-dot.error {
+  background: var(--danger);
+}
+
+.map-status-dot.unknown {
+  background: var(--muted);
+}
+
+.map-layout {
+  display: grid;
+  grid-template-columns: minmax(0, 2fr) minmax(300px, 1fr);
+  gap: 16px;
+  align-items: start;
+}
+
+.map-canvas-card {
+  min-height: 70vh;
+}
+
+.map-canvas {
+  height: 70vh;
+  border: 1px solid var(--border);
+  border-radius: 14px;
+  overflow: hidden;
+}
+
+.map-inspector {
+  min-height: 70vh;
+  position: sticky;
+  top: 20px;
+}
+
+.map-node {
+  min-width: 180px;
+  max-width: 260px;
+  border-radius: 12px;
+  border: 1px solid var(--border);
+  background: #fff;
+  box-shadow: 0 8px 18px rgba(16, 32, 58, 0.08);
+  padding: 10px;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.map-node-kind {
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+  font-size: 10px;
+  color: var(--muted);
+  font-weight: 700;
+}
+
+.map-node-badges {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+}
+
+.map-node-ok {
+  border-color: rgba(21, 156, 99, 0.5);
+}
+
+.map-node-warn {
+  border-color: rgba(243, 156, 18, 0.5);
+}
+
+.map-node-error {
+  border-color: rgba(192, 57, 43, 0.5);
+}
+
+.map-node-selected {
+  box-shadow: 0 0 0 2px rgba(15, 76, 129, 0.25);
+}
+
 .item-row {
   display: flex;
   justify-content: space-between;
@@ -525,6 +647,15 @@ button:disabled {
   .app-nav-link {
     flex: 1 1 140px;
     text-align: center;
+  }
+
+  .map-layout {
+    grid-template-columns: 1fr;
+  }
+
+  .map-inspector {
+    position: static;
+    min-height: auto;
   }
 }
 

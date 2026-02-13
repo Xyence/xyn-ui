@@ -1,6 +1,8 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
 import InlineMessage from "../../components/InlineMessage";
 import {
+  deleteRelease,
+  getMe,
   getRelease,
   listBlueprints,
   listReleasePlans,
@@ -16,6 +18,11 @@ import type {
 
 export default function ReleasesPage() {
   const [items, setItems] = useState<ReleaseSummary[]>([]);
+  const [count, setCount] = useState(0);
+  const [page, setPage] = useState(1);
+  const [pageSize, setPageSize] = useState(20);
+  const [nextPage, setNextPage] = useState<number | null>(null);
+  const [prevPage, setPrevPage] = useState<number | null>(null);
   const [selectedId, setSelectedId] = useState<string | null>(null);
   const [selected, setSelected] = useState<ReleaseDetail | null>(null);
   const [loading, setLoading] = useState(false);
@@ -23,6 +30,7 @@ export default function ReleasesPage() {
   const [error, setError] = useState<string | null>(null);
   const [blueprints, setBlueprints] = useState<BlueprintSummary[]>([]);
   const [releasePlans, setReleasePlans] = useState<ReleasePlanSummary[]>([]);
+  const [canManageControlPlane, setCanManageControlPlane] = useState(false);
 
   const blueprintNameById = useMemo(() => {
     return blueprints.reduce<Record<string, string>>((acc, blueprint) => {
@@ -38,18 +46,39 @@ export default function ReleasesPage() {
     }, {});
   }, [releasePlans]);
 
+  const blueprintById = useMemo(() => {
+    return blueprints.reduce<Record<string, BlueprintSummary>>((acc, blueprint) => {
+      acc[blueprint.id] = blueprint;
+      return acc;
+    }, {});
+  }, [blueprints]);
+
+  const selectedIsControlPlane = useMemo(() => {
+    if (!selected?.blueprint_id) return false;
+    const blueprint = blueprintById[selected.blueprint_id];
+    if (!blueprint) return false;
+    const fqn = `${blueprint.namespace}.${blueprint.name}`;
+    return ["xyn-api", "xyn-ui", "core.xyn-api", "core.xyn-ui"].includes(blueprint.name) || ["core.xyn-api", "core.xyn-ui", "xyn-api", "xyn-ui"].includes(fqn);
+  }, [blueprintById, selected]);
+
   const load = useCallback(async () => {
     try {
       setError(null);
-      const data = await listReleases();
+      const data = await listReleases(undefined, undefined, page, pageSize);
       setItems(data.releases);
+      setCount(data.count || 0);
+      setNextPage(data.next ?? null);
+      setPrevPage(data.prev ?? null);
+      if (selectedId && !data.releases.find((release) => release.id === selectedId)) {
+        setSelectedId(data.releases[0]?.id ?? null);
+      }
       if (!selectedId && data.releases[0]) {
         setSelectedId(data.releases[0].id);
       }
     } catch (err) {
       setError((err as Error).message);
     }
-  }, [selectedId]);
+  }, [page, pageSize, selectedId]);
 
   useEffect(() => {
     load();
@@ -71,6 +100,18 @@ export default function ReleasesPage() {
   }, []);
 
   useEffect(() => {
+    (async () => {
+      try {
+        const me = await getMe();
+        const roles = me.roles || [];
+        setCanManageControlPlane(roles.includes("platform_admin") || roles.includes("platform_architect"));
+      } catch {
+        setCanManageControlPlane(false);
+      }
+    })();
+  }, []);
+
+  useEffect(() => {
     if (!selectedId) {
       setSelected(null);
       return;
@@ -84,6 +125,26 @@ export default function ReleasesPage() {
       }
     })();
   }, [selectedId]);
+
+  const normalizedArtifacts = useMemo(() => {
+    const raw = selected?.artifacts_json;
+    if (!raw) return [] as Array<{ name: string; url: string }>;
+    if (Array.isArray(raw)) {
+      return raw.filter((item) => Boolean(item?.name && item?.url));
+    }
+    if (typeof raw === "object") {
+      return Object.entries(raw as Record<string, unknown>)
+        .map(([name, value]) => {
+          if (value && typeof value === "object") {
+            const url = String((value as { url?: string }).url || "");
+            return { name, url };
+          }
+          return { name, url: "" };
+        })
+        .filter((item) => Boolean(item.url));
+    }
+    return [] as Array<{ name: string; url: string }>;
+  }, [selected?.artifacts_json]);
 
   const handleRefresh = async () => {
     try {
@@ -118,6 +179,35 @@ export default function ReleasesPage() {
     }
   };
 
+  const canDelete = useMemo(() => {
+    if (!selected) return false;
+    if (selected.status === "draft") return true;
+    if (selected.status === "published" && !selected.release_plan_id) return true;
+    return false;
+  }, [selected]);
+
+  const handleDelete = async () => {
+    if (!selected) return;
+    if (!confirm(`Delete release ${selected.version}? This cannot be undone.`)) return;
+    try {
+      setLoading(true);
+      setError(null);
+      const result = await deleteRelease(selected.id);
+      setMessage(
+        result.image_cleanup
+          ? `Release deleted. Image cleanup: ${JSON.stringify(result.image_cleanup)}`
+          : "Release deleted."
+      );
+      setSelected(null);
+      setSelectedId(null);
+      await load();
+    } catch (err) {
+      setError((err as Error).message);
+    } finally {
+      setLoading(false);
+    }
+  };
+
   return (
     <>
       <div className="page-header">
@@ -126,6 +216,28 @@ export default function ReleasesPage() {
           <p className="muted">Generated releases and artifacts.</p>
         </div>
         <div className="inline-actions">
+          <label>
+            Page size
+            <select
+              value={String(pageSize)}
+              onChange={(event) => {
+                setPageSize(Number(event.target.value));
+                setPage(1);
+              }}
+            >
+              <option value="20">20</option>
+              <option value="50">50</option>
+              <option value="100">100</option>
+            </select>
+          </label>
+          <button className="ghost" onClick={() => setPage((current) => Math.max(1, current - 1))} disabled={!prevPage || loading}>
+            Prev
+          </button>
+          <span className="meta-pill">Page {page}</span>
+          <button className="ghost" onClick={() => setPage((current) => current + 1)} disabled={!nextPage || loading}>
+            Next
+          </button>
+          <span className="muted small">{count} total</span>
           <button className="ghost" onClick={handleRefresh} disabled={loading}>
             Refresh
           </button>
@@ -182,6 +294,13 @@ export default function ReleasesPage() {
                   tone="info"
                   title="Draft release"
                   body="This release is in draft state. Drafts are not promoted to targets until published or deployed."
+                />
+              )}
+              {selected.status === "draft" && selectedIsControlPlane && !canManageControlPlane && (
+                <InlineMessage
+                  tone="warn"
+                  title="Role required"
+                  body="Publishing control plane releases requires the Platform Architect role."
                 />
               )}
               {selected.status === "published" && selected.build_state === "building" && (
@@ -241,18 +360,27 @@ export default function ReleasesPage() {
                 </div>
               </div>
               <div className="stack">
+                <div className="inline-actions">
+                  <button className="danger" onClick={handleDelete} disabled={loading || !canDelete}>
+                    Delete release
+                  </button>
+                </div>
                 {selected.status === "draft" && (
                   <div className="inline-actions">
-                    <button className="primary" onClick={handlePublish} disabled={loading}>
+                    <button
+                      className="primary"
+                      onClick={handlePublish}
+                      disabled={loading || (selectedIsControlPlane && !canManageControlPlane)}
+                    >
                       Publish release
                     </button>
                   </div>
                 )}
                 <strong>Artifacts</strong>
-                {(selected.artifacts_json || []).length === 0 ? (
+                {normalizedArtifacts.length === 0 ? (
                   <span className="muted">No artifacts attached.</span>
                 ) : (
-                  (selected.artifacts_json || []).map((artifact) => (
+                  normalizedArtifacts.map((artifact) => (
                     <div key={artifact.name} className="item-row">
                       <div>
                         <strong>{artifact.name}</strong>

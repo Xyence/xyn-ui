@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useMemo, useState } from "react";
 import InlineMessage from "../../components/InlineMessage";
 import {
   createBlueprint,
@@ -53,6 +53,7 @@ export default function BlueprintsPage() {
   const [form, setForm] = useState<BlueprintCreatePayload>(emptyForm);
   const [metadataText, setMetadataText] = useState<string>("");
   const [devTasks, setDevTasks] = useState<DevTaskSummary[]>([]);
+  const [devTaskPage, setDevTaskPage] = useState(1);
   const [voiceNotes, setVoiceNotes] = useState<BlueprintVoiceNote[]>([]);
   const [draftSessions, setDraftSessions] = useState<BlueprintDraftSession[]>([]);
   const [selectedSessionId, setSelectedSessionId] = useState<string | null>(null);
@@ -84,6 +85,12 @@ export default function BlueprintsPage() {
   const [loading, setLoading] = useState(false);
   const [message, setMessage] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
+  const devTasksPageSize = 8;
+  const devTaskTotalPages = Math.max(1, Math.ceil(devTasks.length / devTasksPageSize));
+  const pagedDevTasks = useMemo(() => {
+    const start = (devTaskPage - 1) * devTasksPageSize;
+    return devTasks.slice(start, start + devTasksPageSize);
+  }, [devTasks, devTaskPage]);
 
   const handleCreateReleaseTarget = async () => {
     if (!selected) return;
@@ -252,6 +259,7 @@ export default function BlueprintsPage() {
         setMetadataText(detail.metadata_json ? JSON.stringify(detail.metadata_json, null, 2) : "");
         const tasks = await listBlueprintDevTasks(selectedId);
         setDevTasks(tasks.dev_tasks);
+        setDevTaskPage(1);
         const sessions = await listBlueprintDraftSessions(selectedId);
         setDraftSessions(sessions.sessions);
         const notes = await listBlueprintVoiceNotes(selectedId);
@@ -293,6 +301,12 @@ export default function BlueprintsPage() {
       }
     })();
   }, [selectedSessionId]);
+
+  useEffect(() => {
+    if (devTaskPage > devTaskTotalPages) {
+      setDevTaskPage(devTaskTotalPages);
+    }
+  }, [devTaskPage, devTaskTotalPages]);
 
   const handleCreate = async () => {
     try {
@@ -880,12 +894,33 @@ export default function BlueprintsPage() {
           <section className="card">
             <div className="card-header">
               <h3>Dev Tasks</h3>
+              {devTasks.length > 0 && (
+                <div className="inline-actions">
+                  <button
+                    className="ghost small"
+                    onClick={() => setDevTaskPage((prev) => Math.max(1, prev - 1))}
+                    disabled={devTaskPage <= 1}
+                  >
+                    Prev
+                  </button>
+                  <span className="muted small">
+                    Page {devTaskPage} / {devTaskTotalPages}
+                  </span>
+                  <button
+                    className="ghost small"
+                    onClick={() => setDevTaskPage((prev) => Math.min(devTaskTotalPages, prev + 1))}
+                    disabled={devTaskPage >= devTaskTotalPages}
+                  >
+                    Next
+                  </button>
+                </div>
+              )}
             </div>
             {devTasks.length === 0 ? (
               <p className="muted">No dev tasks yet.</p>
             ) : (
               <div className="stack">
-                {devTasks.map((task) => (
+                {pagedDevTasks.map((task) => (
                   <div key={task.id} className="item-row">
                     <div>
                       <strong>{task.title}</strong>

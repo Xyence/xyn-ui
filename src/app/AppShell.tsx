@@ -20,6 +20,9 @@ import PlatformUsersPage from "./pages/PlatformUsersPage";
 import PlatformRolesPage from "./pages/PlatformRolesPage";
 import PlatformBrandingPage from "./pages/PlatformBrandingPage";
 import MyTenantsPage from "./pages/MyTenantsPage";
+import ControlPlanePage from "./pages/ControlPlanePage";
+import GuidesPage from "./pages/GuidesPage";
+import XynMapPage from "./pages/XynMapPage";
 
 export default function AppShell() {
   const [authed, setAuthed] = useState(false);
@@ -75,6 +78,8 @@ export default function AppShell() {
   };
 
   const isPlatformAdmin = roles.includes("platform_admin");
+  const isPlatformArchitect = roles.includes("platform_architect");
+  const isPlatformManager = isPlatformAdmin || isPlatformArchitect;
 
   if (!authLoaded) {
     return (
@@ -132,6 +137,12 @@ export default function AppShell() {
               Tenants
             </NavLink>
           )}
+          <NavLink
+            className={({ isActive }) => (isActive ? "app-nav-link active" : "app-nav-link")}
+            to="/app/map"
+          >
+            Map
+          </NavLink>
           <NavLink
             className={({ isActive }) => (isActive ? "app-nav-link active" : "app-nav-link")}
             to="/app/instances"
@@ -192,32 +203,42 @@ export default function AppShell() {
           >
             Activity
           </NavLink>
-          {isPlatformAdmin && (
+          {isPlatformManager && (
             <>
               <div className="nav-section">Platform</div>
-              <NavLink
-                className={({ isActive }) => (isActive ? "app-nav-link active" : "app-nav-link")}
-                to="/app/platform/tenants"
-              >
-                Tenants
-              </NavLink>
-              <NavLink
-                className={({ isActive }) => (isActive ? "app-nav-link active" : "app-nav-link")}
-                to="/app/platform/users"
-              >
-                Users
-              </NavLink>
-              <NavLink
-                className={({ isActive }) => (isActive ? "app-nav-link active" : "app-nav-link")}
-                to="/app/platform/roles"
-              >
-                Roles
-              </NavLink>
+              {isPlatformAdmin && (
+                <>
+                  <NavLink
+                    className={({ isActive }) => (isActive ? "app-nav-link active" : "app-nav-link")}
+                    to="/app/platform/tenants"
+                  >
+                    Tenants
+                  </NavLink>
+                  <NavLink
+                    className={({ isActive }) => (isActive ? "app-nav-link active" : "app-nav-link")}
+                    to="/app/platform/users"
+                  >
+                    Users
+                  </NavLink>
+                  <NavLink
+                    className={({ isActive }) => (isActive ? "app-nav-link active" : "app-nav-link")}
+                    to="/app/platform/roles"
+                  >
+                    Roles
+                  </NavLink>
+                </>
+              )}
               <NavLink
                 className={({ isActive }) => (isActive ? "app-nav-link active" : "app-nav-link")}
                 to="/app/platform/environments"
               >
                 Environments
+              </NavLink>
+              <NavLink
+                className={({ isActive }) => (isActive ? "app-nav-link active" : "app-nav-link")}
+                to="/app/platform/control-plane"
+              >
+                Control Plane
               </NavLink>
               <NavLink
                 className={({ isActive }) => (isActive ? "app-nav-link active" : "app-nav-link")}
@@ -237,12 +258,19 @@ export default function AppShell() {
               >
                 Branding
               </NavLink>
+              <NavLink
+                className={({ isActive }) => (isActive ? "app-nav-link active" : "app-nav-link")}
+                to="/app/platform/guides"
+              >
+                Guides
+              </NavLink>
             </>
           )}
         </aside>
         <main className="app-content">
           <Routes>
-            <Route path="/" element={<Navigate to="instances" replace />} />
+            <Route path="/" element={<Navigate to="map" replace />} />
+            <Route path="map" element={<XynMapPage />} />
             <Route path="instances" element={<InstancesPage />} />
             <Route path="blueprints" element={<BlueprintsPage />} />
             <Route path="registries" element={<RegistriesPage />} />
@@ -259,16 +287,22 @@ export default function AppShell() {
                 <Route path="tenants/:tenantId" element={<PlatformTenantContactsPage />} />
               </>
             )}
-            {isPlatformAdmin && (
+            {isPlatformManager && (
               <>
-                <Route path="platform/tenants" element={<PlatformTenantsPage />} />
-                <Route path="platform/tenants/:tenantId" element={<PlatformTenantContactsPage />} />
-                <Route path="platform/users" element={<PlatformUsersPage />} />
-                <Route path="platform/roles" element={<PlatformRolesPage />} />
+                {isPlatformAdmin && (
+                  <>
+                    <Route path="platform/tenants" element={<PlatformTenantsPage />} />
+                    <Route path="platform/tenants/:tenantId" element={<PlatformTenantContactsPage />} />
+                    <Route path="platform/users" element={<PlatformUsersPage />} />
+                    <Route path="platform/roles" element={<PlatformRolesPage />} />
+                  </>
+                )}
                 <Route path="platform/environments" element={<EnvironmentsPage />} />
+                <Route path="platform/control-plane" element={<ControlPlanePage />} />
                 <Route path="platform/identity-providers" element={<IdentityProvidersPage />} />
                 <Route path="platform/oidc-app-clients" element={<OidcAppClientsPage />} />
                 <Route path="platform/branding" element={<PlatformBrandingPage />} />
+                <Route path="platform/guides" element={<GuidesPage />} />
               </>
             )}
           </Routes>

@@ -517,7 +517,7 @@ export type ReleaseSummary = {
 };
 
 export type ReleaseDetail = ReleaseSummary & {
-  artifacts_json?: Array<{ name: string; url: string }> | null;
+  artifacts_json?: Record<string, unknown> | Array<{ name: string; url: string }> | null;
 };
 
 export type ReleaseCreatePayload = {
@@ -527,7 +527,7 @@ export type ReleaseCreatePayload = {
   blueprint_id?: string | null;
   release_plan_id?: string | null;
   created_from_run_id?: string | null;
-  artifacts_json?: Array<{ name: string; url: string }>;
+  artifacts_json?: Record<string, unknown> | Array<{ name: string; url: string }>;
 };
 
 export type ReleaseListResponse = PaginatedResponse<ReleaseSummary, "releases">;
@@ -768,4 +768,84 @@ export type ContextPackCreatePayload = {
   is_default?: boolean;
   content_markdown: string;
   applies_to_json?: Record<string, unknown>;
+};
+
+export type ControlPlaneAppRegistryItem = {
+  app_id: string;
+  display_name: string;
+  category: string;
+  default_health_checks: string[];
+};
+
+export type ControlPlaneStateItem = {
+  environment_id: string;
+  environment_name: string;
+  app_id: string;
+  display_name: string;
+  category: string;
+  current_release_id?: string | null;
+  current_release_version?: string | null;
+  last_good_release_id?: string | null;
+  last_good_release_version?: string | null;
+  last_deploy_run_id?: string | null;
+  last_deployed_at?: string | null;
+  last_good_at?: string | null;
+  last_deployment_id?: string | null;
+  last_deployment_status?: string | null;
+  last_deployment_error?: string | null;
+};
+
+export type ControlPlaneReleaseOption = {
+  id: string;
+  app_id: string;
+  version: string;
+  release_plan_id?: string | null;
+};
+
+export type ControlPlaneStateResponse = {
+  app_registry: ControlPlaneAppRegistryItem[];
+  states: ControlPlaneStateItem[];
+  releases: ControlPlaneReleaseOption[];
+  instances: Array<{ id: string; name: string; environment_id?: string | null; status?: string | null }>;
+};
+
+export type XynMapNodeKind = "blueprint" | "release_plan" | "release" | "release_target" | "instance" | "run";
+
+export type XynMapNode = {
+  id: string;
+  kind: XynMapNodeKind;
+  ref: { id: string; kind: string };
+  label: string;
+  status: "ok" | "warn" | "error" | "unknown";
+  badges: string[];
+  metrics: Record<string, unknown>;
+  links: Record<string, string>;
+};
+
+export type XynMapEdge = {
+  id: string;
+  from: string;
+  to: string;
+  kind: string;
+};
+
+export type XynMapResponse = {
+  meta: {
+    generated_at: string;
+    filters: {
+      blueprint_id?: string | null;
+      environment_id?: string | null;
+      tenant_id?: string | null;
+      include_runs: boolean;
+      include_instances: boolean;
+    };
+    options?: {
+      blueprints?: Array<{ id: string; label: string }>;
+      environments?: Array<{ id: string; name: string }>;
+      tenants?: Array<{ id: string; name: string }>;
+    };
+  };
+  nodes: XynMapNode[];
+  edges: XynMapEdge[];
+  suggested_layout?: string;
 };

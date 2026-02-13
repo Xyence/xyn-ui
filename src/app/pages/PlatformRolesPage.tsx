@@ -8,7 +8,7 @@ import {
 } from "../../api/xyn";
 import type { IdentitySummary, RoleBindingSummary } from "../../api/types";
 
-const ROLE_OPTIONS = ["platform_admin", "platform_operator", "app_user"];
+const ROLE_OPTIONS = ["platform_admin", "platform_architect", "platform_operator", "app_user"];
 
 export default function PlatformRolesPage() {
   const [identities, setIdentities] = useState<IdentitySummary[]>([]);

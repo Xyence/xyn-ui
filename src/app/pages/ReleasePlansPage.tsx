@@ -4,6 +4,7 @@ import {
   createDevTask,
   createReleasePlan,
   deleteReleasePlan,
+  getMe,
   getReleasePlan,
   getRunArtifacts,
   getRunLogs,
@@ -55,6 +56,7 @@ export default function ReleasePlansPage() {
   const [selectedReleaseId, setSelectedReleaseId] = useState<string>("");
   const [environments, setEnvironments] = useState<EnvironmentSummary[]>([]);
   const [draftReleaseWarning, setDraftReleaseWarning] = useState<string | null>(null);
+  const [canManageControlPlane, setCanManageControlPlane] = useState(false);
 
   const selectedRelease = useMemo(
     () => allReleases.find((item) => item.id === selectedReleaseId),
@@ -76,6 +78,10 @@ export default function ReleasePlansPage() {
     }
     return releases;
   }, [releases, selected]);
+  const selectedIsControlPlane = useMemo(() => {
+    const target = (selected?.target_fqn || "").trim();
+    return ["xyn-api", "xyn-ui", "core.xyn-api", "core.xyn-ui"].includes(target);
+  }, [selected]);
 
   const load = useCallback(async () => {
     try {
@@ -104,6 +110,18 @@ export default function ReleasePlansPage() {
         );
       } catch (err) {
         setError((err as Error).message);
+      }
+    })();
+  }, []);
+
+  useEffect(() => {
+    (async () => {
+      try {
+        const me = await getMe();
+        const roles = me.roles || [];
+        setCanManageControlPlane(roles.includes("platform_admin") || roles.includes("platform_architect"));
+      } catch {
+        setCanManageControlPlane(false);
       }
     })();
   }, []);
@@ -231,6 +249,10 @@ export default function ReleasePlansPage() {
       setError("Draft release selected. Publish it before saving.");
       return;
     }
+    if (selectedIsControlPlane && !canManageControlPlane) {
+      setError("Platform Architect role required to modify control plane plans.");
+      return;
+    }
     try {
       setLoading(true);
       setError(null);
@@ -291,6 +313,10 @@ export default function ReleasePlansPage() {
     if (!selectedId || !selected) return;
     if (!targetInstanceId) {
       setError("Select a target instance before deploying.");
+      return;
+    }
+    if (selectedIsControlPlane && !canManageControlPlane) {
+      setError("Platform Architect role required to deploy control plane plans.");
       return;
     }
     if (isDraftSelected) {

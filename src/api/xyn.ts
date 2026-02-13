@@ -61,6 +61,8 @@ import type {
   DeviceListResponse,
   DevicePayload,
   Device,
+  ControlPlaneStateResponse,
+  XynMapResponse,
 } from "./types";
 import { authHeaders, resolveApiBaseUrl } from "./client";
 
@@ -500,6 +502,64 @@ export async function deleteReleaseTarget(id: string): Promise<void> {
     credentials: "include",
   });
   await handle<void>(response);
+}
+
+export async function fetchMap(filters?: {
+  blueprint_id?: string;
+  environment_id?: string;
+  tenant_id?: string;
+  include_runs?: boolean;
+  include_instances?: boolean;
+}): Promise<XynMapResponse> {
+  const apiBaseUrl = resolveApiBaseUrl();
+  const url = new URL(`${apiBaseUrl}/xyn/api/map`);
+  if (filters?.blueprint_id) {
+    url.searchParams.set("blueprint_id", filters.blueprint_id);
+  }
+  if (filters?.environment_id) {
+    url.searchParams.set("environment_id", filters.environment_id);
+  }
+  if (filters?.tenant_id) {
+    url.searchParams.set("tenant_id", filters.tenant_id);
+  }
+  if (filters?.include_runs !== undefined) {
+    url.searchParams.set("include_runs", filters.include_runs ? "true" : "false");
+  }
+  if (filters?.include_instances !== undefined) {
+    url.searchParams.set("include_instances", filters.include_instances ? "true" : "false");
+  }
+  const response = await apiFetch(url.toString(), { credentials: "include" });
+  return handle<XynMapResponse>(response);
+}
+
+export async function deployLatest(releaseTargetId: string): Promise<{ run_id?: string; status?: string }> {
+  const apiBaseUrl = resolveApiBaseUrl();
+  const response = await apiFetch(`${apiBaseUrl}/xyn/api/release-targets/${releaseTargetId}/deploy_latest`, {
+    method: "POST",
+    credentials: "include",
+  });
+  return handle<{ run_id?: string; status?: string }>(response);
+}
+
+export async function rollbackLastSuccess(releaseTargetId: string): Promise<{ run_id?: string; status?: string }> {
+  const apiBaseUrl = resolveApiBaseUrl();
+  const response = await apiFetch(`${apiBaseUrl}/xyn/api/release-targets/${releaseTargetId}/rollback_last_success`, {
+    method: "POST",
+    credentials: "include",
+  });
+  return handle<{ run_id?: string; status?: string }>(response);
+}
+
+export async function checkDrift(releaseTargetId: string): Promise<{
+  drift?: boolean;
+  expected?: Record<string, unknown>;
+  actual?: Record<string, unknown>;
+}> {
+  const apiBaseUrl = resolveApiBaseUrl();
+  const response = await apiFetch(`${apiBaseUrl}/xyn/api/release-targets/${releaseTargetId}/check_drift`, {
+    credentials: "include",
+  });
+  return handle(response);
 }
 
 export async function createBlueprintDraftSession(
@@ -947,11 +1007,16 @@ export async function listRuns(
 
 export async function listReleases(
   blueprintId?: string,
-  status?: string
+  status?: string,
+  page?: number,
+  pageSize?: number
 ): Promise<ReleaseListResponse> {
   const apiBaseUrl = resolveApiBaseUrl();
   const url = new URL(`${apiBaseUrl}/xyn/api/releases`);
-  url.searchParams.set("page_size", "200");
+  url.searchParams.set("page_size", String(pageSize ?? 20));
+  if (page) {
+    url.searchParams.set("page", String(page));
+  }
   if (blueprintId) {
     url.searchParams.set("blueprint_id", blueprintId);
   }
@@ -960,6 +1025,15 @@ export async function listReleases(
   }
   const response = await apiFetch(url.toString(), { credentials: "include" });
   return handle<ReleaseListResponse>(response);
+}
+
+export async function deleteRelease(id: string): Promise<{ status: string; image_cleanup?: Record<string, unknown> }> {
+  const apiBaseUrl = resolveApiBaseUrl();
+  const response = await apiFetch(`${apiBaseUrl}/xyn/api/releases/${id}`, {
+    method: "DELETE",
+    credentials: "include",
+  });
+  return handle<{ status: string; image_cleanup?: Record<string, unknown> }>(response);
 }
 
 export async function listEnvironments(): Promise<EnvironmentListResponse> {
@@ -1245,4 +1319,45 @@ export async function deleteOidcAppClient(id: string): Promise<{ status: string 
     credentials: "include",
   });
   return handle<{ status: string }>(response);
+}
+
+export async function getControlPlaneState(environmentId?: string): Promise<ControlPlaneStateResponse> {
+  const apiBaseUrl = resolveApiBaseUrl();
+  const url = new URL(`${apiBaseUrl}/xyn/api/control-plane/state`);
+  if (environmentId) {
+    url.searchParams.set("environment_id", environmentId);
+  }
+  const response = await apiFetch(url.toString(), { credentials: "include" });
+  return handle<ControlPlaneStateResponse>(response);
+}
+
+export async function triggerControlPlaneDeploy(payload: {
+  environment_id: string;
+  app_id: string;
+  release_id: string;
+  instance_id?: string;
+}): Promise<{ deployment_id: string; status: string; rollback_deployment_id?: string | null }> {
+  const apiBaseUrl = resolveApiBaseUrl();
+  const response = await apiFetch(`${apiBaseUrl}/xyn/api/control-plane/deploy`, {
+    method: "POST",
+    headers: buildHeaders(),
+    credentials: "include",
+    body: JSON.stringify(payload),
+  });
+  return handle<{ deployment_id: string; status: string; rollback_deployment_id?: string | null }>(response);
+}
+
+export async function triggerControlPlaneRollback(payload: {
+  deployment_id?: string;
+  environment_id?: string;
+  app_id?: string;
+}): Promise<{ rollback_deployment_id: string; rollback_status: string }> {
+  const apiBaseUrl = resolveApiBaseUrl();
+  const response = await apiFetch(`${apiBaseUrl}/xyn/api/control-plane/rollback`, {
+    method: "POST",
+    headers: buildHeaders(),
+    credentials: "include",
+    body: JSON.stringify(payload),
+  });
+  return handle<{ rollback_deployment_id: string; rollback_status: string }>(response);
 }
