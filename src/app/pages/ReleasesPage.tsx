@@ -313,9 +313,6 @@ export default function ReleasesPage() {
                 key={item.id}
                 className={`instance-row ${selectedId === item.id ? "active" : ""}`}
               >
-                <button className="ghost" onClick={() => setSelectedId(item.id)}>
-                  Open
-                </button>
                 <div style={{ flex: 1, cursor: "pointer" }} onClick={() => setSelectedId(item.id)}>
                   <strong>{item.version}</strong>
                   <span className="muted small">
