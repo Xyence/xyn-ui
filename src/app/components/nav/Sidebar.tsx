@@ -1,4 +1,4 @@
-import { type KeyboardEvent, type ReactNode, useEffect, useMemo, useState } from "react";
+import { type KeyboardEvent, type ReactNode, useEffect, useMemo, useRef, useState } from "react";
 import {
   Activity,
   Archive,
@@ -9,6 +9,7 @@ import {
   ChevronLeft,
   ChevronDown,
   ChevronRight,
+  ChevronUp,
   Compass,
   Database,
   Globe,
@@ -122,10 +123,16 @@ function NavTooltip({ content, disabled, children }: { content: string; disabled
 export default function Sidebar({ user }: Props) {
   const { pathname } = useLocation();
   const navigate = useNavigate();
+  const scrollRef = useRef<HTMLElement | null>(null);
+  const collapsedSearchButtonRef = useRef<HTMLButtonElement | null>(null);
+  const collapsedSearchPopoverRef = useRef<HTMLDivElement | null>(null);
   const [state, setState] = useState<NavState>(() => hydrateNavState());
   const [query, setQuery] = useState("");
   const [searchOpen, setSearchOpen] = useState(false);
   const [createOpen, setCreateOpen] = useState(false);
+  const [canScrollUp, setCanScrollUp] = useState(false);
+  const [canScrollDown, setCanScrollDown] = useState(false);
+  const [searchPopoverPos, setSearchPopoverPos] = useState<{ top: number; left: number }>({ top: 16, left: 88 });
 
   const allowedGroups = useMemo(() => visibleNav(NAV_GROUPS, user), [user]);
   const filtered = useMemo(() => filterNav(allowedGroups, query), [allowedGroups, query]);
@@ -189,6 +196,27 @@ export default function Sidebar({ user }: Props) {
     if (!next.collapsed) setSearchOpen(false);
   };
 
+  const updateScrollArrows = () => {
+    const viewport = scrollRef.current;
+    if (!viewport || !state.collapsed) {
+      setCanScrollUp(false);
+      setCanScrollDown(false);
+      return;
+    }
+    const { scrollTop, scrollHeight, clientHeight } = viewport;
+    setCanScrollUp(scrollTop > 2);
+    setCanScrollDown(scrollTop + clientHeight < scrollHeight - 2);
+  };
+
+  const updateSearchPopoverPosition = () => {
+    const buttonRect = collapsedSearchButtonRef.current?.getBoundingClientRect();
+    if (!buttonRect) return;
+    setSearchPopoverPos({
+      top: buttonRect.top,
+      left: buttonRect.right + 8,
+    });
+  };
+
   const onSearchKeyDown = (event: KeyboardEvent<HTMLInputElement>) => {
     if (event.key === "Escape") {
       setQuery("");
@@ -204,6 +232,34 @@ export default function Sidebar({ user }: Props) {
 
   const quickActions = QUICK_ACTIONS.filter((action) => canViewNavItem(user, action));
   const filteredCount = flattenItems(filtered.groups).length;
+
+  useEffect(() => {
+    updateScrollArrows();
+  }, [state.collapsed, filtered.groups, pathname]);
+
+  useEffect(() => {
+    if (!state.collapsed || !searchOpen) return;
+    updateSearchPopoverPosition();
+    const onResize = () => updateSearchPopoverPosition();
+    window.addEventListener("resize", onResize);
+    window.addEventListener("scroll", onResize, true);
+    return () => {
+      window.removeEventListener("resize", onResize);
+      window.removeEventListener("scroll", onResize, true);
+    };
+  }, [searchOpen, state.collapsed]);
+
+  useEffect(() => {
+    if (!searchOpen || !state.collapsed) return;
+    const onPointerDown = (event: MouseEvent) => {
+      if (!(event.target instanceof Node)) return;
+      if (collapsedSearchButtonRef.current?.contains(event.target)) return;
+      if (collapsedSearchPopoverRef.current?.contains(event.target)) return;
+      setSearchOpen(false);
+    };
+    window.addEventListener("mousedown", onPointerDown);
+    return () => window.removeEventListener("mousedown", onPointerDown);
+  }, [searchOpen, state.collapsed]);
 
   return (
     <aside
@@ -229,9 +285,16 @@ export default function Sidebar({ user }: Props) {
         {state.collapsed && (
           <NavTooltip content="Search" disabled={!state.collapsed}>
             <button
+              ref={collapsedSearchButtonRef}
               type="button"
               className="ghost sidebar-icon-button"
-              onClick={() => setSearchOpen((value) => !value)}
+              onClick={() => {
+                const next = !searchOpen;
+                setSearchOpen(next);
+                if (next) {
+                  updateSearchPopoverPosition();
+                }
+              }}
               aria-label="Open search"
             >
               <Search size={18} />
@@ -271,7 +334,11 @@ export default function Sidebar({ user }: Props) {
       </div>
 
       {state.collapsed && (
-        <Popover open={searchOpen} onClose={() => setSearchOpen(false)} className="sidebar-search-popover">
+        <div
+          ref={collapsedSearchPopoverRef}
+          className={`sidebar-search-popover-fixed ${searchOpen ? "open" : ""}`}
+          style={{ top: `${searchPopoverPos.top}px`, left: `${searchPopoverPos.left}px` }}
+        >
           <input
             autoFocus
             className="input"
@@ -281,7 +348,7 @@ export default function Sidebar({ user }: Props) {
             onKeyDown={onSearchKeyDown}
             aria-label="Search"
           />
-        </Popover>
+        </div>
       )}
 
       {!state.collapsed && query.trim() && (
@@ -290,7 +357,20 @@ export default function Sidebar({ user }: Props) {
         </div>
       )}
 
-      <nav className="sidebar-scroll" aria-label="Primary">
+      {state.collapsed && canScrollUp && (
+        <button
+          type="button"
+          className="ghost sidebar-scroll-arrow top"
+          onClick={() => {
+            scrollRef.current?.scrollBy({ top: -220, behavior: "smooth" });
+          }}
+          aria-label="Scroll up"
+        >
+          <ChevronUp size={14} />
+        </button>
+      )}
+
+      <nav ref={scrollRef} className="sidebar-scroll" aria-label="Primary" onScroll={updateScrollArrows}>
         {filtered.groups.map((group) => {
           const groupExpanded = expanded.expandedGroupIds.includes(group.id);
           const groupActive = groupHasActive(group, pathname);
@@ -375,6 +455,19 @@ export default function Sidebar({ user }: Props) {
           );
         })}
       </nav>
+
+      {state.collapsed && canScrollDown && (
+        <button
+          type="button"
+          className="ghost sidebar-scroll-arrow bottom"
+          onClick={() => {
+            scrollRef.current?.scrollBy({ top: 220, behavior: "smooth" });
+          }}
+          aria-label="Scroll down"
+        >
+          <ChevronDown size={14} />
+        </button>
+      )}
 
       <div className="sidebar-bottom-controls">
         <NavTooltip content={state.collapsed ? "Expand sidebar" : "Collapse sidebar"} disabled={!state.collapsed}>
