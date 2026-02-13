@@ -757,7 +757,15 @@ export async function submitDraftSession(
     source_artifacts?: Array<{ type: "text" | "audio_transcript"; content: string; meta?: Record<string, unknown> }>;
     generate_code?: boolean;
   } = {}
-): Promise<{ ok: boolean; status: string; session_id: string; submission_payload: Record<string, unknown> }> {
+): Promise<{
+  ok: boolean;
+  status: string;
+  session_id: string;
+  submission_payload: Record<string, unknown>;
+  entity_type?: string;
+  entity_id?: string;
+  revision?: number;
+}> {
   const apiBaseUrl = resolveApiBaseUrl();
   const response = await apiFetch(`${apiBaseUrl}/xyn/api/draft-sessions/${sessionId}/submit`, {
     method: "POST",
@@ -765,9 +773,15 @@ export async function submitDraftSession(
     credentials: "include",
     body: JSON.stringify(payload),
   });
-  return handle<{ ok: boolean; status: string; session_id: string; submission_payload: Record<string, unknown> }>(
-    response
-  );
+  return handle<{
+    ok: boolean;
+    status: string;
+    session_id: string;
+    submission_payload: Record<string, unknown>;
+    entity_type?: string;
+    entity_id?: string;
+    revision?: number;
+  }>(response);
 }
 
 export async function listBlueprintVoiceNotes(

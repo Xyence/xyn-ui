@@ -755,7 +755,13 @@ export default function BlueprintsPage() {
         source_artifacts: selectedSession.source_artifacts,
         generate_code: selectedSession.kind === "solution",
       });
-      setMessage(`Submitted ${selectedSession.kind === "solution" ? "as Solution" : "as Blueprint"} (${result.status}).`);
+      if (result.entity_type === "blueprint" && result.entity_id) {
+        await load();
+        setSelectedId(result.entity_id);
+      }
+      setMessage(
+        `Submitted ${selectedSession.kind === "solution" ? "as Solution" : "as Blueprint"} (${result.status}).`
+      );
       await refreshSelectedSession();
     } catch (err) {
       setError((err as Error).message);
