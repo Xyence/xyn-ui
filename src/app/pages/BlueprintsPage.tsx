@@ -624,10 +624,19 @@ export default function BlueprintsPage() {
   };
 
   const handleGenerateDraft = async () => {
-    if (!selectedSessionId) return;
+    if (!selectedSessionId || !selectedSession) return;
     try {
       setLoading(true);
       setError(null);
+      await updateDraftSession(selectedSessionId, {
+        title: selectedSession.title || selectedSession.id,
+        kind: (selectedSession.kind as "blueprint" | "solution") || "blueprint",
+        namespace: selectedSession.namespace || undefined,
+        project_key: selectedSession.project_key || undefined,
+        initial_prompt: selectedSession.initial_prompt || "",
+        selected_context_pack_ids: sessionContextPackIds,
+        source_artifacts: selectedSession.source_artifacts,
+      });
       await enqueueDraftGeneration(selectedSessionId);
       setMessage("Draft generation queued.");
       await refreshSelectedSession();
@@ -1328,7 +1337,7 @@ export default function BlueprintsPage() {
                         Delete session
                       </button>
                     </div>
-                    <label>
+                    <label className="stacked-field">
                       Initial prompt
                       <textarea
                         rows={6}
@@ -1340,7 +1349,7 @@ export default function BlueprintsPage() {
                         }
                       />
                     </label>
-                    <label>
+                    <label className="stacked-field">
                       Prompt sources: Add transcript text
                       <textarea
                         rows={4}
@@ -1365,7 +1374,7 @@ export default function BlueprintsPage() {
                         }
                       />
                     </label>
-                    <label>
+                    <label className="stacked-field">
                       Revision instruction (for changes after initial draft)
                       <textarea
                         rows={4}

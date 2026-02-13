@@ -615,6 +615,21 @@ button:disabled {
   gap: 10px;
 }
 
+.stacked-field {
+  display: grid;
+  gap: 6px;
+  font-weight: 600;
+  font-size: 0.9rem;
+}
+
+.stacked-field > input,
+.stacked-field > select,
+.stacked-field > textarea {
+  width: 100%;
+  box-sizing: border-box;
+  align-self: start;
+}
+
 .map-toolbar {
   display: grid;
   grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
