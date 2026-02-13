@@ -18,6 +18,7 @@ import {
   publishDraftSession,
   submitDraftSession,
   updateDraftSession,
+  deleteDraftSession,
   runDevTask,
   createBlueprintDraftSession,
   uploadVoiceNote,
@@ -696,6 +697,32 @@ export default function BlueprintsPage() {
     }
   };
 
+  const handleDeleteSession = async () => {
+    if (!selectedSessionId || !selectedId) return;
+    const ok = confirm("Delete this draft session?");
+    if (!ok) return;
+    try {
+      setLoading(true);
+      setError(null);
+      await deleteDraftSession(selectedSessionId);
+      const sessions = await listBlueprintDraftSessions(selectedId);
+      setDraftSessions(sessions.sessions);
+      const nextId = sessions.sessions[0]?.id ?? null;
+      setSelectedSessionId(nextId);
+      if (!nextId) {
+        setSelectedSession(null);
+        setDraftJsonText("");
+        setRevisionInstruction("");
+        setSessionContextPackIds([]);
+      }
+      setMessage("Draft session deleted.");
+    } catch (err) {
+      setError((err as Error).message);
+    } finally {
+      setLoading(false);
+    }
+  };
+
   const handleSubmitSession = async () => {
     if (!selectedSessionId || !selectedSession) return;
     const initialPrompt = (selectedSession.initial_prompt || "").trim();
@@ -1296,6 +1323,9 @@ export default function BlueprintsPage() {
                       </button>
                       <button className="ghost" onClick={handleUpdateSessionMetadata} disabled={loading}>
                         Save session metadata
+                      </button>
+                      <button className="danger" onClick={handleDeleteSession} disabled={loading}>
+                        Delete session
                       </button>
                     </div>
                     <label>

@@ -666,6 +666,15 @@ export async function updateDraftSession(
   return handle<BlueprintDraftSessionDetail>(response);
 }
 
+export async function deleteDraftSession(sessionId: string): Promise<{ status: string }> {
+  const apiBaseUrl = resolveApiBaseUrl();
+  const response = await apiFetch(`${apiBaseUrl}/xyn/api/draft-sessions/${sessionId}`, {
+    method: "DELETE",
+    credentials: "include",
+  });
+  return handle<{ status: string }>(response);
+}
+
 export async function enqueueDraftGeneration(
   sessionId: string
 ): Promise<{ status: string; job_id: string }> {
