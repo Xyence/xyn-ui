@@ -16,6 +16,7 @@ html.xyn-nav-expanded .app-body {
 
 html.xyn-nav-collapsed .app-body {
   grid-template-columns: var(--sidebar-w-collapsed) minmax(0, 1fr);
+  gap: 24px;
 }
 
 .nav-sidebar {
@@ -179,6 +180,14 @@ html.xyn-nav-collapsed .app-body {
   color: var(--sidebar-muted);
   font-size: 0.82rem;
   font-weight: 600;
+}
+
+.nav-subgroup-marker {
+  width: 18px;
+  height: 2px;
+  border-radius: 999px;
+  background: #c9d6e8;
+  margin: 6px auto 4px;
 }
 
 .nav-subgroup-items {

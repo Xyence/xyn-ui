@@ -430,22 +430,26 @@ export default function Sidebar({ user }: Props) {
                     const subgroupActive = subgroup.items.some((item) => pathname.startsWith(item.path));
                     return (
                       <div key={subgroup.id} className={`nav-subgroup ${subgroupActive ? "active-scope" : ""}`}>
-                        <NavTooltip content={subgroup.label} disabled={!state.collapsed}>
-                          <button
-                            type="button"
-                            className="nav-subgroup-toggle"
-                            onClick={() => toggleSubgroup(subgroup.id)}
-                            aria-expanded={subgroupExpanded}
-                          >
-                            <span className="nav-icon" aria-hidden="true">
-                              {renderIcon(subgroup.icon)}
-                            </span>
-                            {!state.collapsed && <span className="nav-subgroup-label">{subgroup.label}</span>}
-                            {!state.collapsed && <span className="nav-chevron">{subgroupExpanded ? <ChevronDown size={14} /> : <ChevronRight size={14} />}</span>}
-                          </button>
-                        </NavTooltip>
+                        {state.collapsed ? (
+                          <div className="nav-subgroup-marker" title={subgroup.label} aria-label={subgroup.label} />
+                        ) : (
+                          <NavTooltip content={subgroup.label} disabled={!state.collapsed}>
+                            <button
+                              type="button"
+                              className="nav-subgroup-toggle"
+                              onClick={() => toggleSubgroup(subgroup.id)}
+                              aria-expanded={subgroupExpanded}
+                            >
+                              <span className="nav-icon" aria-hidden="true">
+                                {renderIcon(subgroup.icon)}
+                              </span>
+                              {!state.collapsed && <span className="nav-subgroup-label">{subgroup.label}</span>}
+                              {!state.collapsed && <span className="nav-chevron">{subgroupExpanded ? <ChevronDown size={14} /> : <ChevronRight size={14} />}</span>}
+                            </button>
+                          </NavTooltip>
+                        )}
 
-                        {subgroupExpanded && (
+                        {(state.collapsed || subgroupExpanded) && (
                           <div className="nav-subgroup-items">
                             {subgroup.items.map((item) => (
                               <NavTooltip key={item.id} content={item.label} disabled={!state.collapsed}>
