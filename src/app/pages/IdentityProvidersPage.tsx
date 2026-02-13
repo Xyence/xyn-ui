@@ -53,6 +53,14 @@ const splitCsv = (value: string) =>
     .map((item) => item.trim())
     .filter(Boolean);
 
+const normalizeProviderPayload = (payload: IdentityProvider): IdentityProvider => {
+  const prompt = (payload.prompt || "").trim();
+  return {
+    ...payload,
+    prompt: prompt ? prompt : null,
+  };
+};
+
 export default function IdentityProvidersPage() {
   const [items, setItems] = useState<IdentityProvider[]>([]);
   const [selectedId, setSelectedId] = useState<string | null>(null);
@@ -122,7 +130,7 @@ export default function IdentityProvidersPage() {
       setLoading(true);
       setError(null);
       setMessage(null);
-      const created = await createIdentityProvider(form);
+      const created = await createIdentityProvider(normalizeProviderPayload(form));
       await load();
       setSelectedId(created.id);
       setMessage("Identity provider created.");
@@ -139,7 +147,7 @@ export default function IdentityProvidersPage() {
       setLoading(true);
       setError(null);
       setMessage(null);
-      await updateIdentityProvider(selectedId, form);
+      await updateIdentityProvider(selectedId, normalizeProviderPayload(form));
       await load();
       setMessage("Identity provider updated.");
     } catch (err) {
