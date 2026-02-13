@@ -1036,6 +1036,35 @@ export async function deleteRelease(id: string): Promise<{ status: string; image
   return handle<{ status: string; image_cleanup?: Record<string, unknown> }>(response);
 }
 
+export async function bulkDeleteReleases(
+  releaseIds: string[]
+): Promise<{
+  status: string;
+  requested_count: number;
+  deleted_count: number;
+  skipped_count: number;
+  deleted: string[];
+  skipped: Array<{ id: string; reason: string }>;
+  image_cleanup?: Record<string, unknown>;
+}> {
+  const apiBaseUrl = resolveApiBaseUrl();
+  const response = await apiFetch(`${apiBaseUrl}/xyn/api/releases/bulk-delete`, {
+    method: "POST",
+    headers: buildHeaders(),
+    credentials: "include",
+    body: JSON.stringify({ release_ids: releaseIds }),
+  });
+  return handle<{
+    status: string;
+    requested_count: number;
+    deleted_count: number;
+    skipped_count: number;
+    deleted: string[];
+    skipped: Array<{ id: string; reason: string }>;
+    image_cleanup?: Record<string, unknown>;
+  }>(response);
+}
+
 export async function listEnvironments(): Promise<EnvironmentListResponse> {
   const apiBaseUrl = resolveApiBaseUrl();
   const url = new URL(`${apiBaseUrl}/xyn/api/environments`);

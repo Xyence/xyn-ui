@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
 import InlineMessage from "../../components/InlineMessage";
 import {
+  bulkDeleteReleases,
   deleteRelease,
   getMe,
   getRelease,
@@ -31,6 +32,7 @@ export default function ReleasesPage() {
   const [blueprints, setBlueprints] = useState<BlueprintSummary[]>([]);
   const [releasePlans, setReleasePlans] = useState<ReleasePlanSummary[]>([]);
   const [canManageControlPlane, setCanManageControlPlane] = useState(false);
+  const [bulkSelectedIds, setBulkSelectedIds] = useState<string[]>([]);
 
   const blueprintNameById = useMemo(() => {
     return blueprints.reduce<Record<string, string>>((acc, blueprint) => {
@@ -75,6 +77,7 @@ export default function ReleasesPage() {
       if (!selectedId && data.releases[0]) {
         setSelectedId(data.releases[0].id);
       }
+      setBulkSelectedIds((current) => current.filter((id) => data.releases.some((release) => release.id === id)));
     } catch (err) {
       setError((err as Error).message);
     }
@@ -208,6 +211,37 @@ export default function ReleasesPage() {
     }
   };
 
+  const toggleBulkSelected = (releaseId: string, checked: boolean) => {
+    setBulkSelectedIds((current) => {
+      if (checked) {
+        if (current.includes(releaseId)) return current;
+        return [...current, releaseId];
+      }
+      return current.filter((id) => id !== releaseId);
+    });
+  };
+
+  const handleBulkDelete = async () => {
+    if (bulkSelectedIds.length === 0) return;
+    if (!confirm(`Delete ${bulkSelectedIds.length} selected release(s)? Protected releases will be skipped.`)) return;
+    try {
+      setLoading(true);
+      setError(null);
+      const result = await bulkDeleteReleases(bulkSelectedIds);
+      setMessage(`${result.deleted_count} release(s) deleted, ${result.skipped_count} skipped.`);
+      if (selectedId && result.deleted.includes(selectedId)) {
+        setSelectedId(null);
+        setSelected(null);
+      }
+      setBulkSelectedIds([]);
+      await load();
+    } catch (err) {
+      setError((err as Error).message);
+    } finally {
+      setLoading(false);
+    }
+  };
+
   return (
     <>
       <div className="page-header">
@@ -238,6 +272,13 @@ export default function ReleasesPage() {
             Next
           </button>
           <span className="muted small">{count} total</span>
+          <button
+            className="danger"
+            onClick={handleBulkDelete}
+            disabled={loading || bulkSelectedIds.length === 0}
+          >
+            Delete selected ({bulkSelectedIds.length})
+          </button>
           <button className="ghost" onClick={handleRefresh} disabled={loading}>
             Refresh
           </button>
@@ -251,15 +292,31 @@ export default function ReleasesPage() {
         <section className="card">
           <div className="card-header">
             <h3>Releases</h3>
+            <label className="muted small">
+              <input
+                type="checkbox"
+                checked={items.length > 0 && items.every((item) => bulkSelectedIds.includes(item.id))}
+                onChange={(event) => {
+                  if (event.target.checked) {
+                    setBulkSelectedIds(items.map((item) => item.id));
+                  } else {
+                    setBulkSelectedIds([]);
+                  }
+                }}
+              />{" "}
+              Select page
+            </label>
           </div>
           <div className="instance-list">
             {items.map((item) => (
-              <button
+              <div
                 key={item.id}
                 className={`instance-row ${selectedId === item.id ? "active" : ""}`}
-                onClick={() => setSelectedId(item.id)}
               >
-                <div>
+                <button className="ghost" onClick={() => setSelectedId(item.id)}>
+                  Open
+                </button>
+                <div style={{ flex: 1, cursor: "pointer" }} onClick={() => setSelectedId(item.id)}>
                   <strong>{item.version}</strong>
                   <span className="muted small">
                     {item.status}
@@ -273,9 +330,21 @@ export default function ReleasesPage() {
                   </span>
                 </div>
                 <div className="muted small">
-                  <div>{item.release_plan_id ? "Has release plan" : "No release plan"}</div>
+                  <div>
+                    {item.release_plan_id
+                      ? `Plan: ${releasePlanNameById[item.release_plan_id] ?? item.release_plan_id}`
+                      : "No release plan"}
+                  </div>
                 </div>
-              </button>
+                <label className="muted small">
+                  <input
+                    type="checkbox"
+                    checked={bulkSelectedIds.includes(item.id)}
+                    onChange={(event) => toggleBulkSelected(item.id, event.target.checked)}
+                  />{" "}
+                  Select
+                </label>
+              </div>
             ))}
             {items.length === 0 && <p className="muted">No releases yet.</p>}
           </div>
