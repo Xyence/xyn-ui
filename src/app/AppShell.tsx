@@ -1,6 +1,9 @@
-import { useEffect, useState } from "react";
-import { NavLink, Navigate, Route, Routes } from "react-router-dom";
+import { useEffect, useMemo, useState } from "react";
+import { Navigate, Route, Routes, useLocation } from "react-router-dom";
 import { getMe, getMyProfile, getTenantBranding } from "../api/xyn";
+import { NAV_GROUPS, NavUserContext } from "./nav/nav.config";
+import { getBreadcrumbs, visibleNav } from "./nav/nav.utils";
+import Sidebar from "./components/nav/Sidebar";
 import BlueprintsPage from "./pages/BlueprintsPage";
 import InstancesPage from "./pages/InstancesPage";
 import ModulesPage from "./pages/ModulesPage";
@@ -30,6 +33,7 @@ import { useGlobalHotkeys } from "./hooks/useGlobalHotkeys";
 import ReportOverlay from "./components/ReportOverlay";
 
 export default function AppShell() {
+  const location = useLocation();
   const [authed, setAuthed] = useState(false);
   const [roles, setRoles] = useState<string[]>([]);
   const [userContext, setUserContext] = useState<{ id?: string; email?: string }>({});
@@ -38,6 +42,7 @@ export default function AppShell() {
   const [brandLogo, setBrandLogo] = useState<string>("/xyence-logo.png");
   const [reportOpen, setReportOpen] = useState(false);
   const [toast, setToast] = useState<string>("");
+
   useEffect(() => {
     let mounted = true;
     (async () => {
@@ -93,6 +98,12 @@ export default function AppShell() {
   const isPlatformArchitect = roles.includes("platform_architect");
   const isPlatformManager = isPlatformAdmin || isPlatformArchitect;
 
+  const navUser: NavUserContext = useMemo(() => ({ roles, permissions: [] }), [roles]);
+  const breadcrumbTrail = useMemo(() => {
+    const allowed = visibleNav(NAV_GROUPS, navUser);
+    return getBreadcrumbs(location.pathname, allowed);
+  }, [location.pathname, navUser]);
+
   useGlobalHotkeys((event) => {
     const metaOrCtrl = event.metaKey || event.ctrlKey;
     if (!metaOrCtrl || !event.shiftKey) return;
@@ -115,7 +126,7 @@ export default function AppShell() {
             <img className="brand-logo" src="/xyence-logo.png" alt="Xyence logo" />
             <div>
               <h1>{brandName}</h1>
-              <p>Loading session…</p>
+              <p>Loading session...</p>
             </div>
           </div>
         </header>
@@ -147,180 +158,20 @@ export default function AppShell() {
               Sign out
             </button>
           ) : (
-            <button
-              className="ghost"
-              onClick={startLogin}
-            >
+            <button className="ghost" onClick={startLogin}>
               Sign in
             </button>
           )}
         </div>
       </header>
       <div className="app-body">
-        <aside className="app-sidebar">
-          {!isPlatformAdmin && (
-            <NavLink
-              className={({ isActive }) => (isActive ? "app-nav-link active" : "app-nav-link")}
-              to="/app/tenants"
-            >
-              Tenants
-            </NavLink>
-          )}
-          <NavLink
-            className={({ isActive }) => (isActive ? "app-nav-link active" : "app-nav-link")}
-            to="/app/map"
-          >
-            Map
-          </NavLink>
-          <NavLink
-            className={({ isActive }) => (isActive ? "app-nav-link active" : "app-nav-link")}
-            to="/app/instances"
-          >
-            Instances
-          </NavLink>
-          <NavLink
-            className={({ isActive }) => (isActive ? "app-nav-link active" : "app-nav-link")}
-            to="/app/blueprints"
-          >
-            Blueprints
-          </NavLink>
-          <NavLink
-            className={({ isActive }) => (isActive ? "app-nav-link active" : "app-nav-link")}
-            to="/app/registries"
-          >
-            Registries
-          </NavLink>
-          <NavLink
-            className={({ isActive }) => (isActive ? "app-nav-link active" : "app-nav-link")}
-            to="/app/modules"
-          >
-            Modules
-          </NavLink>
-          <NavLink
-            className={({ isActive }) => (isActive ? "app-nav-link active" : "app-nav-link")}
-            to="/app/release-plans"
-          >
-            Release Plans
-          </NavLink>
-          <NavLink
-            className={({ isActive }) => (isActive ? "app-nav-link active" : "app-nav-link")}
-            to="/app/releases"
-          >
-            Releases
-          </NavLink>
-          <NavLink
-            className={({ isActive }) => (isActive ? "app-nav-link active" : "app-nav-link")}
-            to="/app/runs"
-          >
-            Runs
-          </NavLink>
-          <NavLink
-            className={({ isActive }) => (isActive ? "app-nav-link active" : "app-nav-link")}
-            to="/app/dev-tasks"
-          >
-            Dev Tasks
-          </NavLink>
-          <NavLink
-            className={({ isActive }) => (isActive ? "app-nav-link active" : "app-nav-link")}
-            to="/app/context-packs"
-          >
-            Context Packs
-          </NavLink>
-          <NavLink
-            className={({ isActive }) => (isActive ? "app-nav-link active" : "app-nav-link")}
-            to="/app/activity"
-          >
-            Activity
-          </NavLink>
-          {isPlatformManager && (
-            <>
-              <div className="nav-section">Platform</div>
-              {isPlatformAdmin && (
-                <>
-                  <NavLink
-                    className={({ isActive }) => (isActive ? "app-nav-link active" : "app-nav-link")}
-                    to="/app/platform/tenants"
-                  >
-                    Tenants
-                  </NavLink>
-                  <NavLink
-                    className={({ isActive }) => (isActive ? "app-nav-link active" : "app-nav-link")}
-                    to="/app/platform/users"
-                  >
-                    Users
-                  </NavLink>
-                  <NavLink
-                    className={({ isActive }) => (isActive ? "app-nav-link active" : "app-nav-link")}
-                    to="/app/platform/roles"
-                  >
-                    Roles
-                  </NavLink>
-                </>
-              )}
-              <NavLink
-                className={({ isActive }) => (isActive ? "app-nav-link active" : "app-nav-link")}
-                to="/app/platform/environments"
-              >
-                Environments
-              </NavLink>
-              <NavLink
-                className={({ isActive }) => (isActive ? "app-nav-link active" : "app-nav-link")}
-                to="/app/platform/control-plane"
-              >
-                Control Plane
-              </NavLink>
-              <NavLink
-                className={({ isActive }) => (isActive ? "app-nav-link active" : "app-nav-link")}
-                to="/app/platform/identity-providers"
-              >
-                Identity Providers
-              </NavLink>
-              <NavLink
-                className={({ isActive }) => (isActive ? "app-nav-link active" : "app-nav-link")}
-                to="/app/platform/oidc-app-clients"
-              >
-                OIDC App Clients
-              </NavLink>
-              {isPlatformAdmin && (
-                <>
-                  <NavLink
-                    className={({ isActive }) => (isActive ? "app-nav-link active" : "app-nav-link")}
-                    to="/app/platform/secret-stores"
-                  >
-                    Secret Stores
-                  </NavLink>
-                  <NavLink
-                    className={({ isActive }) => (isActive ? "app-nav-link active" : "app-nav-link")}
-                    to="/app/platform/secret-refs"
-                  >
-                    Secret Refs
-                  </NavLink>
-                </>
-              )}
-              <NavLink
-                className={({ isActive }) => (isActive ? "app-nav-link active" : "app-nav-link")}
-                to="/app/platform/branding"
-              >
-                Branding
-              </NavLink>
-              {isPlatformAdmin && (
-                <NavLink
-                  className={({ isActive }) => (isActive ? "app-nav-link active" : "app-nav-link")}
-                  to="/app/platform/settings"
-                >
-                  Platform Settings
-                </NavLink>
-              )}
-              <NavLink
-                className={({ isActive }) => (isActive ? "app-nav-link active" : "app-nav-link")}
-                to="/app/platform/guides"
-              >
-                Guides
-              </NavLink>
-            </>
-          )}
-        </aside>
+        <Sidebar user={navUser} />
         <main className="app-content">
+          {breadcrumbTrail.length > 0 && (
+            <div className="app-breadcrumbs" aria-label="Breadcrumb">
+              {breadcrumbTrail.join(" / ")}
+            </div>
+          )}
           <Routes>
             <Route path="/" element={<Navigate to="map" replace />} />
             <Route path="map" element={<XynMapPage />} />
