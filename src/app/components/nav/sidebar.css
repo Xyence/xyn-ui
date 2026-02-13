@@ -89,6 +89,7 @@
 
 .sidebar-scroll {
   overflow-y: auto;
+  overflow-x: hidden;
   padding: 10px;
   display: flex;
   flex-direction: column;
@@ -218,13 +219,13 @@
 .nav-sidebar.is-collapsed .nav-item-link {
   justify-content: center;
   padding: 8px 6px;
-  width: calc(100% - 12px);
-  margin-right: 12px;
+  width: 100%;
+  margin-right: 0;
 }
 
 .nav-sidebar.is-collapsed .sidebar-scroll {
-  padding-right: 22px;
-  padding-left: 8px;
+  padding-right: 20px;
+  padding-left: 6px;
 }
 
 .sidebar-bottom-controls {
