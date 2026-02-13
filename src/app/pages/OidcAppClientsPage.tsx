@@ -44,6 +44,10 @@ export default function OidcAppClientsPage() {
     () => providers.filter((provider) => provider.enabled),
     [providers]
   );
+  const enabledProviderIds = useMemo(
+    () => new Set(enabledProviders.map((provider) => provider.id)),
+    [enabledProviders]
+  );
 
   const load = useCallback(async () => {
     try {
@@ -165,7 +169,11 @@ export default function OidcAppClientsPage() {
                 </div>
                 <div className="muted small">
                   <div>Default: {item.default_provider_id || "—"}</div>
-                  <div>Allowed: {(item.allowed_provider_ids || []).length}</div>
+                  <div>
+                    Allowed:{" "}
+                    {(item.allowed_provider_ids || []).filter((providerId) => enabledProviderIds.has(providerId))
+                      .length}
+                  </div>
                 </div>
               </button>
             ))}
