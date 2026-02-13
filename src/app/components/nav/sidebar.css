@@ -10,8 +10,12 @@
   --sidebar-muted: #64748b;
 }
 
-.app-body {
-  grid-template-columns: auto minmax(0, 1fr);
+html.xyn-nav-expanded .app-body {
+  grid-template-columns: var(--sidebar-w-expanded) minmax(0, 1fr);
+}
+
+html.xyn-nav-collapsed .app-body {
+  grid-template-columns: var(--sidebar-w-collapsed) minmax(0, 1fr);
 }
 
 .nav-sidebar {
@@ -88,6 +92,12 @@
 .sidebar-search-popover-fixed.open {
   opacity: 1;
   pointer-events: auto;
+}
+
+.sidebar-search-popover-fixed .input {
+  width: 100%;
+  min-width: 0;
+  display: block;
 }
 
 .sidebar-filter-meta {

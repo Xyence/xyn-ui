@@ -211,9 +211,12 @@ export default function Sidebar({ user }: Props) {
   const updateSearchPopoverPosition = () => {
     const buttonRect = collapsedSearchButtonRef.current?.getBoundingClientRect();
     if (!buttonRect) return;
+    const width = 220;
+    const proposedLeft = buttonRect.right + 8;
+    const maxLeft = Math.max(12, window.innerWidth - width - 12);
     setSearchPopoverPos({
       top: buttonRect.top,
-      left: buttonRect.right + 8,
+      left: Math.min(proposedLeft, maxLeft),
     });
   };
 
@@ -248,6 +251,21 @@ export default function Sidebar({ user }: Props) {
       window.removeEventListener("scroll", onResize, true);
     };
   }, [searchOpen, state.collapsed]);
+
+  useEffect(() => {
+    const root = document.documentElement;
+    if (state.collapsed) {
+      root.classList.add("xyn-nav-collapsed");
+      root.classList.remove("xyn-nav-expanded");
+    } else {
+      root.classList.add("xyn-nav-expanded");
+      root.classList.remove("xyn-nav-collapsed");
+    }
+    return () => {
+      root.classList.remove("xyn-nav-collapsed");
+      root.classList.remove("xyn-nav-expanded");
+    };
+  }, [state.collapsed]);
 
   useEffect(() => {
     if (!searchOpen || !state.collapsed) return;
