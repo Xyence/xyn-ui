@@ -267,6 +267,13 @@ input {
   gap: 6px;
   font-weight: 600;
   font-size: 0.9rem;
+  align-content: start;
+}
+
+.form-grid label > input,
+.form-grid label > select,
+.form-grid label > textarea {
+  align-self: start;
 }
 
 .form-grid .span-full {
