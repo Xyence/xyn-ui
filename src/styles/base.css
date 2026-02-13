@@ -688,6 +688,16 @@ button:disabled {
   overflow: hidden;
 }
 
+.map-canvas .react-flow__minimap {
+  background: #e2e8f0;
+}
+
+.map-canvas .react-flow__minimap-node {
+  fill: #4b5563;
+  stroke: #0f172a;
+  stroke-width: 1;
+}
+
 .map-inspector {
   min-height: 70vh;
   position: sticky;

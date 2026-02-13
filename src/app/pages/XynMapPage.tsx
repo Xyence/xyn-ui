@@ -82,6 +82,9 @@ function buildLayout(nodes: XynMapNode[], edges: XynMapEdge[]): { nodes: FlowNod
         id: node.id,
         type: "mapNode",
         position: { x: column * 340, y: row * 138 },
+        width: 220,
+        height: 96,
+        style: { width: 220, minHeight: 96 },
         sourcePosition: Position.Right,
         targetPosition: Position.Left,
         data: {
