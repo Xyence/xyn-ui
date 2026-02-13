@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import InlineMessage from "../../components/InlineMessage";
 import {
   createIdentityProvider,
@@ -61,6 +61,7 @@ export default function IdentityProvidersPage() {
   const [message, setMessage] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [testResult, setTestResult] = useState<string | null>(null);
+  const didAutoSelectRef = useRef(false);
 
   const selected = useMemo(
     () => items.find((item) => item.id === selectedId) || null,
@@ -72,13 +73,18 @@ export default function IdentityProvidersPage() {
       setError(null);
       const data = await listIdentityProviders();
       setItems(data.identity_providers);
-      if (!selectedId && data.identity_providers[0]) {
-        setSelectedId(data.identity_providers[0].id);
-      }
+      setSelectedId((current) => {
+        if (current) return current;
+        if (didAutoSelectRef.current) return current;
+        const first = data.identity_providers[0];
+        if (!first) return current;
+        didAutoSelectRef.current = true;
+        return first.id;
+      });
     } catch (err) {
       setError((err as Error).message);
     }
-  }, [selectedId]);
+  }, []);
 
   useEffect(() => {
     load();
@@ -116,8 +122,9 @@ export default function IdentityProvidersPage() {
       setLoading(true);
       setError(null);
       setMessage(null);
-      await createIdentityProvider(form);
+      const created = await createIdentityProvider(form);
       await load();
+      setSelectedId(created.id);
       setMessage("Identity provider created.");
     } catch (err) {
       setError((err as Error).message);
@@ -150,6 +157,7 @@ export default function IdentityProvidersPage() {
       setError(null);
       await deleteIdentityProvider(selectedId);
       setSelectedId(null);
+      didAutoSelectRef.current = false;
       await load();
       setMessage("Identity provider deleted.");
     } catch (err) {
