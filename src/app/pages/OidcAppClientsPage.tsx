@@ -40,6 +40,10 @@ export default function OidcAppClientsPage() {
     () => items.find((item) => item.id === selectedId) || null,
     [items, selectedId]
   );
+  const enabledProviders = useMemo(
+    () => providers.filter((provider) => provider.enabled),
+    [providers]
+  );
 
   const load = useCallback(async () => {
     try {
@@ -195,10 +199,20 @@ export default function OidcAppClientsPage() {
               Default provider
               <select
                 value={form.default_provider_id || ""}
-                onChange={(event) => setForm({ ...form, default_provider_id: event.target.value })}
+                onChange={(event) => {
+                  const nextDefault = event.target.value;
+                  const nextAllowed = nextDefault
+                    ? Array.from(new Set([...(form.allowed_provider_ids || []), nextDefault]))
+                    : form.allowed_provider_ids || [];
+                  setForm({
+                    ...form,
+                    default_provider_id: nextDefault,
+                    allowed_provider_ids: nextAllowed,
+                  });
+                }}
               >
                 <option value="">Select default</option>
-                {providers.map((provider) => (
+                {enabledProviders.map((provider) => (
                   <option key={provider.id} value={provider.id}>
                     {provider.display_name}
                   </option>
@@ -206,14 +220,32 @@ export default function OidcAppClientsPage() {
               </select>
             </label>
             <label>
-              Allowed providers (comma)
-              <input
-                className="input"
-                value={(form.allowed_provider_ids || []).join(", ")}
-                onChange={(event) =>
-                  setForm({ ...form, allowed_provider_ids: splitCsv(event.target.value) })
-                }
-              />
+              Allowed providers
+              <select
+                multiple
+                size={Math.min(8, Math.max(3, enabledProviders.length || 3))}
+                value={form.allowed_provider_ids || []}
+                onChange={(event) => {
+                  const selectedProviderIds = Array.from(event.target.selectedOptions).map(
+                    (option) => option.value
+                  );
+                  const nextDefault = selectedProviderIds.includes(form.default_provider_id || "")
+                    ? form.default_provider_id
+                    : "";
+                  setForm({
+                    ...form,
+                    allowed_provider_ids: selectedProviderIds,
+                    default_provider_id: nextDefault,
+                  });
+                }}
+              >
+                {enabledProviders.map((provider) => (
+                  <option key={provider.id} value={provider.id}>
+                    {provider.display_name} ({provider.id})
+                  </option>
+                ))}
+              </select>
+              <span className="muted small">Enabled providers only.</span>
             </label>
             <label>
               Redirect URIs (comma)
