@@ -692,6 +692,28 @@ button:disabled {
   background: #f8fbff;
 }
 
+.card-subsection {
+  margin-top: 14px;
+  border-top: 1px solid var(--border);
+  padding-top: 12px;
+}
+
+.card-subsection h4 {
+  margin: 0 0 10px;
+}
+
+.intent-list {
+  margin: 6px 0 0 18px;
+  padding: 0;
+}
+
+.intent-prompt summary {
+  cursor: pointer;
+  color: var(--text);
+  font-weight: 600;
+  margin-bottom: 6px;
+}
+
 .map-toolbar {
   display: grid;
   grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));

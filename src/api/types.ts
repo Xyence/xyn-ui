@@ -97,6 +97,35 @@ export type BlueprintDetail = BlueprintSummary & {
   spec_json?: Record<string, unknown> | null;
 };
 
+export type BlueprintIntentTranscript = {
+  id: string;
+  ref?: string;
+  text?: string;
+  sha256?: string;
+  createdAt?: string;
+};
+
+export type BlueprintIntentRequirements = {
+  summary: string;
+  functional: string[];
+  ui: string[];
+  dataModel: string[];
+  operational: string[];
+  definitionOfDone: string[];
+};
+
+export type BlueprintIntent = {
+  sourceDraftSessionId: string;
+  createdFrom: { type: "draft"; id: string };
+  prompt: { text: string; sha256: string; createdAt: string };
+  transcripts?: BlueprintIntentTranscript[];
+  requirements: BlueprintIntentRequirements;
+  codegen?: {
+    repoTarget?: { name?: string; url?: string; ref?: string; pathRoot?: string };
+    layout?: { apiPath?: string; webPath?: string };
+  };
+};
+
 export type BlueprintCreatePayload = {
   name?: string;
   namespace?: string;

@@ -18,10 +18,12 @@ import {
 import type {
   BlueprintCreatePayload,
   BlueprintDetail,
+  BlueprintIntent,
   BlueprintSummary,
   DevTaskSummary,
   ReleaseTarget,
 } from "../../api/types";
+import { extractBlueprintIntent } from "./blueprintIntent";
 
 const emptyForm: BlueprintCreatePayload = {
   name: "",
@@ -65,6 +67,7 @@ export default function BlueprintsPage() {
     const start = (devTaskPage - 1) * devTasksPageSize;
     return devTasks.slice(start, start + devTasksPageSize);
   }, [devTasks, devTaskPage]);
+  const intent = useMemo<BlueprintIntent | null>(() => extractBlueprintIntent(selected), [selected]);
 
   const handleCreateReleaseTarget = async () => {
     if (!selected) return;
@@ -444,15 +447,86 @@ export default function BlueprintsPage() {
                 onChange={(event) => setForm({ ...form, spec_text: event.target.value })}
               />
             </label>
-            <label>
-              Blueprint metadata (JSON)
-              <textarea
+              <label>
+                Blueprint metadata (JSON)
+                <textarea
                 rows={10}
                 value={metadataText}
                 onChange={(event) => setMetadataText(event.target.value)}
                 placeholder='{"product":"EMS"}'
-              />
-            </label>
+                />
+              </label>
+            </div>
+          <div className="card-subsection">
+            <h4>Intent</h4>
+            {intent ? (
+              <div className="stack">
+                <div>
+                  <div className="label">Requirements summary</div>
+                  <p className="muted">{intent.requirements.summary || "No summary available."}</p>
+                </div>
+                <div>
+                  <div className="label">Functional requirements</div>
+                  <ul className="intent-list">
+                    {(intent.requirements.functional || []).map((entry, index) => (
+                      <li key={`functional-${index}`}>{entry}</li>
+                    ))}
+                  </ul>
+                </div>
+                <div>
+                  <div className="label">UI requirements</div>
+                  <ul className="intent-list">
+                    {(intent.requirements.ui || []).map((entry, index) => (
+                      <li key={`ui-${index}`}>{entry}</li>
+                    ))}
+                  </ul>
+                </div>
+                <div>
+                  <div className="label">Data model</div>
+                  <ul className="intent-list">
+                    {(intent.requirements.dataModel || []).map((entry, index) => (
+                      <li key={`data-${index}`}>{entry}</li>
+                    ))}
+                  </ul>
+                </div>
+                <div>
+                  <div className="label">Operational requirements</div>
+                  <ul className="intent-list">
+                    {(intent.requirements.operational || []).map((entry, index) => (
+                      <li key={`ops-${index}`}>{entry}</li>
+                    ))}
+                  </ul>
+                </div>
+                <div>
+                  <div className="label">Definition of done</div>
+                  <ul className="intent-list">
+                    {(intent.requirements.definitionOfDone || []).map((entry, index) => (
+                      <li key={`dod-${index}`}>{entry}</li>
+                    ))}
+                  </ul>
+                </div>
+                <details className="intent-prompt">
+                  <summary>Original prompt</summary>
+                  <pre className="draft-output-pre">{intent.prompt.text}</pre>
+                </details>
+                {intent.transcripts && intent.transcripts.length > 0 && (
+                  <div>
+                    <div className="label">Transcripts</div>
+                    <div className="stack">
+                      {intent.transcripts.map((transcript) => (
+                        <details key={transcript.id} className="intent-prompt">
+                          <summary>{transcript.id}</summary>
+                          {transcript.ref && <p className="muted small">{transcript.ref}</p>}
+                          {transcript.text && <pre className="draft-output-pre">{transcript.text}</pre>}
+                        </details>
+                      ))}
+                    </div>
+                  </div>
+                )}
+              </div>
+            ) : (
+              <p className="muted">No intent metadata stored for this blueprint (created before provenance tracking).</p>
+            )}
           </div>
           <div className="form-actions">
             <button className="primary" onClick={selected ? handleUpdate : handleCreate} disabled={loading}>
