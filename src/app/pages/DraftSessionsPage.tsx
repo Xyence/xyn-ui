@@ -1,5 +1,5 @@
-import { type ChangeEvent, useCallback, useEffect, useMemo, useState } from "react";
-import { Link, useNavigate, useParams, useSearchParams } from "react-router-dom";
+import { type ChangeEvent, useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { Link, useLocation, useNavigate, useParams, useSearchParams } from "react-router-dom";
 import InlineMessage from "../../components/InlineMessage";
 import {
   createDraftSession,
@@ -34,6 +34,9 @@ export default function DraftSessionsPage() {
   const [searchParams, setSearchParams] = useSearchParams();
   const { draftId } = useParams();
   const navigate = useNavigate();
+  const location = useLocation();
+  const selectedFetchSeq = useRef(0);
+  const selectedSessionIdRef = useRef<string | null>(null);
 
   const [sessions, setSessions] = useState<BlueprintDraftSession[]>([]);
   const [contextPacks, setContextPacks] = useState<ContextPackSummary[]>([]);
@@ -110,20 +113,21 @@ export default function DraftSessionsPage() {
       q: filterQ.trim() || undefined,
     });
     setSessions(payload.sessions);
-    const params = new URLSearchParams(searchParams);
+    const params = new URLSearchParams();
     if (filterStatus) params.set("status", filterStatus);
-    else params.delete("status");
     if (filterKind) params.set("kind", filterKind);
-    else params.delete("kind");
     if (filterNamespace) params.set("namespace", filterNamespace);
-    else params.delete("namespace");
     if (filterProjectKey) params.set("project_key", filterProjectKey);
-    else params.delete("project_key");
-    setSearchParams(params, { replace: true });
+    const next = params.toString();
+    const current = searchParams.toString();
+    if (next !== current) {
+      setSearchParams(params, { replace: true });
+    }
   }, [filterKind, filterNamespace, filterProjectKey, filterQ, filterStatus, searchParams, setSearchParams]);
 
   const refreshSelectedSession = useCallback(async (sessionId: string) => {
     const detail = await getDraftSession(sessionId);
+    if (selectedSessionIdRef.current !== sessionId) return;
     setSelectedSession(detail);
     setDraftJsonText(detail.draft ? JSON.stringify(detail.draft, null, 2) : "");
     setRevisionInstruction(detail.revision_instruction ?? "");
@@ -138,6 +142,7 @@ export default function DraftSessionsPage() {
     setRecommendedSessionPackIds(defaults.recommended_context_pack_ids);
     setRequiredPackNames(defaults.required_pack_names);
     const notes = await listDraftSessionVoiceNotes(sessionId);
+    if (selectedSessionIdRef.current !== sessionId) return;
     setVoiceNotes(notes.voice_notes);
   }, []);
 
@@ -231,8 +236,22 @@ export default function DraftSessionsPage() {
   }, [draftId, selectedSessionId, sessions]);
 
   useEffect(() => {
+    selectedSessionIdRef.current = selectedSessionId;
+  }, [selectedSessionId]);
+
+  useEffect(() => {
     if (!selectedSessionId) return;
-    refreshSelectedSession(selectedSessionId).catch((err) => setError((err as Error).message));
+    const requestId = ++selectedFetchSeq.current;
+    refreshSelectedSession(selectedSessionId).catch((err) => {
+      if (selectedFetchSeq.current === requestId) {
+        setError((err as Error).message);
+      }
+    });
+  }, [refreshSelectedSession, selectedSessionId]);
+
+  useEffect(() => {
+    if (!selectedSessionId) return;
+    if (draftId === selectedSessionId) return;
     const search = searchParams.toString();
     navigate(
       {
@@ -241,7 +260,18 @@ export default function DraftSessionsPage() {
       },
       { replace: true }
     );
-  }, [navigate, refreshSelectedSession, searchParams, selectedSessionId]);
+  }, [draftId, navigate, searchParams, selectedSessionId]);
+
+  useEffect(() => {
+    const search = searchParams.toString();
+    const expectedPath = selectedSessionId ? `/app/drafts/${selectedSessionId}` : "/app/drafts";
+    const expectedUrl = `${expectedPath}${search ? `?${search}` : ""}`;
+    const actualUrl = `${location.pathname}${location.search}`;
+    if (actualUrl === expectedUrl) return;
+    if (!selectedSessionId && draftId) {
+      navigate(`/app/drafts${search ? `?${search}` : ""}`, { replace: true });
+    }
+  }, [draftId, location.pathname, location.search, navigate, searchParams, selectedSessionId]);
 
   useEffect(() => {
     if (!selectedSessionId) return;
