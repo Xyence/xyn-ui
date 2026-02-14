@@ -39,6 +39,7 @@ export default function DraftSessionsPage() {
   const selectedSessionIdRef = useRef<string | null>(null);
 
   const [sessions, setSessions] = useState<BlueprintDraftSession[]>([]);
+  const [sessionsLoaded, setSessionsLoaded] = useState(false);
   const [contextPacks, setContextPacks] = useState<ContextPackSummary[]>([]);
   const [voiceNotes, setVoiceNotes] = useState<BlueprintVoiceNote[]>([]);
   const [selectedSessionId, setSelectedSessionId] = useState<string | null>(null);
@@ -113,6 +114,7 @@ export default function DraftSessionsPage() {
       q: filterQ.trim() || undefined,
     });
     setSessions(payload.sessions);
+    setSessionsLoaded(true);
     const params = new URLSearchParams();
     if (filterStatus) params.set("status", filterStatus);
     if (filterKind) params.set("kind", filterKind);
@@ -222,7 +224,19 @@ export default function DraftSessionsPage() {
 
   useEffect(() => {
     if (draftId) {
-      setSelectedSessionId(draftId);
+      if (!sessionsLoaded) return;
+      const exists = sessions.some((item) => item.id === draftId);
+      if (exists) {
+        setSelectedSessionId(draftId);
+      } else {
+        const fallbackId = sessions[0]?.id ?? null;
+        setSelectedSessionId(fallbackId);
+        const search = searchParams.toString();
+        navigate(
+          fallbackId ? `/app/drafts/${fallbackId}${search ? `?${search}` : ""}` : `/app/drafts${search ? `?${search}` : ""}`,
+          { replace: true }
+        );
+      }
       return;
     }
     if (sessions.length === 0) {
@@ -233,7 +247,7 @@ export default function DraftSessionsPage() {
     if (!selectedSessionId || !sessions.some((item) => item.id === selectedSessionId)) {
       setSelectedSessionId(sessions[0].id);
     }
-  }, [draftId, selectedSessionId, sessions]);
+  }, [draftId, navigate, searchParams, selectedSessionId, sessions, sessionsLoaded]);
 
   useEffect(() => {
     selectedSessionIdRef.current = selectedSessionId;
@@ -244,10 +258,21 @@ export default function DraftSessionsPage() {
     const requestId = ++selectedFetchSeq.current;
     refreshSelectedSession(selectedSessionId).catch((err) => {
       if (selectedFetchSeq.current === requestId) {
-        setError((err as Error).message);
+        const message = (err as Error).message || "";
+        if (message.includes("(404)") || message.toLowerCase().includes("not found")) {
+          setSelectedSession(null);
+          setDraftJsonText("");
+          setRevisionInstruction("");
+          setSessionContextPackIds([]);
+          setVoiceNotes([]);
+          setError(null);
+          refreshSessions().catch((refreshErr) => setError((refreshErr as Error).message));
+          return;
+        }
+        setError(message);
       }
     });
-  }, [refreshSelectedSession, selectedSessionId]);
+  }, [refreshSelectedSession, refreshSessions, selectedSessionId]);
 
   useEffect(() => {
     if (!selectedSessionId) return;
