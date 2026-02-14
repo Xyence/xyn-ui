@@ -275,6 +275,27 @@ export default function DraftSessionsPage() {
   }, [refreshSelectedSession, refreshSessions, selectedSessionId]);
 
   useEffect(() => {
+    if (!selectedSessionId || !selectedSession) return;
+    if (!["queued", "drafting"].includes(selectedSession.status)) return;
+    let cancelled = false;
+    const timer = window.setInterval(async () => {
+      if (cancelled) return;
+      try {
+        await refreshSelectedSession(selectedSessionId);
+        await refreshSessionRevisions();
+      } catch (err) {
+        if (!cancelled) {
+          setError((err as Error).message);
+        }
+      }
+    }, 2000);
+    return () => {
+      cancelled = true;
+      window.clearInterval(timer);
+    };
+  }, [refreshSelectedSession, refreshSessionRevisions, selectedSession, selectedSessionId]);
+
+  useEffect(() => {
     if (!selectedSessionId) return;
     if (draftId === selectedSessionId) return;
     const search = searchParams.toString();
@@ -420,6 +441,16 @@ export default function DraftSessionsPage() {
         source_artifacts: selectedSession.source_artifacts,
       });
       await enqueueDraftGeneration(selectedSessionId);
+      setSelectedSession((prev) =>
+        prev
+          ? {
+              ...prev,
+              status: "drafting",
+              initial_prompt_locked:
+                Boolean((prev.initial_prompt || "").trim()) || Boolean(prev.initial_prompt_locked),
+            }
+          : prev
+      );
       await refreshSelectedSession(selectedSessionId);
       await refreshSessionRevisions();
       setMessage("Draft generation queued.");
