@@ -425,6 +425,8 @@ export type ContactCreatePayload = {
 export type IdentitySummary = {
   id: string;
   provider: string;
+  provider_id?: string | null;
+  provider_display_name?: string | null;
   issuer: string;
   subject: string;
   email?: string | null;

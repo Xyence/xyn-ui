@@ -17,6 +17,7 @@ export default function PlatformRolesPage() {
   const [role, setRole] = useState("platform_operator");
   const [error, setError] = useState<string | null>(null);
   const [message, setMessage] = useState<string | null>(null);
+  const selectedIdentity = identities.find((item) => item.id === selectedId) || null;
 
   const loadIdentities = useCallback(async () => {
     try {
@@ -114,6 +115,21 @@ export default function PlatformRolesPage() {
           <div className="card-header">
             <h3>Role bindings</h3>
           </div>
+          {selectedIdentity && (
+            <div className="stack">
+              <span className="muted small">
+                User: {selectedIdentity.display_name || selectedIdentity.email || selectedIdentity.subject}
+              </span>
+              <span className="muted small">
+                Identity provider:{" "}
+                {selectedIdentity.provider_display_name
+                  ? `${selectedIdentity.provider_display_name}${
+                      selectedIdentity.provider_id ? ` (${selectedIdentity.provider_id})` : ""
+                    }`
+                  : selectedIdentity.provider_id || selectedIdentity.provider || selectedIdentity.issuer}
+              </span>
+            </div>
+          )}
           <div className="form-grid">
             <label>
               Role

@@ -49,6 +49,12 @@ export default function PlatformUsersPage() {
               <div>
                 <strong>{item.display_name || item.email || item.subject}</strong>
                 <span className="muted small">{item.email || item.subject}</span>
+                <span className="muted small">
+                  Identity provider:{" "}
+                  {item.provider_display_name
+                    ? `${item.provider_display_name}${item.provider_id ? ` (${item.provider_id})` : ""}`
+                    : item.provider_id || item.provider || item.issuer}
+                </span>
               </div>
               <span className="muted small">{item.last_login_at || "never"}</span>
             </div>
