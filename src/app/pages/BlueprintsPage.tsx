@@ -1407,7 +1407,7 @@ export default function BlueprintsPage() {
                       </label>
                       {selectedSession.initial_prompt_locked && (
                         <span className="muted small">
-                          Initial prompt is locked after first submission. Use revision instructions for changes.
+                          Initial prompt is locked after first generation. Use revision instructions for changes.
                         </span>
                       )}
                       <label className="stacked-field">
