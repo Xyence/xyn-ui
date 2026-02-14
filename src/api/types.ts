@@ -127,6 +127,7 @@ export type BlueprintDraftSessionDetail = {
   namespace?: string | null;
   project_key?: string | null;
   initial_prompt?: string;
+  initial_prompt_locked?: boolean;
   revision_instruction?: string;
   source_artifacts?: Array<{
     type: "text" | "audio_transcript";
@@ -155,6 +156,16 @@ export type BlueprintDraftSessionDetail = {
   effective_context_preview?: string | null;
   created_at?: string;
   updated_at?: string;
+};
+
+export type DraftSessionRevision = {
+  id: string;
+  revision_number: number;
+  action: "generate" | "revise" | "save" | "submit";
+  instruction?: string;
+  created_at: string;
+  validation_errors_count: number;
+  diff_summary?: string;
 };
 
 export type ContextPackDefaultsResponse = {

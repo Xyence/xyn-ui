@@ -17,6 +17,7 @@ import {
   saveDraftSession,
   publishDraftSession,
   submitDraftSession,
+  listDraftSessionRevisions,
   updateDraftSession,
   deleteDraftSession,
   runDevTask,
@@ -35,6 +36,7 @@ import type {
   BlueprintDetail,
   BlueprintDraftSession,
   BlueprintDraftSessionDetail,
+  DraftSessionRevision,
   BlueprintSummary,
   BlueprintVoiceNote,
   ContextPackSummary,
@@ -62,6 +64,10 @@ export default function BlueprintsPage() {
   const [draftSessions, setDraftSessions] = useState<BlueprintDraftSession[]>([]);
   const [selectedSessionId, setSelectedSessionId] = useState<string | null>(null);
   const [selectedSession, setSelectedSession] = useState<BlueprintDraftSessionDetail | null>(null);
+  const [sessionRevisions, setSessionRevisions] = useState<DraftSessionRevision[]>([]);
+  const [revisionSearch, setRevisionSearch] = useState("");
+  const [revisionPage, setRevisionPage] = useState(1);
+  const [revisionTotal, setRevisionTotal] = useState(0);
   const [draftJsonText, setDraftJsonText] = useState<string>("");
   const [revisionInstruction, setRevisionInstruction] = useState<string>("");
   const [sessionContextPackIds, setSessionContextPackIds] = useState<string[]>([]);
@@ -103,8 +109,10 @@ export default function BlueprintsPage() {
   const [loading, setLoading] = useState(false);
   const [message, setMessage] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
+  const revisionPageSize = 5;
   const devTasksPageSize = 8;
   const devTaskTotalPages = Math.max(1, Math.ceil(devTasks.length / devTasksPageSize));
+  const revisionTotalPages = Math.max(1, Math.ceil(revisionTotal / revisionPageSize));
   const pagedDevTasks = useMemo(() => {
     const start = (devTaskPage - 1) * devTasksPageSize;
     return devTasks.slice(start, start + devTasksPageSize);
@@ -321,6 +329,10 @@ export default function BlueprintsPage() {
   useEffect(() => {
     if (!selectedSessionId) {
       setSelectedSession(null);
+      setSessionRevisions([]);
+      setRevisionTotal(0);
+      setRevisionPage(1);
+      setRevisionSearch("");
       setDraftJsonText("");
       setRevisionInstruction("");
       setSessionContextPackIds([]);
@@ -353,6 +365,17 @@ export default function BlueprintsPage() {
       setDevTaskPage(devTaskTotalPages);
     }
   }, [devTaskPage, devTaskTotalPages]);
+
+  useEffect(() => {
+    if (revisionPage > revisionTotalPages) {
+      setRevisionPage(revisionTotalPages);
+    }
+  }, [revisionPage, revisionTotalPages]);
+
+  useEffect(() => {
+    if (!selectedSessionId) return;
+    refreshSessionRevisions();
+  }, [selectedSessionId, revisionPage, revisionSearch]);
 
   const refreshRecommendedContextPacks = useCallback(
     async (options?: {
@@ -601,6 +624,21 @@ export default function BlueprintsPage() {
     setSessionContextPackIds(ids);
   };
 
+  async function refreshSessionRevisions() {
+    if (!selectedSessionId) return;
+    try {
+      const payload = await listDraftSessionRevisions(selectedSessionId, {
+        q: revisionSearch.trim() || undefined,
+        page: revisionPage,
+        page_size: revisionPageSize,
+      });
+      setSessionRevisions(payload.revisions);
+      setRevisionTotal(payload.total);
+    } catch (err) {
+      setError((err as Error).message);
+    }
+  }
+
   const refreshSelectedSession = async () => {
     if (!selectedSessionId) return;
     try {
@@ -618,6 +656,7 @@ export default function BlueprintsPage() {
       });
       setRecommendedSessionPackIds(defaults.recommended_context_pack_ids);
       setRequiredPackNames(defaults.required_pack_names);
+      await refreshSessionRevisions();
     } catch (err) {
       setError((err as Error).message);
     }
@@ -1360,11 +1399,17 @@ export default function BlueprintsPage() {
                         <textarea
                           rows={8}
                           value={selectedSession.initial_prompt ?? ""}
+                          disabled={Boolean(selectedSession.initial_prompt_locked)}
                           onChange={(event) =>
                             setSelectedSession((prev) => (prev ? { ...prev, initial_prompt: event.target.value } : prev))
                           }
                         />
                       </label>
+                      {selectedSession.initial_prompt_locked && (
+                        <span className="muted small">
+                          Initial prompt is locked after first submission. Use revision instructions for changes.
+                        </span>
+                      )}
                       <label className="stacked-field">
                         Prompt sources (transcript text)
                         <textarea
@@ -1409,6 +1454,69 @@ export default function BlueprintsPage() {
                       >
                         Revise draft
                       </button>
+                    </section>
+
+                    <section className="draft-section">
+                      <div className="card-header">
+                        <h4>Revisions</h4>
+                        <div className="inline-actions">
+                          <button className="ghost small" onClick={refreshSessionRevisions} disabled={loading}>
+                            Refresh
+                          </button>
+                        </div>
+                      </div>
+                      <label className="stacked-field">
+                        Search revisions
+                        <input
+                          value={revisionSearch}
+                          placeholder="Search by instruction, summary, or diff..."
+                          onChange={(event) => {
+                            setRevisionSearch(event.target.value);
+                            setRevisionPage(1);
+                          }}
+                        />
+                      </label>
+                      {sessionRevisions.length === 0 ? (
+                        <span className="muted">No revisions yet.</span>
+                      ) : (
+                        <div className="instance-list">
+                          {sessionRevisions.map((rev) => (
+                            <div key={rev.id} className="instance-row">
+                              <div>
+                                <strong>
+                                  r{rev.revision_number} • {rev.action}
+                                </strong>
+                                <span className="muted small">
+                                  {rev.instruction || rev.diff_summary || "No instruction"}
+                                </span>
+                              </div>
+                              <div className="stack" style={{ alignItems: "flex-end", gap: 4 }}>
+                                <span className="muted small">{new Date(rev.created_at).toLocaleString()}</span>
+                                <span className="muted small">Errors: {rev.validation_errors_count}</span>
+                              </div>
+                            </div>
+                          ))}
+                        </div>
+                      )}
+                      <div className="inline-actions">
+                        <button
+                          className="ghost small"
+                          onClick={() => setRevisionPage((prev) => Math.max(1, prev - 1))}
+                          disabled={revisionPage <= 1}
+                        >
+                          Prev
+                        </button>
+                        <span className="muted small">
+                          Page {revisionPage} / {revisionTotalPages}
+                        </span>
+                        <button
+                          className="ghost small"
+                          onClick={() => setRevisionPage((prev) => Math.min(revisionTotalPages, prev + 1))}
+                          disabled={revisionPage >= revisionTotalPages}
+                        >
+                          Next
+                        </button>
+                      </div>
                     </section>
 
                     <section className="draft-section">

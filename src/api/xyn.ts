@@ -5,6 +5,7 @@ import type {
   BlueprintSummary,
   BlueprintDraftSession,
   BlueprintDraftSessionDetail,
+  DraftSessionRevision,
   ContextPackDefaultsResponse,
   BlueprintVoiceNote,
   DevTaskDetail,
@@ -782,6 +783,19 @@ export async function submitDraftSession(
     entity_id?: string;
     revision?: number;
   }>(response);
+}
+
+export async function listDraftSessionRevisions(
+  sessionId: string,
+  params: { q?: string; page?: number; page_size?: number } = {}
+): Promise<{ revisions: DraftSessionRevision[]; total: number; page: number; page_size: number }> {
+  const apiBaseUrl = resolveApiBaseUrl();
+  const url = new URL(`${apiBaseUrl}/xyn/api/draft-sessions/${sessionId}/revisions`);
+  if (params.q) url.searchParams.set("q", params.q);
+  if (params.page) url.searchParams.set("page", String(params.page));
+  if (params.page_size) url.searchParams.set("page_size", String(params.page_size));
+  const response = await apiFetch(url.toString(), { credentials: "include" });
+  return handle<{ revisions: DraftSessionRevision[]; total: number; page: number; page_size: number }>(response);
 }
 
 export async function listBlueprintVoiceNotes(
