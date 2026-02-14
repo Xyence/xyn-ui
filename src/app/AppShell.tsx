@@ -5,6 +5,7 @@ import { NAV_GROUPS, NavUserContext } from "./nav/nav.config";
 import { getBreadcrumbs, visibleNav } from "./nav/nav.utils";
 import Sidebar from "./components/nav/Sidebar";
 import BlueprintsPage from "./pages/BlueprintsPage";
+import DraftSessionsPage from "./pages/DraftSessionsPage";
 import InstancesPage from "./pages/InstancesPage";
 import ModulesPage from "./pages/ModulesPage";
 import RegistriesPage from "./pages/RegistriesPage";
@@ -177,6 +178,8 @@ export default function AppShell() {
             <Route path="map" element={<XynMapPage />} />
             <Route path="instances" element={<InstancesPage />} />
             <Route path="blueprints" element={<BlueprintsPage />} />
+            <Route path="drafts" element={<DraftSessionsPage />} />
+            <Route path="drafts/:draftId" element={<DraftSessionsPage />} />
             <Route path="registries" element={<RegistriesPage />} />
             <Route path="modules" element={<ModulesPage />} />
             <Route path="release-plans" element={<ReleasePlansPage />} />

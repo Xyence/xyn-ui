@@ -55,6 +55,13 @@ export const NAV_GROUPS: NavGroup[] = [
     icon: "Layers",
     items: [
       { id: "blueprints", label: "Blueprints", path: "/app/blueprints", icon: "Layers", keywords: ["design"] },
+      {
+        id: "drafts",
+        label: "Drafts",
+        path: "/app/drafts",
+        icon: "BookOpen",
+        keywords: ["draft sessions", "prompt", "voice", "planning"],
+      },
       { id: "modules", label: "Modules", path: "/app/modules", icon: "Box", keywords: ["components", "building blocks"] },
       { id: "registries", label: "Registries", path: "/app/registries", icon: "Database", keywords: ["packages", "catalog"] },
       {

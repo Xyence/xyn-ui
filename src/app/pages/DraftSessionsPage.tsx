@@ -1,0 +1,1122 @@
+import { type ChangeEvent, useCallback, useEffect, useMemo, useState } from "react";
+import { Link, useNavigate, useParams, useSearchParams } from "react-router-dom";
+import InlineMessage from "../../components/InlineMessage";
+import {
+  createDraftSession,
+  deleteDraftSession,
+  enqueueDraftGeneration,
+  enqueueDraftRevision,
+  enqueueVoiceNoteTranscription,
+  getContextPackDefaults,
+  getDraftSession,
+  listContextPacks,
+  listDraftSessionRevisions,
+  listDraftSessionVoiceNotes,
+  listDraftSessions,
+  publishDraftSession,
+  resolveDraftSessionContext,
+  saveDraftSession,
+  submitDraftSession,
+  updateDraftSession,
+  uploadVoiceNote,
+} from "../../api/xyn";
+import type {
+  BlueprintDraftSession,
+  BlueprintDraftSessionDetail,
+  BlueprintVoiceNote,
+  ContextPackSummary,
+  DraftSessionRevision,
+} from "../../api/types";
+
+const NEW_DRAFT_DEFAULT_TITLE = "Untitled draft";
+
+export default function DraftSessionsPage() {
+  const [searchParams, setSearchParams] = useSearchParams();
+  const { draftId } = useParams();
+  const navigate = useNavigate();
+
+  const [sessions, setSessions] = useState<BlueprintDraftSession[]>([]);
+  const [contextPacks, setContextPacks] = useState<ContextPackSummary[]>([]);
+  const [voiceNotes, setVoiceNotes] = useState<BlueprintVoiceNote[]>([]);
+  const [selectedSessionId, setSelectedSessionId] = useState<string | null>(null);
+  const [selectedSession, setSelectedSession] = useState<BlueprintDraftSessionDetail | null>(null);
+  const [sessionRevisions, setSessionRevisions] = useState<DraftSessionRevision[]>([]);
+  const [revisionSearch, setRevisionSearch] = useState("");
+  const [revisionPage, setRevisionPage] = useState(1);
+  const [revisionTotal, setRevisionTotal] = useState(0);
+  const [draftJsonText, setDraftJsonText] = useState("");
+  const [revisionInstruction, setRevisionInstruction] = useState("");
+  const [sessionContextPackIds, setSessionContextPackIds] = useState<string[]>([]);
+  const [recommendedSessionPackIds, setRecommendedSessionPackIds] = useState<string[]>([]);
+  const [requiredPackNames, setRequiredPackNames] = useState<string[]>([]);
+  const [contextPackPurposeFilter, setContextPackPurposeFilter] = useState<"all" | "planner" | "coder">("all");
+  const [contextPackScopeFilter, setContextPackScopeFilter] = useState<"all" | "global" | "namespace" | "project">(
+    "all"
+  );
+
+  const [filterQ, setFilterQ] = useState("");
+  const [filterStatus, setFilterStatus] = useState<string>(searchParams.get("status") || "");
+  const [filterKind, setFilterKind] = useState<"" | "blueprint" | "solution">(
+    (searchParams.get("kind") as "blueprint" | "solution" | "") || ""
+  );
+  const [filterNamespace, setFilterNamespace] = useState(searchParams.get("namespace") || "");
+  const [filterProjectKey, setFilterProjectKey] = useState(searchParams.get("project_key") || "");
+
+  const [showCreateModal, setShowCreateModal] = useState(false);
+  const [newSessionTitle, setNewSessionTitle] = useState(NEW_DRAFT_DEFAULT_TITLE);
+  const [newSessionKind, setNewSessionKind] = useState<"blueprint" | "solution">("blueprint");
+  const [newSessionNamespace, setNewSessionNamespace] = useState("");
+  const [newSessionProjectKey, setNewSessionProjectKey] = useState("");
+  const [newSessionGenerateCode, setNewSessionGenerateCode] = useState(false);
+  const [newSessionPrompt, setNewSessionPrompt] = useState("");
+  const [newSessionTranscript, setNewSessionTranscript] = useState("");
+  const [selectedCreateContextPackIds, setSelectedCreateContextPackIds] = useState<string[]>([]);
+  const [didManuallyEditCreatePacks, setDidManuallyEditCreatePacks] = useState(false);
+
+  const [showSubmitModal, setShowSubmitModal] = useState(false);
+  const [submitNamespace, setSubmitNamespace] = useState("");
+  const [submitBlueprintName, setSubmitBlueprintName] = useState("");
+
+  const [loading, setLoading] = useState(false);
+  const [creatingSession, setCreatingSession] = useState(false);
+  const [uploading, setUploading] = useState(false);
+  const [message, setMessage] = useState<string | null>(null);
+  const [error, setError] = useState<string | null>(null);
+
+  const revisionPageSize = 5;
+  const revisionTotalPages = Math.max(1, Math.ceil(revisionTotal / revisionPageSize));
+
+  const filteredContextPacks = useMemo(
+    () =>
+      contextPacks.filter((pack) => {
+        if (contextPackPurposeFilter !== "all" && pack.purpose !== contextPackPurposeFilter) return false;
+        if (contextPackScopeFilter !== "all" && pack.scope !== contextPackScopeFilter) return false;
+        return true;
+      }),
+    [contextPackPurposeFilter, contextPackScopeFilter, contextPacks]
+  );
+
+  const selectedSessionVoiceTranscript = useMemo(
+    () => (selectedSession?.source_artifacts ?? []).find((item) => item.type === "audio_transcript")?.content ?? "",
+    [selectedSession]
+  );
+
+  const refreshSessions = useCallback(async () => {
+    const payload = await listDraftSessions({
+      status: filterStatus || undefined,
+      kind: filterKind || undefined,
+      namespace: filterNamespace || undefined,
+      project_key: filterProjectKey || undefined,
+      q: filterQ.trim() || undefined,
+    });
+    setSessions(payload.sessions);
+    const params = new URLSearchParams(searchParams);
+    if (filterStatus) params.set("status", filterStatus);
+    else params.delete("status");
+    if (filterKind) params.set("kind", filterKind);
+    else params.delete("kind");
+    if (filterNamespace) params.set("namespace", filterNamespace);
+    else params.delete("namespace");
+    if (filterProjectKey) params.set("project_key", filterProjectKey);
+    else params.delete("project_key");
+    setSearchParams(params, { replace: true });
+  }, [filterKind, filterNamespace, filterProjectKey, filterQ, filterStatus, searchParams, setSearchParams]);
+
+  const refreshSelectedSession = useCallback(async (sessionId: string) => {
+    const detail = await getDraftSession(sessionId);
+    setSelectedSession(detail);
+    setDraftJsonText(detail.draft ? JSON.stringify(detail.draft, null, 2) : "");
+    setRevisionInstruction(detail.revision_instruction ?? "");
+    const ids = detail.selected_context_pack_ids ?? detail.context_pack_ids ?? [];
+    setSessionContextPackIds(ids);
+    const defaults = await getContextPackDefaults({
+      draft_kind: detail.kind === "solution" ? "solution" : "blueprint",
+      namespace: detail.namespace ?? undefined,
+      project_key: detail.project_key ?? undefined,
+      generate_code: detail.kind === "solution",
+    });
+    setRecommendedSessionPackIds(defaults.recommended_context_pack_ids);
+    setRequiredPackNames(defaults.required_pack_names);
+    const notes = await listDraftSessionVoiceNotes(sessionId);
+    setVoiceNotes(notes.voice_notes);
+  }, []);
+
+  const refreshSessionRevisions = useCallback(async () => {
+    if (!selectedSessionId) return;
+    const payload = await listDraftSessionRevisions(selectedSessionId, {
+      q: revisionSearch.trim() || undefined,
+      page: revisionPage,
+      page_size: revisionPageSize,
+    });
+    setSessionRevisions(payload.revisions);
+    setRevisionTotal(payload.total);
+  }, [revisionPage, revisionSearch, selectedSessionId]);
+
+  const refreshRecommendedCreateContextPacks = useCallback(
+    async (options?: {
+      kind?: "blueprint" | "solution";
+      namespace?: string;
+      projectKey?: string;
+      generateCode?: boolean;
+      promptOnReset?: boolean;
+    }) => {
+      const kind = options?.kind ?? newSessionKind;
+      const namespace = options?.namespace ?? newSessionNamespace;
+      const projectKey = options?.projectKey ?? newSessionProjectKey;
+      const generateCode = options?.generateCode ?? newSessionGenerateCode;
+      const defaults = await getContextPackDefaults({
+        draft_kind: kind,
+        namespace: namespace || undefined,
+        project_key: projectKey || undefined,
+        generate_code: generateCode,
+      });
+      if (!didManuallyEditCreatePacks) {
+        setSelectedCreateContextPackIds(defaults.recommended_context_pack_ids);
+        return;
+      }
+      if (
+        options?.promptOnReset &&
+        defaults.recommended_context_pack_ids.join(",") !== selectedCreateContextPackIds.join(",") &&
+        confirm("Reset context packs to recommended defaults?")
+      ) {
+        setSelectedCreateContextPackIds(defaults.recommended_context_pack_ids);
+        setDidManuallyEditCreatePacks(false);
+      }
+    },
+    [
+      didManuallyEditCreatePacks,
+      newSessionGenerateCode,
+      newSessionKind,
+      newSessionNamespace,
+      newSessionProjectKey,
+      selectedCreateContextPackIds,
+    ]
+  );
+
+  useEffect(() => {
+    (async () => {
+      try {
+        setError(null);
+        const packs = await listContextPacks({ active: true });
+        setContextPacks(packs.context_packs);
+      } catch (err) {
+        setError((err as Error).message);
+      }
+    })();
+  }, []);
+
+  useEffect(() => {
+    refreshSessions().catch((err) => setError((err as Error).message));
+  }, [refreshSessions]);
+
+  useEffect(() => {
+    if (showCreateModal && contextPacks.length > 0) {
+      refreshRecommendedCreateContextPacks().catch((err) => setError((err as Error).message));
+    }
+  }, [contextPacks.length, refreshRecommendedCreateContextPacks, showCreateModal]);
+
+  useEffect(() => {
+    if (draftId) {
+      setSelectedSessionId(draftId);
+      return;
+    }
+    if (sessions.length === 0) {
+      setSelectedSessionId(null);
+      setSelectedSession(null);
+      return;
+    }
+    if (!selectedSessionId || !sessions.some((item) => item.id === selectedSessionId)) {
+      setSelectedSessionId(sessions[0].id);
+    }
+  }, [draftId, selectedSessionId, sessions]);
+
+  useEffect(() => {
+    if (!selectedSessionId) return;
+    refreshSelectedSession(selectedSessionId).catch((err) => setError((err as Error).message));
+    const search = searchParams.toString();
+    navigate(
+      {
+        pathname: `/app/drafts/${selectedSessionId}`,
+        search: search ? `?${search}` : "",
+      },
+      { replace: true }
+    );
+  }, [navigate, refreshSelectedSession, searchParams, selectedSessionId]);
+
+  useEffect(() => {
+    if (!selectedSessionId) return;
+    refreshSessionRevisions().catch((err) => setError((err as Error).message));
+  }, [refreshSessionRevisions, selectedSessionId]);
+
+  useEffect(() => {
+    if (revisionPage > revisionTotalPages) setRevisionPage(revisionTotalPages);
+  }, [revisionPage, revisionTotalPages]);
+
+  const openCreate = () => {
+    setShowCreateModal(true);
+    setNewSessionTitle(NEW_DRAFT_DEFAULT_TITLE);
+    setNewSessionKind("blueprint");
+    setNewSessionNamespace(filterNamespace || "core");
+    setNewSessionProjectKey(filterProjectKey || "");
+    setNewSessionGenerateCode(false);
+    setNewSessionPrompt("");
+    setNewSessionTranscript("");
+    setDidManuallyEditCreatePacks(false);
+    setSelectedCreateContextPackIds([]);
+  };
+
+  const handleCreateSession = async () => {
+    try {
+      setCreatingSession(true);
+      setError(null);
+      const created = await createDraftSession({
+        title: newSessionTitle.trim() || NEW_DRAFT_DEFAULT_TITLE,
+        kind: newSessionKind,
+        namespace: newSessionNamespace.trim() || undefined,
+        project_key: newSessionProjectKey.trim() || undefined,
+        generate_code: newSessionGenerateCode,
+        initial_prompt: newSessionPrompt.trim(),
+        selected_context_pack_ids:
+          selectedCreateContextPackIds.length > 0 ? selectedCreateContextPackIds : undefined,
+        source_artifacts: newSessionTranscript.trim()
+          ? [{ type: "audio_transcript", content: newSessionTranscript.trim() }]
+          : undefined,
+      });
+      await refreshSessions();
+      setSelectedSessionId(created.session_id);
+      setShowCreateModal(false);
+      setMessage(`Draft session created: ${created.session_id}`);
+    } catch (err) {
+      setError((err as Error).message);
+    } finally {
+      setCreatingSession(false);
+    }
+  };
+
+  const handleUpdateSessionMetadata = async () => {
+    if (!selectedSessionId || !selectedSession) return;
+    try {
+      setLoading(true);
+      setError(null);
+      await updateDraftSession(selectedSessionId, {
+        title: selectedSession.title || selectedSession.id,
+        kind: (selectedSession.kind as "blueprint" | "solution") || "blueprint",
+        namespace: selectedSession.namespace || undefined,
+        project_key: selectedSession.project_key || undefined,
+        initial_prompt: selectedSession.initial_prompt || "",
+        revision_instruction: revisionInstruction || selectedSession.revision_instruction || "",
+        selected_context_pack_ids: sessionContextPackIds,
+        source_artifacts: selectedSession.source_artifacts,
+      });
+      await refreshSelectedSession(selectedSessionId);
+      setMessage("Draft session updated.");
+    } catch (err) {
+      setError((err as Error).message);
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const handleDeleteSession = async () => {
+    if (!selectedSessionId) return;
+    if (!confirm("Delete this draft session?")) return;
+    try {
+      setLoading(true);
+      setError(null);
+      await deleteDraftSession(selectedSessionId);
+      await refreshSessions();
+      setSelectedSessionId(null);
+      navigate("/app/drafts", { replace: true });
+      setMessage("Draft session deleted.");
+    } catch (err) {
+      setError((err as Error).message);
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const handleResolveContext = async () => {
+    if (!selectedSessionId) return;
+    try {
+      setLoading(true);
+      setError(null);
+      await resolveDraftSessionContext(selectedSessionId, { context_pack_ids: sessionContextPackIds });
+      await refreshSelectedSession(selectedSessionId);
+      setMessage("Context resolved.");
+    } catch (err) {
+      setError((err as Error).message);
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const handleGenerateDraft = async () => {
+    if (!selectedSessionId || !selectedSession) return;
+    try {
+      setLoading(true);
+      setError(null);
+      await updateDraftSession(selectedSessionId, {
+        title: selectedSession.title || selectedSession.id,
+        kind: (selectedSession.kind as "blueprint" | "solution") || "blueprint",
+        namespace: selectedSession.namespace || undefined,
+        project_key: selectedSession.project_key || undefined,
+        initial_prompt: selectedSession.initial_prompt || "",
+        selected_context_pack_ids: sessionContextPackIds,
+        source_artifacts: selectedSession.source_artifacts,
+      });
+      await enqueueDraftGeneration(selectedSessionId);
+      await refreshSelectedSession(selectedSessionId);
+      await refreshSessionRevisions();
+      setMessage("Draft generation queued.");
+    } catch (err) {
+      setError((err as Error).message);
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const handleReviseDraft = async () => {
+    if (!selectedSessionId) return;
+    if (!selectedSession?.has_generated_output) {
+      setError("Revision instruction is only available after initial output is generated.");
+      return;
+    }
+    try {
+      setLoading(true);
+      setError(null);
+      await enqueueDraftRevision(selectedSessionId, { instruction: revisionInstruction });
+      setRevisionInstruction("");
+      await refreshSelectedSession(selectedSessionId);
+      await refreshSessionRevisions();
+      setMessage("Draft revision queued.");
+    } catch (err) {
+      setError((err as Error).message);
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const handleSaveDraft = async () => {
+    if (!selectedSessionId) return;
+    try {
+      setLoading(true);
+      setError(null);
+      const parsed = draftJsonText.trim().length > 0 ? JSON.parse(draftJsonText) : {};
+      await saveDraftSession(selectedSessionId, { draft_json: parsed });
+      await refreshSelectedSession(selectedSessionId);
+      await refreshSessionRevisions();
+      setMessage("Draft saved.");
+    } catch (err) {
+      setError((err as Error).message);
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const handlePublishDraft = async () => {
+    if (!selectedSessionId) return;
+    try {
+      setLoading(true);
+      setError(null);
+      await publishDraftSession(selectedSessionId);
+      await refreshSelectedSession(selectedSessionId);
+      await refreshSessionRevisions();
+      setMessage("Draft published.");
+    } catch (err) {
+      setError((err as Error).message);
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const openSubmitModal = () => {
+    const existingProjectKey = selectedSession?.project_key || "";
+    const [ns, ...rest] = existingProjectKey.split(".");
+    setSubmitNamespace(selectedSession?.namespace || ns || "core");
+    setSubmitBlueprintName(rest.join(".") || selectedSession?.title?.toLowerCase().replace(/\s+/g, "-") || "");
+    setShowSubmitModal(true);
+  };
+
+  const handleSubmitSession = async () => {
+    if (!selectedSessionId || !selectedSession) return;
+    const initialPrompt = (selectedSession.initial_prompt || "").trim();
+    if (!initialPrompt) {
+      setError("Initial prompt is required before submission.");
+      return;
+    }
+    const nextProjectKey = `${submitNamespace.trim()}.${submitBlueprintName.trim()}`.replace(/^\./, "");
+    if (!submitNamespace.trim() || !submitBlueprintName.trim()) {
+      setError("Blueprint namespace and name are required.");
+      return;
+    }
+    const packNamesById = new Map(contextPacks.map((pack) => [pack.id, pack.name]));
+    const selectedNames = new Set((sessionContextPackIds || []).map((id) => packNamesById.get(id)).filter(Boolean));
+    const missingRequired = requiredPackNames.filter((name) => !selectedNames.has(name));
+    if (missingRequired.length > 0) {
+      setError(`Missing required context packs: ${missingRequired.join(", ")}`);
+      return;
+    }
+    try {
+      setLoading(true);
+      setError(null);
+      await updateDraftSession(selectedSessionId, {
+        title: selectedSession.title || selectedSession.id,
+        kind: (selectedSession.kind as "blueprint" | "solution") || "blueprint",
+        namespace: submitNamespace.trim(),
+        project_key: nextProjectKey,
+        initial_prompt: selectedSession.initial_prompt || "",
+        selected_context_pack_ids: sessionContextPackIds,
+        source_artifacts: selectedSession.source_artifacts,
+      });
+      const result = await submitDraftSession(selectedSessionId, {
+        initial_prompt: initialPrompt,
+        selected_context_pack_ids: sessionContextPackIds,
+        source_artifacts: selectedSession.source_artifacts,
+        generate_code: selectedSession.kind === "solution",
+      });
+      setShowSubmitModal(false);
+      await refreshSelectedSession(selectedSessionId);
+      await refreshSessionRevisions();
+      setMessage(
+        `Submitted ${selectedSession.kind === "solution" ? "as Solution" : "as Blueprint"} (${result.status}).`
+      );
+      if (result.entity_type === "blueprint" && result.entity_id) {
+        setMessage((prev) => `${prev || "Submitted."} Open blueprint: /app/blueprints`);
+      }
+    } catch (err) {
+      setError((err as Error).message);
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const handleVoiceUpload = async (event: ChangeEvent<HTMLInputElement>) => {
+    if (!event.target.files || event.target.files.length === 0 || !selectedSessionId) return;
+    try {
+      setUploading(true);
+      setError(null);
+      const file = event.target.files[0];
+      const uploaded = await uploadVoiceNote(file, { session_id: selectedSessionId, language_code: "en-US" });
+      await enqueueVoiceNoteTranscription(uploaded.voice_note_id);
+      const notes = await listDraftSessionVoiceNotes(selectedSessionId);
+      setVoiceNotes(notes.voice_notes);
+      setMessage("Recording uploaded and queued for transcription.");
+    } catch (err) {
+      setError((err as Error).message);
+    } finally {
+      setUploading(false);
+      event.target.value = "";
+    }
+  };
+
+  const addTranscriptToPromptSources = (text: string) => {
+    if (!selectedSession || !text.trim()) return;
+    setSelectedSession((prev) => {
+      if (!prev) return prev;
+      const existing = (prev.source_artifacts ?? []).filter((item) => item.type !== "audio_transcript");
+      const current = (prev.source_artifacts ?? []).find((item) => item.type === "audio_transcript")?.content ?? "";
+      const merged = current.includes(text) ? current : [current.trim(), text.trim()].filter(Boolean).join("\n\n");
+      return { ...prev, source_artifacts: [...existing, { type: "audio_transcript", content: merged }] };
+    });
+  };
+
+  return (
+    <>
+      <div className="page-header">
+        <div>
+          <h2>Draft Sessions</h2>
+          <p className="muted">Create and iterate blueprint/solution drafts independently from blueprint browsing.</p>
+        </div>
+        <div className="inline-actions">
+          <button className="ghost" onClick={() => refreshSessions()} disabled={loading}>
+            Refresh
+          </button>
+          <button className="primary" onClick={openCreate}>
+            New draft session
+          </button>
+        </div>
+      </div>
+
+      {error && <InlineMessage tone="error" title="Request failed" body={error} />}
+      {message && <InlineMessage tone="info" title="Update" body={message} />}
+
+      <div className="layout">
+        <section className="card">
+          <div className="card-header">
+            <h3>Draft sessions</h3>
+          </div>
+          <div className="form-grid">
+            <label>
+              Search
+              <input value={filterQ} onChange={(event) => setFilterQ(event.target.value)} placeholder="Filter drafts..." />
+            </label>
+            <label>
+              Status
+              <select value={filterStatus} onChange={(event) => setFilterStatus(event.target.value)}>
+                <option value="">All</option>
+                <option value="drafting">drafting</option>
+                <option value="queued">queued</option>
+                <option value="ready">ready</option>
+                <option value="ready_with_errors">ready_with_errors</option>
+                <option value="published">published</option>
+                <option value="archived">archived</option>
+                <option value="failed">failed</option>
+              </select>
+            </label>
+            <label>
+              Kind
+              <select value={filterKind} onChange={(event) => setFilterKind(event.target.value as "" | "blueprint" | "solution")}>
+                <option value="">All</option>
+                <option value="blueprint">blueprint</option>
+                <option value="solution">solution</option>
+              </select>
+            </label>
+            <label>
+              Namespace
+              <input value={filterNamespace} onChange={(event) => setFilterNamespace(event.target.value)} />
+            </label>
+            <label className="span-full">
+              Project key
+              <input value={filterProjectKey} onChange={(event) => setFilterProjectKey(event.target.value)} />
+            </label>
+          </div>
+          <div className="form-actions">
+            <button className="ghost" onClick={() => refreshSessions()} disabled={loading}>
+              Apply filters
+            </button>
+            <button
+              className="ghost"
+              onClick={() => {
+                setFilterQ("");
+                setFilterStatus("");
+                setFilterKind("");
+                setFilterNamespace("");
+                setFilterProjectKey("");
+              }}
+              disabled={loading}
+            >
+              Clear
+            </button>
+          </div>
+          <div className="instance-list">
+            {sessions.map((session) => (
+              <button
+                key={session.id}
+                className={`instance-row ${selectedSessionId === session.id ? "active" : ""}`}
+                onClick={() => setSelectedSessionId(session.id)}
+              >
+                <div>
+                  <strong>{session.title || session.name}</strong>
+                  <span className="muted small">
+                    {(session.kind || "blueprint")} {session.project_key ? `• ${session.project_key}` : ""}
+                  </span>
+                </div>
+                <span className="muted small">{session.status}</span>
+              </button>
+            ))}
+            {sessions.length === 0 && <p className="muted">No draft sessions found.</p>}
+          </div>
+        </section>
+
+        <section className="card">
+          {!selectedSession ? (
+            <div className="stack">
+              <h3>Draft detail</h3>
+              <p className="muted">Select a draft session to view details.</p>
+              <p className="muted">
+                Looking for blueprints? <Link to="/app/blueprints">Go to Blueprints</Link>
+              </p>
+            </div>
+          ) : (
+            <div className="draft-session-layout">
+              <section className="draft-section">
+                <div className="card-header">
+                  <h4>Session</h4>
+                  <div className="inline-actions">
+                    <button className="ghost" onClick={handleUpdateSessionMetadata} disabled={loading}>
+                      Save metadata
+                    </button>
+                    <button className="danger" onClick={handleDeleteSession} disabled={loading}>
+                      Delete
+                    </button>
+                  </div>
+                </div>
+                <label className="stacked-field">
+                  Title
+                  <input
+                    value={selectedSession.title || ""}
+                    onChange={(event) =>
+                      setSelectedSession((prev) => (prev ? { ...prev, title: event.target.value } : prev))
+                    }
+                  />
+                </label>
+                <div className="form-grid">
+                  <label>
+                    Draft kind
+                    <select
+                      value={selectedSession.kind || "blueprint"}
+                      onChange={async (event) => {
+                        const nextKind = event.target.value as "blueprint" | "solution";
+                        setSelectedSession((prev) => (prev ? { ...prev, kind: nextKind } : prev));
+                        const defaults = await getContextPackDefaults({
+                          draft_kind: nextKind,
+                          namespace: selectedSession.namespace ?? undefined,
+                          project_key: selectedSession.project_key ?? undefined,
+                          generate_code: nextKind === "solution",
+                        });
+                        setRecommendedSessionPackIds(defaults.recommended_context_pack_ids);
+                        setRequiredPackNames(defaults.required_pack_names);
+                      }}
+                    >
+                      <option value="blueprint">Blueprint draft</option>
+                      <option value="solution">Solution draft</option>
+                    </select>
+                  </label>
+                  <label>
+                    Namespace
+                    <input
+                      value={selectedSession.namespace ?? ""}
+                      onChange={(event) =>
+                        setSelectedSession((prev) => (prev ? { ...prev, namespace: event.target.value } : prev))
+                      }
+                    />
+                  </label>
+                  <label className="span-full">
+                    Project key (optional)
+                    <input
+                      value={selectedSession.project_key ?? ""}
+                      onChange={(event) =>
+                        setSelectedSession((prev) => (prev ? { ...prev, project_key: event.target.value } : prev))
+                      }
+                    />
+                  </label>
+                </div>
+                <div className="detail-grid draft-session-meta">
+                  <div>
+                    <div className="label">Status</div>
+                    <span className="muted">{selectedSession.status}</span>
+                  </div>
+                  <div>
+                    <div className="label">Job ID</div>
+                    <span className="muted draft-inline-wrap">{selectedSession.job_id ?? "—"}</span>
+                  </div>
+                  <div>
+                    <div className="label">Context hash</div>
+                    <span className="muted draft-inline-wrap">{selectedSession.effective_context_hash ?? "—"}</span>
+                  </div>
+                  <div>
+                    <div className="label">Blueprint kind</div>
+                    <span className="muted">{selectedSession.blueprint_kind}</span>
+                  </div>
+                </div>
+              </section>
+
+              <section className="draft-section">
+                <h4>Context packs</h4>
+                <div className="inline-actions draft-context-filters">
+                  <select
+                    value={contextPackPurposeFilter}
+                    onChange={(event) => setContextPackPurposeFilter(event.target.value as "all" | "planner" | "coder")}
+                  >
+                    <option value="all">Purpose: all</option>
+                    <option value="planner">Purpose: planner</option>
+                    <option value="coder">Purpose: coder</option>
+                  </select>
+                  <select
+                    value={contextPackScopeFilter}
+                    onChange={(event) =>
+                      setContextPackScopeFilter(event.target.value as "all" | "global" | "namespace" | "project")
+                    }
+                  >
+                    <option value="all">Scope: all</option>
+                    <option value="global">Scope: global</option>
+                    <option value="namespace">Scope: namespace</option>
+                    <option value="project">Scope: project</option>
+                  </select>
+                </div>
+                <label className="stacked-field">
+                  Context packs for session
+                  <select
+                    className="draft-pack-select"
+                    multiple
+                    size={Math.min(Math.max(filteredContextPacks.length, 3), 8)}
+                    value={sessionContextPackIds}
+                    onChange={(event) =>
+                      setSessionContextPackIds(Array.from(event.target.selectedOptions).map((opt) => opt.value))
+                    }
+                  >
+                    {filteredContextPacks.map((pack) => (
+                      <option key={pack.id} value={pack.id}>
+                        {pack.name} ({pack.scope}) v{pack.version} [{pack.purpose}]
+                        {pack.namespace ? ` ns:${pack.namespace}` : ""}
+                        {pack.project_key ? ` project:${pack.project_key}` : ""}
+                      </option>
+                    ))}
+                  </select>
+                </label>
+                <span className="muted small">
+                  Required defaults: {requiredPackNames.length > 0 ? requiredPackNames.join(", ") : "none"}
+                </span>
+                <span className="muted small">
+                  Recommended defaults:{" "}
+                  {recommendedSessionPackIds.length > 0
+                    ? recommendedSessionPackIds
+                        .map((id) => contextPacks.find((pack) => pack.id === id)?.name ?? id)
+                        .join(", ")
+                    : "none"}
+                </span>
+              </section>
+
+              <section className="draft-section">
+                <h4>Workflow</h4>
+                <div className="inline-actions draft-workflow-actions">
+                  <button className="ghost" onClick={handleResolveContext} disabled={loading}>
+                    1. Resolve context
+                  </button>
+                  <button className="ghost" onClick={handleGenerateDraft} disabled={loading}>
+                    2. Generate draft
+                  </button>
+                  <button className="ghost" onClick={handlePublishDraft} disabled={loading}>
+                    3. Publish draft
+                  </button>
+                  <button className="primary" onClick={openSubmitModal} disabled={loading}>
+                    4. {selectedSession.kind === "solution" ? "Submit as Solution" : "Submit as Blueprint"}
+                  </button>
+                </div>
+              </section>
+
+              <section className="draft-section">
+                <h4>Prompt</h4>
+                <label className="stacked-field">
+                  Initial prompt
+                  <textarea
+                    rows={8}
+                    value={selectedSession.initial_prompt ?? ""}
+                    disabled={Boolean(selectedSession.initial_prompt_locked)}
+                    onChange={(event) =>
+                      setSelectedSession((prev) => (prev ? { ...prev, initial_prompt: event.target.value } : prev))
+                    }
+                  />
+                </label>
+                {selectedSession.initial_prompt_locked && (
+                  <span className="muted small">
+                    Initial prompt is locked after first generation. Use revision instructions for changes.
+                  </span>
+                )}
+                <label className="stacked-field">
+                  Prompt sources: Add transcript text
+                  <textarea
+                    rows={6}
+                    value={selectedSessionVoiceTranscript}
+                    onChange={(event) =>
+                      setSelectedSession((prev) => {
+                        if (!prev) return prev;
+                        const others = (prev.source_artifacts ?? []).filter((item) => item.type !== "audio_transcript");
+                        const next = event.target.value.trim();
+                        return {
+                          ...prev,
+                          source_artifacts: next ? [...others, { type: "audio_transcript", content: next }] : others,
+                        };
+                      })
+                    }
+                  />
+                </label>
+              </section>
+
+              <section className="draft-section">
+                <div className="card-header">
+                  <h4>Voice recordings</h4>
+                  <button
+                    className="ghost"
+                    onClick={async () => {
+                      if (!selectedSessionId) return;
+                      const notes = await listDraftSessionVoiceNotes(selectedSessionId);
+                      setVoiceNotes(notes.voice_notes);
+                    }}
+                    disabled={loading}
+                  >
+                    Refresh
+                  </button>
+                </div>
+                <label className="file-input">
+                  <input type="file" accept="audio/*" onChange={handleVoiceUpload} disabled={uploading || !selectedSessionId} />
+                  <span className="button-like">{uploading ? "Uploading..." : "Upload recording"}</span>
+                </label>
+                {voiceNotes.length === 0 ? (
+                  <p className="muted">No recordings yet.</p>
+                ) : (
+                  voiceNotes.map((note) => (
+                    <div key={note.id} className="item-row">
+                      <div>
+                        <strong>{note.title || "Recording"}</strong>
+                        <span className="muted small">{note.status}</span>
+                        {note.transcript_text && <span className="muted small">{note.transcript_text}</span>}
+                      </div>
+                      <div className="inline-actions">
+                        {note.transcript_text && (
+                          <button className="ghost small" onClick={() => addTranscriptToPromptSources(note.transcript_text || "")}>
+                            Add transcript to prompt sources
+                          </button>
+                        )}
+                        <span className="muted small">{note.created_at ?? "—"}</span>
+                      </div>
+                    </div>
+                  ))
+                )}
+              </section>
+
+              <section className="draft-section">
+                <h4>Revision</h4>
+                <label className="stacked-field">
+                  Revision instruction (for changes after initial draft)
+                  <textarea
+                    rows={4}
+                    value={revisionInstruction || selectedSession.revision_instruction || ""}
+                    onChange={(event) => setRevisionInstruction(event.target.value)}
+                    disabled={!selectedSession.has_generated_output || !(selectedSession.initial_prompt ?? "").trim()}
+                  />
+                </label>
+                <span className="muted small">Use this only after an initial draft has been generated.</span>
+                <button className="ghost" onClick={handleReviseDraft} disabled={loading || !selectedSession.has_generated_output}>
+                  Revise draft
+                </button>
+              </section>
+
+              <section className="draft-section">
+                <div className="card-header">
+                  <h4>Revisions</h4>
+                </div>
+                <label className="stacked-field">
+                  Search revisions
+                  <input
+                    value={revisionSearch}
+                    placeholder="Search by instruction, summary, or diff..."
+                    onChange={(event) => {
+                      setRevisionSearch(event.target.value);
+                      setRevisionPage(1);
+                    }}
+                  />
+                </label>
+                {sessionRevisions.length === 0 ? (
+                  <span className="muted">No revisions yet.</span>
+                ) : (
+                  <div className="instance-list">
+                    {sessionRevisions.map((rev) => (
+                      <div key={rev.id} className="instance-row">
+                        <div>
+                          <strong>
+                            r{rev.revision_number} • {rev.action}
+                          </strong>
+                          <span className="muted small">{rev.instruction || rev.diff_summary || "No instruction"}</span>
+                        </div>
+                        <div className="stack" style={{ alignItems: "flex-end", gap: 4 }}>
+                          <span className="muted small">{new Date(rev.created_at).toLocaleString()}</span>
+                          <span className="muted small">Errors: {rev.validation_errors_count}</span>
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                )}
+                <div className="inline-actions">
+                  <button
+                    className="ghost small"
+                    onClick={() => setRevisionPage((prev) => Math.max(1, prev - 1))}
+                    disabled={revisionPage <= 1}
+                  >
+                    Prev
+                  </button>
+                  <span className="muted small">
+                    Page {revisionPage} / {revisionTotalPages}
+                  </span>
+                  <button
+                    className="ghost small"
+                    onClick={() => setRevisionPage((prev) => Math.min(revisionTotalPages, prev + 1))}
+                    disabled={revisionPage >= revisionTotalPages}
+                  >
+                    Next
+                  </button>
+                </div>
+              </section>
+
+              <section className="draft-section">
+                <div className="card-header">
+                  <h4>Draft output</h4>
+                  <button className="ghost" onClick={handleSaveDraft} disabled={loading}>
+                    Save draft JSON
+                  </button>
+                </div>
+                <label className="stacked-field">
+                  Draft JSON
+                  <textarea className="draft-json-editor" rows={16} value={draftJsonText} onChange={(event) => setDraftJsonText(event.target.value)} />
+                </label>
+                {selectedSession.requirements_summary && (
+                  <div className="stack">
+                    <strong>Requirements summary</strong>
+                    <pre className="draft-output-pre">{selectedSession.requirements_summary}</pre>
+                  </div>
+                )}
+                {selectedSession.diff_summary && (
+                  <div className="stack">
+                    <strong>Diff summary</strong>
+                    <pre className="draft-output-pre">{selectedSession.diff_summary}</pre>
+                  </div>
+                )}
+                <div className="stack">
+                  <strong>Validation errors</strong>
+                  {(selectedSession.validation_errors ?? []).length === 0 ? (
+                    <span className="muted">No validation errors.</span>
+                  ) : (
+                    (selectedSession.validation_errors ?? []).map((err) => (
+                      <span key={err} className="muted">
+                        {err}
+                      </span>
+                    ))
+                  )}
+                </div>
+                <div className="stack">
+                  <strong>Effective context preview</strong>
+                  <pre className="draft-output-pre">{selectedSession.effective_context_preview ?? "No context preview."}</pre>
+                </div>
+              </section>
+            </div>
+          )}
+        </section>
+      </div>
+
+      {showCreateModal && (
+        <div className="modal-backdrop" onClick={() => setShowCreateModal(false)}>
+          <section className="modal" onClick={(event) => event.stopPropagation()}>
+            <h3>New draft session</h3>
+            <div className="form-grid">
+              <label className="span-full">
+                Title
+                <input value={newSessionTitle} onChange={(event) => setNewSessionTitle(event.target.value)} />
+              </label>
+              <label>
+                Draft kind
+                <select
+                  value={newSessionKind}
+                  onChange={async (event) => {
+                    const nextKind = event.target.value as "blueprint" | "solution";
+                    setNewSessionKind(nextKind);
+                    if (nextKind === "blueprint") setNewSessionGenerateCode(false);
+                    await refreshRecommendedCreateContextPacks({
+                      kind: nextKind,
+                      generateCode: nextKind === "solution" ? newSessionGenerateCode : false,
+                      promptOnReset: true,
+                    });
+                  }}
+                >
+                  <option value="blueprint">Blueprint draft</option>
+                  <option value="solution">Solution draft</option>
+                </select>
+              </label>
+              <label>
+                Namespace (optional)
+                <input
+                  value={newSessionNamespace}
+                  onChange={async (event) => {
+                    const namespace = event.target.value;
+                    setNewSessionNamespace(namespace);
+                    await refreshRecommendedCreateContextPacks({ namespace, promptOnReset: true });
+                  }}
+                />
+              </label>
+              <label className="span-full">
+                Project key (optional)
+                <input
+                  value={newSessionProjectKey}
+                  onChange={async (event) => {
+                    const projectKey = event.target.value;
+                    setNewSessionProjectKey(projectKey);
+                    await refreshRecommendedCreateContextPacks({ projectKey, promptOnReset: true });
+                  }}
+                />
+              </label>
+              <label className="span-full checkbox">
+                <input
+                  type="checkbox"
+                  checked={newSessionGenerateCode}
+                  disabled={newSessionKind === "blueprint"}
+                  onChange={async (event) => {
+                    const checked = event.target.checked;
+                    setNewSessionGenerateCode(checked);
+                    await refreshRecommendedCreateContextPacks({ generateCode: checked, promptOnReset: true });
+                  }}
+                />
+                Generate implementation/code
+              </label>
+              <label className="span-full">
+                Initial prompt
+                <textarea rows={5} value={newSessionPrompt} onChange={(event) => setNewSessionPrompt(event.target.value)} />
+              </label>
+              <label className="span-full">
+                Add transcript text (optional)
+                <textarea rows={4} value={newSessionTranscript} onChange={(event) => setNewSessionTranscript(event.target.value)} />
+              </label>
+              <label className="span-full">
+                Context packs
+                <select
+                  multiple
+                  size={Math.min(Math.max(filteredContextPacks.length, 3), 8)}
+                  value={selectedCreateContextPackIds}
+                  onChange={(event) => {
+                    setDidManuallyEditCreatePacks(true);
+                    setSelectedCreateContextPackIds(Array.from(event.target.selectedOptions).map((opt) => opt.value));
+                  }}
+                >
+                  {filteredContextPacks.map((pack) => (
+                    <option key={pack.id} value={pack.id}>
+                      {pack.name} ({pack.scope}) v{pack.version} [{pack.purpose}]
+                      {pack.namespace ? ` ns:${pack.namespace}` : ""}
+                      {pack.project_key ? ` project:${pack.project_key}` : ""}
+                    </option>
+                  ))}
+                </select>
+              </label>
+            </div>
+            <div className="form-actions" style={{ marginTop: 12 }}>
+              <button className="primary" onClick={handleCreateSession} disabled={creatingSession}>
+                {creatingSession ? "Creating..." : "Create draft session"}
+              </button>
+              <button className="ghost" onClick={() => setShowCreateModal(false)} disabled={creatingSession}>
+                Cancel
+              </button>
+            </div>
+          </section>
+        </div>
+      )}
+
+      {showSubmitModal && (
+        <div className="modal-backdrop" onClick={() => setShowSubmitModal(false)}>
+          <section className="modal" onClick={(event) => event.stopPropagation()}>
+            <h3>Submit as Blueprint</h3>
+            <p className="muted">Confirm the blueprint namespace/name this draft should write to.</p>
+            <div className="form-grid">
+              <label>
+                Blueprint namespace
+                <input value={submitNamespace} onChange={(event) => setSubmitNamespace(event.target.value)} />
+              </label>
+              <label>
+                Blueprint name
+                <input value={submitBlueprintName} onChange={(event) => setSubmitBlueprintName(event.target.value)} />
+              </label>
+              <label className="span-full">
+                Project key
+                <input value={`${submitNamespace}.${submitBlueprintName}`.replace(/^\./, "")} readOnly />
+              </label>
+            </div>
+            <div className="form-actions" style={{ marginTop: 12 }}>
+              <button className="primary" onClick={handleSubmitSession} disabled={loading}>
+                Confirm submit
+              </button>
+              <button className="ghost" onClick={() => setShowSubmitModal(false)} disabled={loading}>
+                Cancel
+              </button>
+            </div>
+          </section>
+        </div>
+      )}
+    </>
+  );
+}

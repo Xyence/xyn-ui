@@ -480,6 +480,26 @@ export async function listBlueprintDraftSessions(
   return handle<{ sessions: BlueprintDraftSession[] }>(response);
 }
 
+export async function listDraftSessions(params: {
+  status?: string;
+  kind?: "blueprint" | "solution";
+  namespace?: string;
+  project_key?: string;
+  blueprint_id?: string;
+  q?: string;
+} = {}): Promise<{ sessions: BlueprintDraftSession[] }> {
+  const apiBaseUrl = resolveApiBaseUrl();
+  const url = new URL(`${apiBaseUrl}/xyn/api/draft-sessions`);
+  if (params.status) url.searchParams.set("status", params.status);
+  if (params.kind) url.searchParams.set("kind", params.kind);
+  if (params.namespace) url.searchParams.set("namespace", params.namespace);
+  if (params.project_key) url.searchParams.set("project_key", params.project_key);
+  if (params.blueprint_id) url.searchParams.set("blueprint_id", params.blueprint_id);
+  if (params.q) url.searchParams.set("q", params.q);
+  const response = await apiFetch(url.toString(), { credentials: "include" });
+  return handle<{ sessions: BlueprintDraftSession[] }>(response);
+}
+
 export async function listReleaseTargets(blueprintId?: string): Promise<ReleaseTargetListResponse> {
   const apiBaseUrl = resolveApiBaseUrl();
   const url = new URL(`${apiBaseUrl}/xyn/api/release-targets`);
@@ -610,6 +630,32 @@ export async function createBlueprintDraftSession(
 ): Promise<{ session_id: string }> {
   const apiBaseUrl = resolveApiBaseUrl();
   const response = await apiFetch(`${apiBaseUrl}/xyn/api/blueprints/${blueprintId}/draft-sessions`, {
+    method: "POST",
+    headers: buildHeaders(),
+    credentials: "include",
+    body: JSON.stringify(payload),
+  });
+  return handle<{ session_id: string }>(response);
+}
+
+export async function createDraftSession(payload: {
+  name?: string;
+  title?: string;
+  kind?: "blueprint" | "solution";
+  draft_kind?: "blueprint" | "solution";
+  blueprint_kind?: string;
+  namespace?: string;
+  project_key?: string;
+  initial_prompt?: string;
+  revision_instruction?: string;
+  generate_code?: boolean;
+  blueprint_id?: string;
+  context_pack_ids?: string[];
+  selected_context_pack_ids?: string[];
+  source_artifacts?: Array<{ type: "text" | "audio_transcript"; content: string; meta?: Record<string, unknown> }>;
+}): Promise<{ session_id: string }> {
+  const apiBaseUrl = resolveApiBaseUrl();
+  const response = await apiFetch(`${apiBaseUrl}/xyn/api/draft-sessions`, {
     method: "POST",
     headers: buildHeaders(),
     credentials: "include",
@@ -803,6 +849,16 @@ export async function listBlueprintVoiceNotes(
 ): Promise<{ voice_notes: BlueprintVoiceNote[] }> {
   const apiBaseUrl = resolveApiBaseUrl();
   const response = await apiFetch(`${apiBaseUrl}/xyn/api/blueprints/${blueprintId}/voice-notes`, {
+    credentials: "include",
+  });
+  return handle<{ voice_notes: BlueprintVoiceNote[] }>(response);
+}
+
+export async function listDraftSessionVoiceNotes(
+  sessionId: string
+): Promise<{ voice_notes: BlueprintVoiceNote[] }> {
+  const apiBaseUrl = resolveApiBaseUrl();
+  const response = await apiFetch(`${apiBaseUrl}/xyn/api/draft-sessions/${sessionId}/voice-notes`, {
     credentials: "include",
   });
   return handle<{ voice_notes: BlueprintVoiceNote[] }>(response);

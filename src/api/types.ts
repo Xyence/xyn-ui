@@ -90,6 +90,7 @@ export type BlueprintSummary = {
   created_at?: string;
   updated_at?: string;
   latest_revision?: number | null;
+  active_draft_count?: number;
 };
 
 export type BlueprintDetail = BlueprintSummary & {
@@ -113,6 +114,10 @@ export type BlueprintDraftSession = {
   kind?: "blueprint" | "solution";
   status: string;
   blueprint_kind: string;
+  namespace?: string | null;
+  project_key?: string | null;
+  blueprint_id?: string | null;
+  linked_blueprint_id?: string | null;
   created_at?: string;
   updated_at?: string;
 };
