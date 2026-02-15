@@ -194,7 +194,7 @@ export type BlueprintDraftSessionDetail = {
     environment_selector?: { id?: string; slug?: string; name?: string };
     target_instance_selector?: { id?: string; name?: string };
     fqdn?: string;
-    tls_mode?: "none" | "nginx+acme";
+    tls_mode?: "none" | "nginx+acme" | "host-ingress";
     dns_provider?: "route53";
     runtime?: { type?: string; transport?: string; mode?: string; remote_root?: string };
     notes?: string[];

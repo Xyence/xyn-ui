@@ -90,7 +90,7 @@ export default function DraftSessionsPage() {
   const [submitEnvironmentId, setSubmitEnvironmentId] = useState("");
   const [submitInstanceId, setSubmitInstanceId] = useState("");
   const [submitHostname, setSubmitHostname] = useState("");
-  const [submitTlsMode, setSubmitTlsMode] = useState<"none" | "nginx+acme">("none");
+  const [submitTlsMode, setSubmitTlsMode] = useState<"none" | "nginx+acme" | "host-ingress">("host-ingress");
   const [submitRemoteRoot, setSubmitRemoteRoot] = useState("");
   const [environments, setEnvironments] = useState<EnvironmentSummary[]>([]);
   const [instances, setInstances] = useState<ProvisionedInstance[]>([]);
@@ -602,7 +602,10 @@ export default function DraftSessionsPage() {
     setSubmitEnvironmentId(resolved?.environment_id || "");
     setSubmitInstanceId(resolved?.instance_id || "");
     setSubmitHostname(resolved?.fqdn || "");
-    setSubmitTlsMode((selectedSession?.extracted_release_target_intent?.tls_mode as "none" | "nginx+acme" | undefined) || "none");
+    setSubmitTlsMode(
+      (selectedSession?.extracted_release_target_intent?.tls_mode as "none" | "nginx+acme" | "host-ingress" | undefined) ||
+        "host-ingress"
+    );
     const runtime = selectedSession?.extracted_release_target_intent?.runtime;
     setSubmitRemoteRoot((runtime && typeof runtime === "object" ? String((runtime as Record<string, unknown>).remote_root || "") : "") || "");
     setShowSubmitModal(true);
@@ -1425,7 +1428,11 @@ export default function DraftSessionsPage() {
               </label>
               <label>
                 TLS mode
-                <select value={submitTlsMode} onChange={(event) => setSubmitTlsMode(event.target.value as "none" | "nginx+acme")}>
+                <select
+                  value={submitTlsMode}
+                  onChange={(event) => setSubmitTlsMode(event.target.value as "none" | "nginx+acme" | "host-ingress")}
+                >
+                  <option value="host-ingress">host-ingress (Traefik)</option>
                   <option value="none">none</option>
                   <option value="nginx+acme">nginx+acme</option>
                 </select>
