@@ -188,6 +188,8 @@ export type BlueprintDraftSessionDetail = {
   selected_context_pack_ids?: string[];
   effective_context_hash?: string | null;
   effective_context_preview?: string | null;
+  context_resolved_at?: string | null;
+  context_stale?: boolean;
   created_at?: string;
   updated_at?: string;
 };
@@ -195,7 +197,7 @@ export type BlueprintDraftSessionDetail = {
 export type DraftSessionRevision = {
   id: string;
   revision_number: number;
-  action: "generate" | "revise" | "save" | "submit";
+  action: "generate" | "revise" | "save" | "snapshot" | "submit";
   instruction?: string;
   created_at: string;
   validation_errors_count: number;

@@ -724,7 +724,13 @@ export async function deleteDraftSession(sessionId: string): Promise<{ status: s
 
 export async function enqueueDraftGeneration(
   sessionId: string
-): Promise<{ status: string; job_id: string }> {
+): Promise<{
+  status: string;
+  job_id: string;
+  effective_context_hash?: string;
+  context_resolved_at?: string | null;
+  context_stale?: boolean;
+}> {
   const apiBaseUrl = resolveApiBaseUrl();
   const response = await apiFetch(
     `${apiBaseUrl}/xyn/api/draft-sessions/${sessionId}/enqueue-draft-generation`,
@@ -733,7 +739,13 @@ export async function enqueueDraftGeneration(
       credentials: "include",
     }
   );
-  return handle<{ status: string; job_id: string }>(response);
+  return handle<{
+    status: string;
+    job_id: string;
+    effective_context_hash?: string;
+    context_resolved_at?: string | null;
+    context_stale?: boolean;
+  }>(response);
 }
 
 export async function enqueueDraftRevision(
@@ -756,7 +768,13 @@ export async function enqueueDraftRevision(
 export async function resolveDraftSessionContext(
   sessionId: string,
   payload: { context_pack_ids?: string[] } = {}
-): Promise<{ context_pack_refs: unknown[]; effective_context_hash?: string; effective_context_preview?: string }> {
+): Promise<{
+  context_pack_refs: unknown[];
+  effective_context_hash?: string;
+  effective_context_preview?: string;
+  context_resolved_at?: string | null;
+  context_stale?: boolean;
+}> {
   const apiBaseUrl = resolveApiBaseUrl();
   const response = await apiFetch(`${apiBaseUrl}/xyn/api/draft-sessions/${sessionId}/resolve-context`, {
     method: "POST",
@@ -768,6 +786,8 @@ export async function resolveDraftSessionContext(
     context_pack_refs: unknown[];
     effective_context_hash?: string;
     effective_context_preview?: string;
+    context_resolved_at?: string | null;
+    context_stale?: boolean;
   }>(response);
 }
 
@@ -787,13 +807,31 @@ export async function saveDraftSession(
 
 export async function publishDraftSession(
   sessionId: string
-): Promise<{ ok: boolean; entity_type?: string; entity_id?: string; revision?: number }> {
+): Promise<{ ok: boolean; deprecated?: boolean; snapshot_id?: string; session_id?: string; status?: string }> {
   const apiBaseUrl = resolveApiBaseUrl();
   const response = await apiFetch(`${apiBaseUrl}/xyn/api/draft-sessions/${sessionId}/publish`, {
     method: "POST",
     credentials: "include",
   });
-  return handle<{ ok: boolean; entity_type?: string; entity_id?: string; revision?: number }>(response);
+  return handle<{ ok: boolean; deprecated?: boolean; snapshot_id?: string; session_id?: string; status?: string }>(
+    response
+  );
+}
+
+export async function snapshotDraftSession(
+  sessionId: string,
+  payload: { note?: string } = {}
+): Promise<{ ok: boolean; snapshot_id?: string; session_id?: string; status?: string; updated_at?: string }> {
+  const apiBaseUrl = resolveApiBaseUrl();
+  const response = await apiFetch(`${apiBaseUrl}/xyn/api/draft-sessions/${sessionId}/snapshot`, {
+    method: "POST",
+    headers: buildHeaders(),
+    credentials: "include",
+    body: JSON.stringify(payload ?? {}),
+  });
+  return handle<{ ok: boolean; snapshot_id?: string; session_id?: string; status?: string; updated_at?: string }>(
+    response
+  );
 }
 
 export async function submitDraftSession(

@@ -13,9 +13,9 @@ import {
   listDraftSessionRevisions,
   listDraftSessionVoiceNotes,
   listDraftSessions,
-  publishDraftSession,
   resolveDraftSessionContext,
   saveDraftSession,
+  snapshotDraftSession,
   submitDraftSession,
   updateDraftSession,
   uploadVoiceNote,
@@ -27,6 +27,8 @@ import type {
   ContextPackSummary,
   DraftSessionRevision,
 } from "../../api/types";
+import Popover from "../components/ui/Popover";
+import { Menu, MenuItem } from "../components/ui/Menu";
 
 const NEW_DRAFT_DEFAULT_TITLE = "Untitled draft";
 
@@ -80,6 +82,8 @@ export default function DraftSessionsPage() {
   const [showSubmitModal, setShowSubmitModal] = useState(false);
   const [submitNamespace, setSubmitNamespace] = useState("");
   const [submitBlueprintName, setSubmitBlueprintName] = useState("");
+  const [showWorkflowMenu, setShowWorkflowMenu] = useState(false);
+  const [generationStepMessage, setGenerationStepMessage] = useState<string | null>(null);
 
   const [loading, setLoading] = useState(false);
   const [creatingSession, setCreatingSession] = useState(false);
@@ -102,6 +106,25 @@ export default function DraftSessionsPage() {
 
   const selectedSessionVoiceTranscript = useMemo(
     () => (selectedSession?.source_artifacts ?? []).find((item) => item.type === "audio_transcript")?.content ?? "",
+    [selectedSession]
+  );
+
+  const hasPromptInputs = useMemo(() => {
+    if (!selectedSession) return false;
+    const hasInitialPrompt = Boolean((selectedSession.initial_prompt ?? "").trim());
+    const hasSourceText = Boolean(
+      (selectedSession.source_artifacts ?? []).some((artifact) => (artifact.content ?? "").trim().length > 0)
+    );
+    return hasInitialPrompt || hasSourceText;
+  }, [selectedSession]);
+
+  const hasDraftOutput = useMemo(
+    () => Boolean(selectedSession?.has_generated_output || selectedSession?.draft),
+    [selectedSession]
+  );
+
+  const hasFatalValidationErrors = useMemo(
+    () => Boolean((selectedSession?.validation_errors ?? []).length > 0),
     [selectedSession]
   );
 
@@ -251,6 +274,7 @@ export default function DraftSessionsPage() {
 
   useEffect(() => {
     selectedSessionIdRef.current = selectedSessionId;
+    setShowWorkflowMenu(false);
   }, [selectedSessionId]);
 
   useEffect(() => {
@@ -411,14 +435,20 @@ export default function DraftSessionsPage() {
     }
   };
 
-  const handleResolveContext = async () => {
+  const handleRefreshContext = async () => {
     if (!selectedSessionId) return;
+    if (
+      selectedSession?.effective_context_hash &&
+      !confirm("Refresh context now? This will replace the cached context preview/hash.")
+    ) {
+      return;
+    }
     try {
       setLoading(true);
       setError(null);
       await resolveDraftSessionContext(selectedSessionId, { context_pack_ids: sessionContextPackIds });
       await refreshSelectedSession(selectedSessionId);
-      setMessage("Context resolved.");
+      setMessage("Context refreshed.");
     } catch (err) {
       setError((err as Error).message);
     } finally {
@@ -428,9 +458,14 @@ export default function DraftSessionsPage() {
 
   const handleGenerateDraft = async () => {
     if (!selectedSessionId || !selectedSession) return;
+    if (!hasPromptInputs) {
+      setError("Provide an initial prompt or prompt source before generating.");
+      return;
+    }
     try {
       setLoading(true);
       setError(null);
+      setGenerationStepMessage("Refreshing context...");
       await updateDraftSession(selectedSessionId, {
         title: selectedSession.title || selectedSession.id,
         kind: (selectedSession.kind as "blueprint" | "solution") || "blueprint",
@@ -440,6 +475,7 @@ export default function DraftSessionsPage() {
         selected_context_pack_ids: sessionContextPackIds,
         source_artifacts: selectedSession.source_artifacts,
       });
+      setGenerationStepMessage("Generating draft...");
       await enqueueDraftGeneration(selectedSessionId);
       setSelectedSession((prev) =>
         prev
@@ -457,6 +493,7 @@ export default function DraftSessionsPage() {
     } catch (err) {
       setError((err as Error).message);
     } finally {
+      setGenerationStepMessage(null);
       setLoading(false);
     }
   };
@@ -499,15 +536,19 @@ export default function DraftSessionsPage() {
     }
   };
 
-  const handlePublishDraft = async () => {
+  const handleSaveSnapshot = async () => {
     if (!selectedSessionId) return;
+    if (!hasDraftOutput) {
+      setError("Generate or save a draft output before creating a snapshot.");
+      return;
+    }
     try {
       setLoading(true);
       setError(null);
-      await publishDraftSession(selectedSessionId);
+      await snapshotDraftSession(selectedSessionId, { note: "manual snapshot" });
       await refreshSelectedSession(selectedSessionId);
       await refreshSessionRevisions();
-      setMessage("Draft published.");
+      setMessage("Snapshot saved.");
     } catch (err) {
       setError((err as Error).message);
     } finally {
@@ -795,6 +836,24 @@ export default function DraftSessionsPage() {
                     <span className="muted">{selectedSession.blueprint_kind}</span>
                   </div>
                 </div>
+                <div className={`draft-context-status ${selectedSession.context_stale ? "stale" : "fresh"}`}>
+                  <span className="label">Context</span>
+                  <span className="muted">
+                    {selectedSession.context_stale
+                      ? "stale — will refresh on generate"
+                      : "up to date"}
+                  </span>
+                  <span className="muted small">
+                    {selectedSession.effective_context_hash
+                      ? `hash: ${selectedSession.effective_context_hash.slice(0, 8)}…`
+                      : "hash: —"}
+                  </span>
+                  <span className="muted small">
+                    {selectedSession.context_resolved_at
+                      ? `resolved: ${new Date(selectedSession.context_resolved_at).toLocaleString()}`
+                      : "resolved: never"}
+                  </span>
+                </div>
               </section>
 
               <section className="draft-section">
@@ -856,19 +915,65 @@ export default function DraftSessionsPage() {
               <section className="draft-section">
                 <h4>Workflow</h4>
                 <div className="inline-actions draft-workflow-actions">
-                  <button className="ghost" onClick={handleResolveContext} disabled={loading}>
-                    1. Resolve context
+                  <button className="ghost" onClick={handleGenerateDraft} disabled={loading || !hasPromptInputs}>
+                    Generate draft
                   </button>
-                  <button className="ghost" onClick={handleGenerateDraft} disabled={loading}>
-                    2. Generate draft
+                  <button
+                    className="primary"
+                    onClick={openSubmitModal}
+                    disabled={loading || !hasDraftOutput || hasFatalValidationErrors}
+                  >
+                    {selectedSession.kind === "solution" ? "Submit as Solution" : "Submit as Blueprint"}
                   </button>
-                  <button className="ghost" onClick={handlePublishDraft} disabled={loading}>
-                    3. Publish draft
-                  </button>
-                  <button className="primary" onClick={openSubmitModal} disabled={loading}>
-                    4. {selectedSession.kind === "solution" ? "Submit as Solution" : "Submit as Blueprint"}
-                  </button>
+                  <div className="draft-workflow-overflow">
+                    <button
+                      className="ghost"
+                      onClick={() => setShowWorkflowMenu((prev) => !prev)}
+                      aria-expanded={showWorkflowMenu}
+                      aria-haspopup="menu"
+                    >
+                      More
+                    </button>
+                    <Popover open={showWorkflowMenu} onClose={() => setShowWorkflowMenu(false)} className="draft-workflow-popover">
+                      <Menu>
+                        <MenuItem
+                          onSelect={() => {
+                            setShowWorkflowMenu(false);
+                            void handleRefreshContext();
+                          }}
+                        >
+                          Refresh context
+                        </MenuItem>
+                        <MenuItem
+                          onSelect={() => {
+                            setShowWorkflowMenu(false);
+                            void handleSaveSnapshot();
+                          }}
+                        >
+                          Save snapshot
+                        </MenuItem>
+                        <MenuItem
+                          onSelect={() => {
+                            setShowWorkflowMenu(false);
+                            setMessage(
+                              `Context details: hash=${selectedSession.effective_context_hash || "—"}; resolved_at=${
+                                selectedSession.context_resolved_at || "never"
+                              }`
+                            );
+                          }}
+                        >
+                          View context details
+                        </MenuItem>
+                      </Menu>
+                    </Popover>
+                  </div>
                 </div>
+                {generationStepMessage && <span className="muted small">{generationStepMessage}</span>}
+                {hasFatalValidationErrors && (
+                  <span className="muted small">
+                    Submit is disabled while validation errors are present.
+                  </span>
+                )}
               </section>
 
               <section className="draft-section">
