@@ -841,6 +841,14 @@ export async function submitDraftSession(
     selected_context_pack_ids?: string[];
     source_artifacts?: Array<{ type: "text" | "audio_transcript"; content: string; meta?: Record<string, unknown> }>;
     generate_code?: boolean;
+    release_target?: {
+      environment_id?: string;
+      environment_name?: string;
+      target_instance_id?: string;
+      target_instance_name?: string;
+      fqdn?: string;
+      hostname?: string;
+    };
   } = {}
 ): Promise<{
   ok: boolean;
@@ -866,6 +874,40 @@ export async function submitDraftSession(
     entity_type?: string;
     entity_id?: string;
     revision?: number;
+  }>(response);
+}
+
+export async function extractDraftSessionReleaseTarget(
+  sessionId: string,
+  payload: { text?: string } = {}
+): Promise<{
+  intent?: Record<string, unknown> | null;
+  resolved?: {
+    environment_id?: string | null;
+    environment_name?: string | null;
+    instance_id?: string | null;
+    instance_name?: string | null;
+    fqdn?: string | null;
+  };
+  warnings?: string[];
+}> {
+  const apiBaseUrl = resolveApiBaseUrl();
+  const response = await apiFetch(`${apiBaseUrl}/xyn/api/draft-sessions/${sessionId}/extract_release_target`, {
+    method: "POST",
+    headers: buildHeaders(),
+    credentials: "include",
+    body: JSON.stringify(payload ?? {}),
+  });
+  return handle<{
+    intent?: Record<string, unknown> | null;
+    resolved?: {
+      environment_id?: string | null;
+      environment_name?: string | null;
+      instance_id?: string | null;
+      instance_name?: string | null;
+      fqdn?: string | null;
+    };
+    warnings?: string[];
   }>(response);
 }
 

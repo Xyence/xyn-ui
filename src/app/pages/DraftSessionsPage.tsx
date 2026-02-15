@@ -6,6 +6,8 @@ import {
   deleteDraftSession,
   enqueueDraftGeneration,
   enqueueDraftRevision,
+  extractDraftSessionReleaseTarget,
+  listEnvironments,
   enqueueVoiceNoteTranscription,
   getContextPackDefaults,
   getDraftSession,
@@ -20,12 +22,15 @@ import {
   updateDraftSession,
   uploadVoiceNote,
 } from "../../api/xyn";
+import { listInstances } from "../../api/client";
 import type {
   BlueprintDraftSession,
   BlueprintDraftSessionDetail,
   BlueprintVoiceNote,
   ContextPackSummary,
   DraftSessionRevision,
+  EnvironmentSummary,
+  ProvisionedInstance,
 } from "../../api/types";
 import Popover from "../components/ui/Popover";
 import { Menu, MenuItem } from "../components/ui/Menu";
@@ -82,6 +87,13 @@ export default function DraftSessionsPage() {
   const [showSubmitModal, setShowSubmitModal] = useState(false);
   const [submitNamespace, setSubmitNamespace] = useState("");
   const [submitBlueprintName, setSubmitBlueprintName] = useState("");
+  const [submitEnvironmentId, setSubmitEnvironmentId] = useState("");
+  const [submitInstanceId, setSubmitInstanceId] = useState("");
+  const [submitHostname, setSubmitHostname] = useState("");
+  const [submitTlsMode, setSubmitTlsMode] = useState<"none" | "nginx+acme">("none");
+  const [submitRemoteRoot, setSubmitRemoteRoot] = useState("");
+  const [environments, setEnvironments] = useState<EnvironmentSummary[]>([]);
+  const [instances, setInstances] = useState<ProvisionedInstance[]>([]);
   const [showWorkflowMenu, setShowWorkflowMenu] = useState(false);
   const [generationStepMessage, setGenerationStepMessage] = useState<string | null>(null);
 
@@ -127,6 +139,11 @@ export default function DraftSessionsPage() {
     () => Boolean((selectedSession?.validation_errors ?? []).length > 0),
     [selectedSession]
   );
+
+  const submitInstances = useMemo(() => {
+    if (!submitEnvironmentId) return instances;
+    return instances.filter((instance) => (instance.environment_id || "") === submitEnvironmentId);
+  }, [instances, submitEnvironmentId]);
 
   const refreshSessions = useCallback(async () => {
     const payload = await listDraftSessions({
@@ -229,6 +246,10 @@ export default function DraftSessionsPage() {
         setError(null);
         const packs = await listContextPacks({ active: true });
         setContextPacks(packs.context_packs);
+        const envData = await listEnvironments();
+        setEnvironments(envData.environments ?? []);
+        const instanceData = await listInstances();
+        setInstances(instanceData.instances ?? []);
       } catch (err) {
         setError((err as Error).message);
       }
@@ -456,6 +477,22 @@ export default function DraftSessionsPage() {
     }
   };
 
+  const handleReExtractReleaseTarget = async () => {
+    if (!selectedSessionId) return;
+    try {
+      setLoading(true);
+      setError(null);
+      const result = await extractDraftSessionReleaseTarget(selectedSessionId, {});
+      await refreshSelectedSession(selectedSessionId);
+      const warnings = result.warnings && result.warnings.length > 0 ? ` Warnings: ${result.warnings.join("; ")}` : "";
+      setMessage(`Deployment target extracted.${warnings}`);
+    } catch (err) {
+      setError((err as Error).message);
+    } finally {
+      setLoading(false);
+    }
+  };
+
   const handleGenerateDraft = async () => {
     if (!selectedSessionId || !selectedSession) return;
     if (!hasPromptInputs) {
@@ -561,6 +598,13 @@ export default function DraftSessionsPage() {
     const [ns, ...rest] = existingProjectKey.split(".");
     setSubmitNamespace(selectedSession?.namespace || ns || "core");
     setSubmitBlueprintName(rest.join(".") || selectedSession?.title?.toLowerCase().replace(/\s+/g, "-") || "");
+    const resolved = selectedSession?.extracted_release_target_resolution;
+    setSubmitEnvironmentId(resolved?.environment_id || "");
+    setSubmitInstanceId(resolved?.instance_id || "");
+    setSubmitHostname(resolved?.fqdn || "");
+    setSubmitTlsMode((selectedSession?.extracted_release_target_intent?.tls_mode as "none" | "nginx+acme" | undefined) || "none");
+    const runtime = selectedSession?.extracted_release_target_intent?.runtime;
+    setSubmitRemoteRoot((runtime && typeof runtime === "object" ? String((runtime as Record<string, unknown>).remote_root || "") : "") || "");
     setShowSubmitModal(true);
   };
 
@@ -574,6 +618,10 @@ export default function DraftSessionsPage() {
     const nextProjectKey = `${submitNamespace.trim()}.${submitBlueprintName.trim()}`.replace(/^\./, "");
     if (!submitNamespace.trim() || !submitBlueprintName.trim()) {
       setError("Blueprint namespace and name are required.");
+      return;
+    }
+    if (!submitEnvironmentId || !submitInstanceId || !submitHostname.trim()) {
+      setError("Release target confirmation is required: environment, instance, and hostname.");
       return;
     }
     const packNamesById = new Map(contextPacks.map((pack) => [pack.id, pack.name]));
@@ -600,6 +648,14 @@ export default function DraftSessionsPage() {
         selected_context_pack_ids: sessionContextPackIds,
         source_artifacts: selectedSession.source_artifacts,
         generate_code: selectedSession.kind === "solution",
+        release_target: {
+          environment_id: submitEnvironmentId,
+          target_instance_id: submitInstanceId,
+          fqdn: submitHostname.trim(),
+          hostname: submitHostname.trim(),
+          environment_name: environments.find((env) => env.id === submitEnvironmentId)?.name,
+          target_instance_name: instances.find((instance) => instance.id === submitInstanceId)?.name,
+        },
       });
       setShowSubmitModal(false);
       await refreshSelectedSession(selectedSessionId);
@@ -910,6 +966,49 @@ export default function DraftSessionsPage() {
                         .join(", ")
                     : "none"}
                 </span>
+              </section>
+
+              <section className="draft-section">
+                <div className="card-header">
+                  <h4>Deployment target</h4>
+                  <button className="ghost" onClick={handleReExtractReleaseTarget} disabled={loading}>
+                    Re-extract
+                  </button>
+                </div>
+                <div className="detail-grid draft-session-meta">
+                  <div>
+                    <div className="label">Status</div>
+                    <span className="muted">
+                      {selectedSession.extracted_release_target_intent
+                        ? selectedSession.extracted_release_target_intent_source === "model"
+                          ? "Extracted with assistance"
+                          : "Extracted from prompt"
+                        : "Not found"}
+                    </span>
+                  </div>
+                  <div>
+                    <div className="label">Environment</div>
+                    <span className="muted">{selectedSession.extracted_release_target_resolution?.environment_name ?? "—"}</span>
+                  </div>
+                  <div>
+                    <div className="label">Instance</div>
+                    <span className="muted">{selectedSession.extracted_release_target_resolution?.instance_name ?? "—"}</span>
+                  </div>
+                  <div>
+                    <div className="label">Hostname</div>
+                    <span className="muted draft-inline-wrap">{selectedSession.extracted_release_target_resolution?.fqdn ?? "—"}</span>
+                  </div>
+                </div>
+                {selectedSession.extracted_release_target_warnings && selectedSession.extracted_release_target_warnings.length > 0 && (
+                  <div className="stack">
+                    {selectedSession.extracted_release_target_warnings.map((warning, index) => (
+                      <span className="muted small" key={`${warning}-${index}`}>
+                        Warning: {warning}
+                      </span>
+                    ))}
+                    <span className="muted small">Fix in Submit by selecting explicit release target fields.</span>
+                  </div>
+                )}
               </section>
 
               <section className="draft-section">
@@ -1282,7 +1381,7 @@ export default function DraftSessionsPage() {
         <div className="modal-backdrop" onClick={() => setShowSubmitModal(false)}>
           <section className="modal" onClick={(event) => event.stopPropagation()}>
             <h3>Submit as Blueprint</h3>
-            <p className="muted">Confirm the blueprint namespace/name this draft should write to.</p>
+            <p className="muted">Confirm the blueprint destination and release target before submission.</p>
             <div className="form-grid">
               <label>
                 Blueprint namespace
@@ -1296,6 +1395,58 @@ export default function DraftSessionsPage() {
                 Project key
                 <input value={`${submitNamespace}.${submitBlueprintName}`.replace(/^\./, "")} readOnly />
               </label>
+              <label>
+                Environment
+                <select
+                  value={submitEnvironmentId}
+                  onChange={(event) => {
+                    setSubmitEnvironmentId(event.target.value);
+                    setSubmitInstanceId("");
+                  }}
+                >
+                  <option value="">Select environment</option>
+                  {environments.map((env) => (
+                    <option key={env.id} value={env.id}>
+                      {env.name}
+                    </option>
+                  ))}
+                </select>
+              </label>
+              <label>
+                Instance
+                <select value={submitInstanceId} onChange={(event) => setSubmitInstanceId(event.target.value)}>
+                  <option value="">Select instance</option>
+                  {submitInstances.map((instance) => (
+                    <option key={instance.id} value={instance.id}>
+                      {instance.name}
+                    </option>
+                  ))}
+                </select>
+              </label>
+              <label>
+                TLS mode
+                <select value={submitTlsMode} onChange={(event) => setSubmitTlsMode(event.target.value as "none" | "nginx+acme")}>
+                  <option value="none">none</option>
+                  <option value="nginx+acme">nginx+acme</option>
+                </select>
+              </label>
+              <label>
+                Remote root (optional)
+                <input value={submitRemoteRoot} onChange={(event) => setSubmitRemoteRoot(event.target.value)} />
+              </label>
+              <label className="span-full">
+                Hostname (FQDN)
+                <input value={submitHostname} onChange={(event) => setSubmitHostname(event.target.value)} />
+              </label>
+              {selectedSession?.extracted_release_target_warnings && selectedSession.extracted_release_target_warnings.length > 0 && (
+                <div className="span-full stack">
+                  {selectedSession.extracted_release_target_warnings.map((warning, index) => (
+                    <span className="muted small" key={`submit-warning-${index}`}>
+                      Warning: {warning}
+                    </span>
+                  ))}
+                </div>
+              )}
             </div>
             <div className="form-actions" style={{ marginTop: 12 }}>
               <button className="primary" onClick={handleSubmitSession} disabled={loading}>

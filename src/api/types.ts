@@ -190,6 +190,28 @@ export type BlueprintDraftSessionDetail = {
   effective_context_preview?: string | null;
   context_resolved_at?: string | null;
   context_stale?: boolean;
+  extracted_release_target_intent?: {
+    environment_selector?: { id?: string; slug?: string; name?: string };
+    target_instance_selector?: { id?: string; name?: string };
+    fqdn?: string;
+    tls_mode?: "none" | "nginx+acme";
+    dns_provider?: "route53";
+    runtime?: { type?: string; transport?: string; mode?: string; remote_root?: string };
+    notes?: string[];
+    confidence?: number;
+    extraction_source?: "prompt" | "model" | "labels";
+  } | null;
+  extracted_release_target_intent_updated_at?: string | null;
+  extracted_release_target_intent_source?: string | null;
+  extracted_release_target_resolution?: {
+    environment_id?: string | null;
+    environment_name?: string | null;
+    instance_id?: string | null;
+    instance_name?: string | null;
+    fqdn?: string | null;
+    warnings?: string[];
+  } | null;
+  extracted_release_target_warnings?: string[];
   created_at?: string;
   updated_at?: string;
 };
