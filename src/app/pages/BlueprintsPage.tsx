@@ -309,12 +309,14 @@ export default function BlueprintsPage() {
   };
 
   const handleSubmit = async () => {
-    if (!selectedId) return;
+    if (!selectedId || !selected) return;
+    const targetFqn = `${selected.namespace}.${selected.name}`;
+    if (!confirm(`Submit blueprint ${targetFqn}?`)) return;
     try {
       setLoading(true);
       setError(null);
       const result = await submitBlueprint(selectedId, selectedReleaseTargetId || undefined);
-      setMessage(`Submit queued. Run: ${result.run_id ?? "n/a"}`);
+      setMessage(`Submit queued for ${targetFqn}. Run: ${result.run_id ?? "n/a"}`);
     } catch (err) {
       setError((err as Error).message);
     } finally {
@@ -323,12 +325,14 @@ export default function BlueprintsPage() {
   };
 
   const handleQueueDevTasks = async () => {
-    if (!selectedId) return;
+    if (!selectedId || !selected) return;
+    const targetFqn = `${selected.namespace}.${selected.name}`;
+    if (!confirm(`Submit and queue DevTasks for ${targetFqn}?`)) return;
     try {
       setLoading(true);
       setError(null);
       const result = await submitBlueprintWithDevTasks(selectedId, selectedReleaseTargetId || undefined);
-      setMessage(`Dev tasks queued. Run: ${result.run_id ?? "n/a"}`);
+      setMessage(`Dev tasks queued for ${targetFqn}. Run: ${result.run_id ?? "n/a"}`);
       const tasks = await listBlueprintDevTasks(selectedId);
       setDevTasks(tasks.dev_tasks);
     } catch (err) {
