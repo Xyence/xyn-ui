@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
-import { Link } from "react-router-dom";
+import { Link, useNavigate } from "react-router-dom";
 import { clearStoredToken, getStoredToken } from "./session";
 
 type OidcConfig = {
@@ -11,6 +11,7 @@ const DEFAULT_APP_ID = "ems.platform";
 const DEFAULT_AUTH_BASE = "https://xyence.io";
 
 export default function Login() {
+  const navigate = useNavigate();
   const [status, setStatus] = useState<"ok" | "down" | "checking">("checking");
   const [authStatus, setAuthStatus] = useState<"unknown" | "signed_out" | "signed_in">("unknown");
   const [meResult, setMeResult] = useState<string>("");
@@ -122,6 +123,12 @@ export default function Login() {
     hasAutoRedirected.current = true;
     startLogin();
   }, [authStatus, oidcConfig, startLogin]);
+
+  useEffect(() => {
+    if (authStatus === "signed_in") {
+      navigate("/devices", { replace: true });
+    }
+  }, [authStatus, navigate]);
 
   return (
     <section>

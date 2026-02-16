@@ -10,6 +10,7 @@ export default function DeviceList() {
   const [roles, setRoles] = useState<string[]>([]);
   const [newName, setNewName] = useState("");
   const [token, setToken] = useState<string>(getStoredToken());
+  const [authReady, setAuthReady] = useState(false);
   const isAdmin = roles.includes("admin");
 
   const fetchMe = useCallback(async () => {
@@ -61,15 +62,54 @@ export default function DeviceList() {
   );
 
   useEffect(() => {
-    const stored = getStoredToken();
-    if (!stored) {
-      navigate("/", { replace: true });
+    let cancelled = false;
+    const ensureAuth = async () => {
+      const stored = getStoredToken();
+      if (!stored) {
+        clearStoredToken();
+        if (!cancelled) navigate("/", { replace: true });
+        return;
+      }
+      setToken(stored);
+      try {
+        const response = await fetch("/api/me", {
+          headers: { Authorization: `Bearer ${stored}` },
+        });
+        if (!response.ok) {
+          clearStoredToken();
+          if (!cancelled) navigate("/", { replace: true });
+          return;
+        }
+      } catch {
+        clearStoredToken();
+        if (!cancelled) navigate("/", { replace: true });
+        return;
+      }
+      if (!cancelled) {
+        setAuthReady(true);
+      }
+    };
+    ensureAuth();
+    return () => {
+      cancelled = true;
+    };
+  }, [navigate]);
+
+  useEffect(() => {
+    if (!authReady) {
       return;
     }
-    setToken(stored);
     fetchMe();
     fetchDevices();
-  }, [fetchMe, fetchDevices, navigate]);
+  }, [authReady, fetchMe, fetchDevices]);
+
+  if (!authReady) {
+    return (
+      <section>
+        <h2>Checking session...</h2>
+      </section>
+    );
+  }
 
   return (
     <section>
