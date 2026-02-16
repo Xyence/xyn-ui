@@ -119,6 +119,10 @@ export default function PlatformBrandingPage() {
         <div>
           <h2>Branding</h2>
           <p className="muted">Configure shared login branding tokens and per-app overrides.</p>
+          <p className="muted">
+            App overrides are keyed by <code>app_key</code>. Generated web apps default to their component name (for example
+            <code> web</code>) unless explicitly overridden in deployment settings.
+          </p>
         </div>
         <button className="ghost" onClick={load} disabled={loading}>
           Refresh

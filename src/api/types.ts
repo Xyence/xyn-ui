@@ -584,6 +584,35 @@ export type AppBrandingOverride = {
 
 export type AppBrandingOverridePayload = Partial<AppBrandingOverride>;
 
+export type BrandingTokens = {
+  appKey: string;
+  brandName: string;
+  logoUrl: string;
+  faviconUrl: string;
+  colors: {
+    primary: string;
+    text: string;
+    mutedText: string;
+    bg: string;
+    surface: string;
+    border: string;
+  };
+  radii: {
+    button: number;
+    card: number;
+  };
+  fonts: {
+    ui: string;
+  };
+  spacing: {
+    pageMaxWidth: number;
+    gutter: number;
+  };
+  shadows: {
+    card: string;
+  };
+};
+
 export type Device = {
   id: string;
   tenant_id: string;

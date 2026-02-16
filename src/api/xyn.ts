@@ -58,6 +58,7 @@ import type {
   BrandingResponse,
   PlatformBranding,
   PlatformBrandingPayload,
+  BrandingTokens,
   AppBrandingOverride,
   AppBrandingOverridePayload,
   DeviceListResponse,
@@ -215,6 +216,17 @@ export async function getPublicBranding(appId: string): Promise<Record<string, u
   const apiBaseUrl = resolveApiBaseUrl();
   const response = await apiFetch(`${apiBaseUrl}/xyn/api/public/branding?appId=${encodeURIComponent(appId)}`);
   return handle<Record<string, unknown>>(response);
+}
+
+export async function getBrandingTokens(appId: string): Promise<BrandingTokens> {
+  const apiBaseUrl = resolveApiBaseUrl();
+  const response = await apiFetch(`${apiBaseUrl}/xyn/api/branding/tokens?app=${encodeURIComponent(appId)}`);
+  return handle<BrandingTokens>(response);
+}
+
+export function getBrandingThemeCssUrl(appId: string): string {
+  const apiBaseUrl = resolveApiBaseUrl();
+  return `${apiBaseUrl}/xyn/api/branding/theme.css?app=${encodeURIComponent(appId)}`;
 }
 
 export async function setActiveTenant(tenantId: string): Promise<void> {
