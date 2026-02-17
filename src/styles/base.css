@@ -132,6 +132,11 @@ input {
   font-weight: 600;
 }
 
+.inline-message span {
+  overflow-wrap: anywhere;
+  word-break: break-word;
+}
+
 .inline-info {
   border-left: 4px solid var(--info);
 }
@@ -441,6 +446,15 @@ button:disabled {
   margin: 0;
   font-family: "Source Code Pro", "SFMono-Regular", Menlo, monospace;
   font-size: 0.78rem;
+}
+
+.code-block {
+  margin: 0;
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+  word-break: break-word;
+  font-family: "Source Code Pro", "SFMono-Regular", Menlo, monospace;
+  font-size: 0.8rem;
 }
 
 .log-box .stderr {
