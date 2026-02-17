@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { Link, useNavigate } from "react-router-dom";
-import { clearStoredToken, getStoredToken } from "./session";
+import { clearStoredToken, consumeTokenFromLocation, getStoredToken } from "./session";
 
 type OidcConfig = {
   app_id?: string;
@@ -111,6 +111,7 @@ export default function Login() {
   }, [oidcConfig]);
 
   useEffect(() => {
+    consumeTokenFromLocation();
     checkHealth();
     loadOidcConfig();
     callMe();

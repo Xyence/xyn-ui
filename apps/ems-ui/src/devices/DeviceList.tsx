@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useState } from "react";
 import { Link, useNavigate } from "react-router-dom";
-import { clearStoredToken, getStoredToken } from "../auth/session";
+import { clearStoredToken, consumeTokenFromLocation, getStoredToken } from "../auth/session";
 
 type Device = { id: string; name: string };
 
@@ -64,7 +64,8 @@ export default function DeviceList() {
   useEffect(() => {
     let cancelled = false;
     const ensureAuth = async () => {
-      const stored = getStoredToken();
+      const hydrated = consumeTokenFromLocation();
+      const stored = hydrated || getStoredToken();
       if (!stored) {
         clearStoredToken();
         if (!cancelled) navigate("/", { replace: true });
