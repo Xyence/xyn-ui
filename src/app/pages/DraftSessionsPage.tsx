@@ -271,7 +271,11 @@ export default function DraftSessionsPage() {
       if (!sessionsLoaded) return;
       const exists = sessions.some((item) => item.id === draftId);
       if (exists) {
-        setSelectedSessionId(draftId);
+        const selectedExists = !!selectedSessionId && sessions.some((item) => item.id === selectedSessionId);
+        // Preserve an explicit in-UI selection while route navigation catches up.
+        if (!selectedExists || selectedSessionId === draftId) {
+          setSelectedSessionId(draftId);
+        }
       } else {
         const fallbackId = sessions[0]?.id ?? null;
         setSelectedSessionId(fallbackId);
@@ -789,7 +793,17 @@ export default function DraftSessionsPage() {
               <button
                 key={session.id}
                 className={`instance-row ${selectedSessionId === session.id ? "active" : ""}`}
-                onClick={() => setSelectedSessionId(session.id)}
+                onClick={() => {
+                  setSelectedSessionId(session.id);
+                  const search = searchParams.toString();
+                  navigate(
+                    {
+                      pathname: `/app/drafts/${session.id}`,
+                      search: search ? `?${search}` : "",
+                    },
+                    { replace: true }
+                  );
+                }}
               >
                 <div>
                   <strong>{session.title || session.name}</strong>
