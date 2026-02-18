@@ -27,6 +27,8 @@ import type {
   ReleaseTarget,
 } from "../../api/types";
 import { extractBlueprintIntent } from "./blueprintIntent";
+import { useNotifications } from "../state/notificationsStore";
+import { notifyQueued, notifySucceeded } from "../../lib/notifyFromJob";
 
 const emptyForm: BlueprintCreatePayload = {
   name: "",
@@ -69,8 +71,8 @@ export default function BlueprintsPage() {
   const [deprovisionConfirmText, setDeprovisionConfirmText] = useState("");
   const [deprovisionDryRun, setDeprovisionDryRun] = useState(false);
   const [loading, setLoading] = useState(false);
-  const [message, setMessage] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
+  const { push } = useNotifications();
   const devTasksPageSize = 8;
   const devTaskTotalPages = Math.max(1, Math.ceil(devTasks.length / devTasksPageSize));
   const pagedDevTasks = useMemo(() => {
@@ -156,7 +158,13 @@ export default function BlueprintsPage() {
         ingress_service: "ems-web",
         ingress_port: "3000",
       });
-      setMessage("Release target created.");
+      notifySucceeded(push, {
+        action: "release_target.create",
+        entityType: "blueprint",
+        entityId: selected.id,
+        title: "Release target created",
+        dedupeKey: `release_target.create:${selected.id}`,
+      });
     } catch (err) {
       setError((err as Error).message);
     }
@@ -193,7 +201,13 @@ export default function BlueprintsPage() {
       const detail = await getBlueprint(selected.id);
       setSelected(detail);
       setMetadataText(detail.metadata_json ? JSON.stringify(detail.metadata_json, null, 2) : "");
-      setMessage("Default release target updated.");
+      notifySucceeded(push, {
+        action: "blueprint.default_target",
+        entityType: "blueprint",
+        entityId: selected.id,
+        title: "Default release target updated",
+        dedupeKey: `blueprint.default_target:${selected.id}`,
+      });
     } catch (err) {
       setError((err as Error).message);
     }
@@ -258,7 +272,6 @@ export default function BlueprintsPage() {
     try {
       setLoading(true);
       setError(null);
-      setMessage(null);
       const payload = { ...form };
       if (metadataText.trim().length > 0) {
         payload.metadata_json = JSON.parse(metadataText);
@@ -269,7 +282,11 @@ export default function BlueprintsPage() {
       setForm(emptyForm);
       setMetadataText("");
       await load();
-      setMessage("Blueprint created.");
+      notifySucceeded(push, {
+        action: "blueprint.create",
+        entityType: "blueprint",
+        title: "Blueprint created",
+      });
     } catch (err) {
       setError((err as Error).message);
     } finally {
@@ -282,7 +299,6 @@ export default function BlueprintsPage() {
     try {
       setLoading(true);
       setError(null);
-      setMessage(null);
       const payload = { ...form };
       if (metadataText.trim().length > 0) {
         payload.metadata_json = JSON.parse(metadataText);
@@ -291,7 +307,13 @@ export default function BlueprintsPage() {
       }
       await updateBlueprint(selectedId, payload);
       await load();
-      setMessage("Blueprint updated.");
+      notifySucceeded(push, {
+        action: "blueprint.update",
+        entityType: "blueprint",
+        entityId: selectedId,
+        title: "Blueprint updated",
+        dedupeKey: `blueprint.update:${selectedId}`,
+      });
     } catch (err) {
       setError((err as Error).message);
     } finally {
@@ -306,6 +328,10 @@ export default function BlueprintsPage() {
     try {
       setLoading(true);
       setError(null);
+      setSelected(null);
+      setDevTasks([]);
+      setReleaseTargets([]);
+      setSelectedReleaseTargetId("");
       await archiveBlueprint(archivedId);
       const data = await listBlueprints();
       setItems(data.blueprints);
@@ -321,7 +347,13 @@ export default function BlueprintsPage() {
       } else {
         setSelectedId(next.id);
       }
-      setMessage("Blueprint archived.");
+      notifySucceeded(push, {
+        action: "blueprint.archive",
+        entityType: "blueprint",
+        entityId: archivedId,
+        title: "Blueprint archived",
+        dedupeKey: `blueprint.archive:${archivedId}`,
+      });
     } catch (err) {
       setError((err as Error).message);
     } finally {
@@ -390,7 +422,15 @@ export default function BlueprintsPage() {
         dry_run: deprovisionDryRun,
       });
       setShowDeprovisionModal(false);
-      setMessage(`Deprovision queued. Run: ${result.run_id}`);
+      notifyQueued(push, {
+        action: "blueprint.deprovision",
+        entityType: "blueprint",
+        entityId: selectedId,
+        title: "Deprovision queued",
+        message: result.run_id,
+        href: result.run_id ? `/app/runs?run=${result.run_id}` : "/app/runs",
+        dedupeKey: `blueprint.deprovision:${selectedId}`,
+      });
       await load();
       const detail = await getBlueprint(selectedId);
       setSelected(detail);
@@ -409,7 +449,15 @@ export default function BlueprintsPage() {
       setLoading(true);
       setError(null);
       const result = await submitBlueprint(selectedId, selectedReleaseTargetId || undefined);
-      setMessage(`Submit queued for ${targetFqn}. Run: ${result.run_id ?? "n/a"}`);
+      notifyQueued(push, {
+        action: "blueprint.submit",
+        entityType: "blueprint",
+        entityId: selectedId,
+        title: `Submit queued for ${targetFqn}`,
+        message: result.run_id || undefined,
+        href: result.run_id ? `/app/runs?run=${result.run_id}` : "/app/runs",
+        dedupeKey: `blueprint.submit:${selectedId}`,
+      });
     } catch (err) {
       setError((err as Error).message);
     } finally {
@@ -425,7 +473,15 @@ export default function BlueprintsPage() {
       setLoading(true);
       setError(null);
       const result = await submitBlueprintWithDevTasks(selectedId, selectedReleaseTargetId || undefined);
-      setMessage(`Dev tasks queued for ${targetFqn}. Run: ${result.run_id ?? "n/a"}`);
+      notifyQueued(push, {
+        action: "blueprint.submit_dev_tasks",
+        entityType: "blueprint",
+        entityId: selectedId,
+        title: `Dev tasks queued for ${targetFqn}`,
+        message: result.run_id || undefined,
+        href: result.run_id ? `/app/runs?run=${result.run_id}` : "/app/runs",
+        dedupeKey: `blueprint.submit_dev_tasks:${selectedId}`,
+      });
       const tasks = await listBlueprintDevTasks(selectedId);
       setDevTasks(tasks.dev_tasks);
     } catch (err) {
@@ -439,7 +495,16 @@ export default function BlueprintsPage() {
     try {
       setLoading(true);
       setError(null);
-      await runDevTask(taskId);
+      const result = await runDevTask(taskId);
+      notifyQueued(push, {
+        action: "dev_task.run",
+        entityType: "blueprint",
+        entityId: selectedId ?? undefined,
+        title: "Dev task queued",
+        message: taskId,
+        href: result.run_id ? `/app/runs?run=${result.run_id}` : "/app/runs",
+        dedupeKey: `dev_task.run:${taskId}`,
+      });
       const tasks = await listBlueprintDevTasks(selectedId ?? "");
       setDevTasks(tasks.dev_tasks);
     } catch (err) {
@@ -467,7 +532,6 @@ export default function BlueprintsPage() {
       </div>
 
       {error && <InlineMessage tone="error" title="Request failed" body={error} />}
-      {message && <InlineMessage tone="info" title="Update" body={message} />}
 
       <div className="layout">
         <section className="card">

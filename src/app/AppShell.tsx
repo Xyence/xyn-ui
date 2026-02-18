@@ -33,6 +33,9 @@ import PlatformSettingsPage from "./pages/PlatformSettingsPage";
 import { useGlobalHotkeys } from "./hooks/useGlobalHotkeys";
 import ReportOverlay from "./components/ReportOverlay";
 import UserMenu from "./components/common/UserMenu";
+import NotificationBell from "./components/notifications/NotificationBell";
+import ToastHost from "./components/notifications/ToastHost";
+import { useNotifications } from "./state/notificationsStore";
 
 export default function AppShell() {
   const location = useLocation();
@@ -44,7 +47,7 @@ export default function AppShell() {
   const [brandName, setBrandName] = useState<string>("Xyn Console");
   const [brandLogo, setBrandLogo] = useState<string>("/xyence-logo.png");
   const [reportOpen, setReportOpen] = useState(false);
-  const [toast, setToast] = useState<string>("");
+  const { push } = useNotifications();
 
   useEffect(() => {
     let mounted = true;
@@ -123,12 +126,6 @@ export default function AppShell() {
     setReportOpen(true);
   });
 
-  useEffect(() => {
-    if (!toast) return;
-    const timer = window.setTimeout(() => setToast(""), 3500);
-    return () => window.clearTimeout(timer);
-  }, [toast]);
-
   if (!authLoaded) {
     return (
       <div className="app-shell">
@@ -157,7 +154,10 @@ export default function AppShell() {
         </div>
         <div className="header-meta">
           {authed ? (
-            <UserMenu user={authUser || {}} onReport={() => setReportOpen(true)} onSignOut={signOut} />
+            <>
+              <NotificationBell />
+              <UserMenu user={authUser || {}} onReport={() => setReportOpen(true)} onSignOut={signOut} />
+            </>
           ) : (
             <button className="ghost" onClick={startLogin}>
               Sign in
@@ -218,13 +218,24 @@ export default function AppShell() {
           </Routes>
         </main>
       </div>
-      {toast && <div className="app-toast">{toast}</div>}
       <ReportOverlay
         open={reportOpen}
         onClose={() => setReportOpen(false)}
         user={userContext}
-        onSubmitted={(reportId) => setToast(`Report submitted: ${reportId}`)}
+        onSubmitted={(reportId) =>
+          push({
+            level: "success",
+            title: "Report submitted",
+            message: reportId,
+            action: "report.create",
+            entityType: "unknown",
+            entityId: reportId,
+            status: "succeeded",
+            dedupeKey: `report:${reportId}`,
+          })
+        }
       />
+      <ToastHost />
     </div>
   );
 }

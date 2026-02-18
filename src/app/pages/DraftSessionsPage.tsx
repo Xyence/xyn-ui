@@ -34,6 +34,8 @@ import type {
 } from "../../api/types";
 import Popover from "../components/ui/Popover";
 import { Menu, MenuItem } from "../components/ui/Menu";
+import { useNotifications } from "../state/notificationsStore";
+import { notifyFailed, notifyQueued, notifySucceeded } from "../../lib/notifyFromJob";
 
 const NEW_DRAFT_DEFAULT_TITLE = "Untitled draft";
 
@@ -100,8 +102,9 @@ export default function DraftSessionsPage() {
   const [loading, setLoading] = useState(false);
   const [creatingSession, setCreatingSession] = useState(false);
   const [uploading, setUploading] = useState(false);
-  const [message, setMessage] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
+  const { push } = useNotifications();
+  const previousSelectedStatusRef = useRef<string | null>(null);
 
   const revisionPageSize = 5;
   const revisionTotalPages = Math.max(1, Math.ceil(revisionTotal / revisionPageSize));
@@ -345,6 +348,44 @@ export default function DraftSessionsPage() {
   }, [refreshSelectedSession, refreshSessionRevisions, selectedSession, selectedSessionId]);
 
   useEffect(() => {
+    if (!selectedSessionId || !selectedSession) {
+      previousSelectedStatusRef.current = null;
+      return;
+    }
+    const previous = previousSelectedStatusRef.current;
+    const current = selectedSession.status;
+    if (previous && previous !== current) {
+      if (
+        ["queued", "drafting", "running"].includes(previous) &&
+        ["ready", "published", "submitted", "ready_with_errors"].includes(current)
+      ) {
+        notifySucceeded(push, {
+          action: "draft.status",
+          entityType: "draft_session",
+          entityId: selectedSessionId,
+          title: "Draft processing finished",
+          message: current,
+          href: `/app/drafts/${selectedSessionId}`,
+          dedupeKey: `draft.status:${selectedSessionId}`,
+        });
+      } else if (["queued", "drafting", "running"].includes(previous) && current === "failed") {
+        notifyFailed(push, {
+          action: "draft.status",
+          entityType: "draft_session",
+          entityId: selectedSessionId,
+          title: "Draft processing failed",
+          message:
+            ((selectedSession as unknown as Record<string, unknown>).error_message as string | undefined) ||
+            "See draft validation/output details.",
+          href: `/app/drafts/${selectedSessionId}`,
+          dedupeKey: `draft.status:${selectedSessionId}`,
+        });
+      }
+    }
+    previousSelectedStatusRef.current = current;
+  }, [push, selectedSession, selectedSessionId]);
+
+  useEffect(() => {
     if (!selectedSessionId) return;
     if (draftId === selectedSessionId) return;
     const search = searchParams.toString();
@@ -410,7 +451,17 @@ export default function DraftSessionsPage() {
       await refreshSessions();
       setSelectedSessionId(created.session_id);
       setShowCreateModal(false);
-      setMessage(`Draft session created: ${created.session_id}`);
+      push({
+        level: "success",
+        title: "Draft session created",
+        message: created.session_id,
+        entityType: "draft_session",
+        entityId: created.session_id,
+        status: "succeeded",
+        action: "draft.create",
+        href: `/app/drafts/${created.session_id}`,
+        dedupeKey: `draft.create:${created.session_id}`,
+      });
     } catch (err) {
       setError((err as Error).message);
     } finally {
@@ -434,9 +485,26 @@ export default function DraftSessionsPage() {
         source_artifacts: selectedSession.source_artifacts,
       });
       await refreshSelectedSession(selectedSessionId);
-      setMessage("Draft session updated.");
+      push({
+        level: "success",
+        title: "Draft session metadata saved",
+        entityType: "draft_session",
+        entityId: selectedSessionId,
+        action: "draft.update",
+        dedupeKey: `draft.update:${selectedSessionId}`,
+      });
     } catch (err) {
-      setError((err as Error).message);
+      const message = (err as Error).message;
+      setError(message);
+      notifyFailed(push, {
+        action: "draft.release_target.extract",
+        entityType: "draft_session",
+        entityId: selectedSessionId,
+        title: "Deployment target extraction failed",
+        message,
+        href: `/app/drafts/${selectedSessionId}`,
+        dedupeKey: `draft.release_target.extract:${selectedSessionId}`,
+      });
     } finally {
       setLoading(false);
     }
@@ -452,7 +520,14 @@ export default function DraftSessionsPage() {
       await refreshSessions();
       setSelectedSessionId(null);
       navigate("/app/drafts", { replace: true });
-      setMessage("Draft session deleted.");
+      push({
+        level: "success",
+        title: "Draft session deleted",
+        entityType: "draft_session",
+        entityId: selectedSessionId,
+        action: "draft.delete",
+        dedupeKey: `draft.delete:${selectedSessionId}`,
+      });
     } catch (err) {
       setError((err as Error).message);
     } finally {
@@ -473,7 +548,14 @@ export default function DraftSessionsPage() {
       setError(null);
       await resolveDraftSessionContext(selectedSessionId, { context_pack_ids: sessionContextPackIds });
       await refreshSelectedSession(selectedSessionId);
-      setMessage("Context refreshed.");
+      push({
+        level: "success",
+        title: "Context refreshed",
+        entityType: "draft_session",
+        entityId: selectedSessionId,
+        action: "draft.context.refresh",
+        dedupeKey: `draft.context.refresh:${selectedSessionId}`,
+      });
     } catch (err) {
       setError((err as Error).message);
     } finally {
@@ -489,7 +571,15 @@ export default function DraftSessionsPage() {
       const result = await extractDraftSessionReleaseTarget(selectedSessionId, {});
       await refreshSelectedSession(selectedSessionId);
       const warnings = result.warnings && result.warnings.length > 0 ? ` Warnings: ${result.warnings.join("; ")}` : "";
-      setMessage(`Deployment target extracted.${warnings}`);
+      push({
+        level: result.warnings?.length ? "warning" : "success",
+        title: "Deployment target extracted",
+        message: warnings.trim() || undefined,
+        entityType: "draft_session",
+        entityId: selectedSessionId,
+        action: "draft.release_target.extract",
+        dedupeKey: `draft.release_target.extract:${selectedSessionId}`,
+      });
     } catch (err) {
       setError((err as Error).message);
     } finally {
@@ -518,6 +608,15 @@ export default function DraftSessionsPage() {
       });
       setGenerationStepMessage("Generating draft...");
       await enqueueDraftGeneration(selectedSessionId);
+      notifyQueued(push, {
+        action: "draft.generate",
+        entityType: "draft_session",
+        entityId: selectedSessionId,
+        title: "Draft generation queued",
+        message: selectedSession.title || selectedSession.id,
+        href: `/app/drafts/${selectedSessionId}`,
+        dedupeKey: `draft.generate:${selectedSessionId}`,
+      });
       setSelectedSession((prev) =>
         prev
           ? {
@@ -530,9 +629,18 @@ export default function DraftSessionsPage() {
       );
       await refreshSelectedSession(selectedSessionId);
       await refreshSessionRevisions();
-      setMessage("Draft generation queued.");
     } catch (err) {
-      setError((err as Error).message);
+      const message = (err as Error).message;
+      setError(message);
+      notifyFailed(push, {
+        action: "draft.generate",
+        entityType: "draft_session",
+        entityId: selectedSessionId,
+        title: "Draft generation failed to queue",
+        message,
+        href: `/app/drafts/${selectedSessionId}`,
+        dedupeKey: `draft.generate:${selectedSessionId}`,
+      });
     } finally {
       setGenerationStepMessage(null);
       setLoading(false);
@@ -549,12 +657,30 @@ export default function DraftSessionsPage() {
       setLoading(true);
       setError(null);
       await enqueueDraftRevision(selectedSessionId, { instruction: revisionInstruction });
+      notifyQueued(push, {
+        action: "draft.revise",
+        entityType: "draft_session",
+        entityId: selectedSessionId,
+        title: "Draft revision queued",
+        message: selectedSession?.title || selectedSessionId,
+        href: `/app/drafts/${selectedSessionId}`,
+        dedupeKey: `draft.revise:${selectedSessionId}`,
+      });
       setRevisionInstruction("");
       await refreshSelectedSession(selectedSessionId);
       await refreshSessionRevisions();
-      setMessage("Draft revision queued.");
     } catch (err) {
-      setError((err as Error).message);
+      const message = (err as Error).message;
+      setError(message);
+      notifyFailed(push, {
+        action: "draft.revise",
+        entityType: "draft_session",
+        entityId: selectedSessionId,
+        title: "Draft revision failed to queue",
+        message,
+        href: `/app/drafts/${selectedSessionId}`,
+        dedupeKey: `draft.revise:${selectedSessionId}`,
+      });
     } finally {
       setLoading(false);
     }
@@ -569,9 +695,25 @@ export default function DraftSessionsPage() {
       await saveDraftSession(selectedSessionId, { draft_json: parsed });
       await refreshSelectedSession(selectedSessionId);
       await refreshSessionRevisions();
-      setMessage("Draft saved.");
+      notifySucceeded(push, {
+        action: "draft.save",
+        entityType: "draft_session",
+        entityId: selectedSessionId,
+        title: "Draft JSON saved",
+        dedupeKey: `draft.save:${selectedSessionId}`,
+      });
     } catch (err) {
-      setError((err as Error).message);
+      const message = (err as Error).message;
+      setError(message);
+      notifyFailed(push, {
+        action: "draft.submit",
+        entityType: "draft_session",
+        entityId: selectedSessionId,
+        title: "Submit as Blueprint failed",
+        message,
+        href: `/app/drafts/${selectedSessionId}`,
+        dedupeKey: `draft.submit:${selectedSessionId}`,
+      });
     } finally {
       setLoading(false);
     }
@@ -589,9 +731,25 @@ export default function DraftSessionsPage() {
       await snapshotDraftSession(selectedSessionId, { note: "manual snapshot" });
       await refreshSelectedSession(selectedSessionId);
       await refreshSessionRevisions();
-      setMessage("Snapshot saved.");
+      notifySucceeded(push, {
+        action: "draft.snapshot",
+        entityType: "draft_session",
+        entityId: selectedSessionId,
+        title: "Snapshot saved",
+        dedupeKey: `draft.snapshot:${selectedSessionId}`,
+      });
     } catch (err) {
-      setError((err as Error).message);
+      const message = (err as Error).message;
+      setError(message);
+      notifyFailed(push, {
+        action: "draft.voice.transcribe",
+        entityType: "draft_session",
+        entityId: selectedSessionId,
+        title: "Recording upload failed",
+        message,
+        href: `/app/drafts/${selectedSessionId}`,
+        dedupeKey: `draft.voice.transcribe:${selectedSessionId}`,
+      });
     } finally {
       setLoading(false);
     }
@@ -667,12 +825,15 @@ export default function DraftSessionsPage() {
       setShowSubmitModal(false);
       await refreshSelectedSession(selectedSessionId);
       await refreshSessionRevisions();
-      setMessage(
-        `Submitted ${selectedSession.kind === "solution" ? "as Solution" : "as Blueprint"} (${result.status}).`
-      );
-      if (result.entity_type === "blueprint" && result.entity_id) {
-        setMessage((prev) => `${prev || "Submitted."} Open blueprint: /app/blueprints`);
-      }
+      notifySucceeded(push, {
+        action: "draft.submit",
+        entityType: "draft_session",
+        entityId: selectedSessionId,
+        title: selectedSession.kind === "solution" ? "Submitted as Solution" : "Submitted as Blueprint",
+        message: result.status,
+        href: result.entity_type === "blueprint" ? "/app/blueprints" : undefined,
+        dedupeKey: `draft.submit:${selectedSessionId}`,
+      });
     } catch (err) {
       setError((err as Error).message);
     } finally {
@@ -688,9 +849,17 @@ export default function DraftSessionsPage() {
       const file = event.target.files[0];
       const uploaded = await uploadVoiceNote(file, { session_id: selectedSessionId, language_code: "en-US" });
       await enqueueVoiceNoteTranscription(uploaded.voice_note_id);
+      notifyQueued(push, {
+        action: "draft.voice.transcribe",
+        entityType: "draft_session",
+        entityId: selectedSessionId,
+        title: "Recording uploaded",
+        message: "Transcription queued",
+        href: `/app/drafts/${selectedSessionId}`,
+        dedupeKey: `draft.voice.transcribe:${selectedSessionId}:${uploaded.voice_note_id}`,
+      });
       const notes = await listDraftSessionVoiceNotes(selectedSessionId);
       setVoiceNotes(notes.voice_notes);
-      setMessage("Recording uploaded and queued for transcription.");
     } catch (err) {
       setError((err as Error).message);
     } finally {
@@ -728,7 +897,6 @@ export default function DraftSessionsPage() {
       </div>
 
       {error && <InlineMessage tone="error" title="Request failed" body={error} />}
-      {message && <InlineMessage tone="info" title="Update" body={message} />}
 
       <div className="layout">
         <section className="card">
@@ -1071,11 +1239,17 @@ export default function DraftSessionsPage() {
                         <MenuItem
                           onSelect={() => {
                             setShowWorkflowMenu(false);
-                            setMessage(
-                              `Context details: hash=${selectedSession.effective_context_hash || "—"}; resolved_at=${
+                            push({
+                              level: "info",
+                              title: "Context details",
+                              message: `hash=${selectedSession.effective_context_hash || "—"}; resolved_at=${
                                 selectedSession.context_resolved_at || "never"
-                              }`
-                            );
+                              }`,
+                              entityType: "draft_session",
+                              entityId: selectedSession.id,
+                              action: "draft.context.view",
+                              dedupeKey: `draft.context.view:${selectedSession.id}`,
+                            });
                           }}
                         >
                           View context details

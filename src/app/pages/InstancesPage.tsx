@@ -20,6 +20,8 @@ import type {
 } from "../../api/types";
 import StatusPill from "../../components/StatusPill";
 import InlineMessage from "../../components/InlineMessage";
+import { useNotifications } from "../state/notificationsStore";
+import { notifyQueued, notifySucceeded } from "../../lib/notifyFromJob";
 
 const POLL_INTERVAL_MS = 5000;
 
@@ -49,13 +51,13 @@ export default function InstancesPage() {
   const [containersError, setContainersError] = useState<string | null>(null);
   const [containersLoading, setContainersLoading] = useState(false);
   const [releaseMap, setReleaseMap] = useState<Record<string, ReleaseSummary>>({});
-  const [deployMessage, setDeployMessage] = useState<string | null>(null);
   const [environments, setEnvironments] = useState<EnvironmentSummary[]>([]);
   const [environmentId, setEnvironmentId] = useState<string>("");
   const [statusFilter, setStatusFilter] = useState<string>("running");
   const [pendingEnvironmentId, setPendingEnvironmentId] = useState<string>("");
   const [showEnvConfirm, setShowEnvConfirm] = useState(false);
   const [forceEnvChange, setForceEnvChange] = useState(false);
+  const { push } = useNotifications();
 
   const environmentNameById = useMemo(() => {
     return environments.reduce<Record<string, string>>((acc, env) => {
@@ -178,6 +180,13 @@ export default function InstancesPage() {
       await loadInstances();
       setShowEnvConfirm(false);
       setForceEnvChange(false);
+      notifySucceeded(push, {
+        action: "instance.environment.update",
+        entityType: "instance",
+        entityId: updated.id,
+        title: "Instance environment updated",
+        dedupeKey: `instance.environment.update:${updated.id}`,
+      });
     } catch (err) {
       setError((err as Error).message);
     } finally {
@@ -298,7 +307,15 @@ export default function InstancesPage() {
         target_instance_id: selectedInstance.id,
         release_id: release.id,
       });
-      setDeployMessage(`Deploy queued: ${result.id}`);
+      notifyQueued(push, {
+        action: "instance.deploy",
+        entityType: "instance",
+        entityId: selectedInstance.id,
+        title: "Deploy queued",
+        message: result.id,
+        href: "/app/dev-tasks",
+        dedupeKey: `instance.deploy:${selectedInstance.id}`,
+      });
       await refreshSelected();
     } catch (err) {
       setError((err as Error).message);
@@ -390,7 +407,6 @@ export default function InstancesPage() {
       </div>
 
       {error && <InlineMessage tone="error" title="Request failed" body={error} />}
-      {deployMessage && <InlineMessage tone="info" title="Deploy" body={deployMessage} />}
 
       <div className="layout">
         <section className="card">
