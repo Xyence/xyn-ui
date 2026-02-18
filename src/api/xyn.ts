@@ -1,6 +1,7 @@
 import type {
   BlueprintCreatePayload,
   BlueprintDetail,
+  BlueprintDeprovisionPlan,
   BlueprintListResponse,
   BlueprintSummary,
   BlueprintDraftSession,
@@ -992,6 +993,58 @@ export async function deleteBlueprint(id: string): Promise<{ status: string }> {
     credentials: "include",
   });
   return handle<{ status: string }>(response);
+}
+
+export async function archiveBlueprint(id: string): Promise<{ status: string; id: string; archived_at?: string | null }> {
+  const apiBaseUrl = resolveApiBaseUrl();
+  const response = await apiFetch(`${apiBaseUrl}/xyn/api/blueprints/${id}/archive`, {
+    method: "POST",
+    credentials: "include",
+  });
+  return handle<{ status: string; id: string; archived_at?: string | null }>(response);
+}
+
+export async function getBlueprintDeprovisionPlan(
+  id: string,
+  options?: {
+    mode?: "safe" | "stop_services" | "force";
+    delete_dns?: boolean;
+    remove_runtime_markers?: boolean;
+  }
+): Promise<BlueprintDeprovisionPlan> {
+  const apiBaseUrl = resolveApiBaseUrl();
+  const url = new URL(`${apiBaseUrl}/xyn/api/blueprints/${id}/deprovision_plan`);
+  if (options?.mode) url.searchParams.set("mode", options.mode);
+  if (options?.delete_dns !== undefined) url.searchParams.set("delete_dns", options.delete_dns ? "1" : "0");
+  if (options?.remove_runtime_markers !== undefined) {
+    url.searchParams.set("remove_runtime_markers", options.remove_runtime_markers ? "1" : "0");
+  }
+  const response = await apiFetch(url.toString(), { credentials: "include" });
+  return handle<BlueprintDeprovisionPlan>(response);
+}
+
+export async function deprovisionBlueprint(
+  id: string,
+  payload: {
+    confirm_text: string;
+    mode: "safe" | "stop_services" | "force";
+    stop_services: boolean;
+    delete_dns: boolean;
+    remove_runtime_markers: boolean;
+    dry_run?: boolean;
+    release_target_ids?: string[];
+  }
+): Promise<{ run_id: string; status: string; blueprint_status: string; task_count: number; dry_run: boolean }> {
+  const apiBaseUrl = resolveApiBaseUrl();
+  const response = await apiFetch(`${apiBaseUrl}/xyn/api/blueprints/${id}/deprovision`, {
+    method: "POST",
+    headers: buildHeaders(),
+    credentials: "include",
+    body: JSON.stringify(payload),
+  });
+  return handle<{ run_id: string; status: string; blueprint_status: string; task_count: number; dry_run: boolean }>(
+    response
+  );
 }
 
 export async function submitBlueprint(

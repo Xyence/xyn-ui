@@ -84,6 +84,10 @@ export type BlueprintSummary = {
   id: string;
   name: string;
   namespace: string;
+  status?: "active" | "archived" | "deprovisioning" | "deprovisioned";
+  archived_at?: string | null;
+  deprovisioned_at?: string | null;
+  deprovision_last_run_id?: string | null;
   description?: string;
   spec_text?: string;
   metadata_json?: Record<string, unknown> | null;
@@ -95,6 +99,53 @@ export type BlueprintSummary = {
 
 export type BlueprintDetail = BlueprintSummary & {
   spec_json?: Record<string, unknown> | null;
+};
+
+export type BlueprintDeprovisionStep = {
+  id: string;
+  title: string;
+  capability: string;
+};
+
+export type BlueprintDeprovisionPlan = {
+  blueprint_id: string;
+  blueprint_name: string;
+  blueprint_namespace: string;
+  identifier: string;
+  generated_at: string;
+  mode: "safe" | "stop_services" | "force";
+  flags: {
+    stop_services: boolean;
+    delete_dns: boolean;
+    remove_runtime_markers: boolean;
+    can_execute: boolean;
+  };
+  summary: {
+    release_target_count: number;
+    dns_record_count: number;
+    runtime_root_count: number;
+    step_count: number;
+  };
+  affected_release_targets: Array<{
+    id: string;
+    name: string;
+    environment: string;
+    fqdn: string;
+    target_instance_id: string;
+    remote_root: string;
+    compose_file_path: string;
+  }>;
+  dns_records: Array<{
+    release_target_id: string;
+    fqdn: string;
+    provider: string;
+    zone_id: string;
+    zone_name: string;
+    ownership_proven: boolean;
+  }>;
+  runtime_roots: string[];
+  warnings: string[];
+  steps: BlueprintDeprovisionStep[];
 };
 
 export type BlueprintIntentTranscript = {

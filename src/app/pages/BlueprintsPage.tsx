@@ -2,9 +2,11 @@ import { useCallback, useEffect, useMemo, useState } from "react";
 import { Link } from "react-router-dom";
 import InlineMessage from "../../components/InlineMessage";
 import {
+  archiveBlueprint,
   createBlueprint,
-  deleteBlueprint,
+  deprovisionBlueprint,
   getBlueprint,
+  getBlueprintDeprovisionPlan,
   listBlueprintDevTasks,
   listBlueprints,
   runDevTask,
@@ -17,6 +19,7 @@ import {
 } from "../../api/xyn";
 import type {
   BlueprintCreatePayload,
+  BlueprintDeprovisionPlan,
   BlueprintDetail,
   BlueprintIntent,
   BlueprintSummary,
@@ -58,6 +61,13 @@ export default function BlueprintsPage() {
     ingress_port: "3000",
   });
   const [selectedReleaseTargetId, setSelectedReleaseTargetId] = useState<string>("");
+  const [showDeprovisionModal, setShowDeprovisionModal] = useState(false);
+  const [deprovisionPlan, setDeprovisionPlan] = useState<BlueprintDeprovisionPlan | null>(null);
+  const [deprovisionMode, setDeprovisionMode] = useState<"safe" | "stop_services" | "force">("safe");
+  const [deprovisionDeleteDns, setDeprovisionDeleteDns] = useState(true);
+  const [deprovisionRemoveMarkers, setDeprovisionRemoveMarkers] = useState(true);
+  const [deprovisionConfirmText, setDeprovisionConfirmText] = useState("");
+  const [deprovisionDryRun, setDeprovisionDryRun] = useState(false);
   const [loading, setLoading] = useState(false);
   const [message, setMessage] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
@@ -289,18 +299,89 @@ export default function BlueprintsPage() {
     }
   };
 
-  const handleDelete = async () => {
+  const handleArchive = async () => {
     if (!selectedId) return;
-    if (!confirm("Delete this blueprint?")) return;
+    if (!confirm("Archive this blueprint?")) return;
     try {
       setLoading(true);
       setError(null);
-      await deleteBlueprint(selectedId);
-      setSelectedId(null);
-      setSelected(null);
-      setForm(emptyForm);
+      await archiveBlueprint(selectedId);
       await load();
-      setMessage("Blueprint deleted.");
+      const detail = await getBlueprint(selectedId);
+      setSelected(detail);
+      setMessage("Blueprint archived.");
+    } catch (err) {
+      setError((err as Error).message);
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const loadDeprovisionPlan = useCallback(
+    async (mode: "safe" | "stop_services" | "force", deleteDns: boolean, removeMarkers: boolean) => {
+      if (!selectedId) return;
+      const plan = await getBlueprintDeprovisionPlan(selectedId, {
+        mode,
+        delete_dns: deleteDns,
+        remove_runtime_markers: removeMarkers,
+      });
+      setDeprovisionPlan(plan);
+    },
+    [selectedId]
+  );
+
+  useEffect(() => {
+    if (!showDeprovisionModal || !selectedId) return;
+    (async () => {
+      try {
+        await loadDeprovisionPlan(deprovisionMode, deprovisionDeleteDns, deprovisionRemoveMarkers);
+      } catch (err) {
+        setError((err as Error).message);
+      }
+    })();
+  }, [
+    showDeprovisionModal,
+    selectedId,
+    deprovisionMode,
+    deprovisionDeleteDns,
+    deprovisionRemoveMarkers,
+    loadDeprovisionPlan,
+  ]);
+
+  const handleOpenDeprovision = async () => {
+    if (!selected) return;
+    setShowDeprovisionModal(true);
+    setDeprovisionConfirmText("");
+    setDeprovisionMode("safe");
+    setDeprovisionDeleteDns(true);
+    setDeprovisionRemoveMarkers(true);
+    setDeprovisionDryRun(false);
+    try {
+      setError(null);
+      await loadDeprovisionPlan("safe", true, true);
+    } catch (err) {
+      setError((err as Error).message);
+    }
+  };
+
+  const handleExecuteDeprovision = async () => {
+    if (!selectedId || !selected) return;
+    try {
+      setLoading(true);
+      setError(null);
+      const result = await deprovisionBlueprint(selectedId, {
+        confirm_text: deprovisionConfirmText,
+        mode: deprovisionMode,
+        stop_services: deprovisionMode !== "safe",
+        delete_dns: deprovisionDeleteDns,
+        remove_runtime_markers: deprovisionRemoveMarkers,
+        dry_run: deprovisionDryRun,
+      });
+      setShowDeprovisionModal(false);
+      setMessage(`Deprovision queued. Run: ${result.run_id}`);
+      await load();
+      const detail = await getBlueprint(selectedId);
+      setSelected(detail);
     } catch (err) {
       setError((err as Error).message);
     } finally {
@@ -403,6 +484,7 @@ export default function BlueprintsPage() {
                     <strong>{item.name}</strong>
                     <span className="muted small">{item.namespace}</span>
                     <span className="muted small">Rev {item.latest_revision ?? "—"}</span>
+                    {item.status && <span className="muted small">Status {item.status}</span>}
                   </div>
                   <div className="inline-actions">
                     <Link
@@ -461,6 +543,18 @@ export default function BlueprintsPage() {
                 />
               </label>
             </div>
+          {selected && (
+            <div className="card-subsection">
+              <h4>Lifecycle</h4>
+              <p className="muted small">
+                Status: <strong>{selected.status ?? "active"}</strong>
+                {selected.deprovision_last_run_id ? ` • Last deprovision run ${selected.deprovision_last_run_id}` : ""}
+              </p>
+              <p className="muted small">
+                Archive hides and disables deploys. Deprovision stops runtime resources through auditable run steps.
+              </p>
+            </div>
+          )}
           <div className="card-subsection">
             <h4>Intent</h4>
             {intent ? (
@@ -544,8 +638,11 @@ export default function BlueprintsPage() {
                 <button className="ghost" onClick={handleQueueDevTasks} disabled={loading}>
                   Submit &amp; Queue DevTasks
                 </button>
-                <button className="danger" onClick={handleDelete} disabled={loading}>
-                  Delete
+                <button className="danger" onClick={handleArchive} disabled={loading}>
+                  Archive
+                </button>
+                <button className="ghost" onClick={handleOpenDeprovision} disabled={loading}>
+                  Deprovision…
                 </button>
               </>
             )}
@@ -716,6 +813,95 @@ export default function BlueprintsPage() {
           </section>
         )}
       </div>
+      {showDeprovisionModal && selected && (
+        <div className="modal-backdrop" onClick={() => setShowDeprovisionModal(false)}>
+          <section className="modal" onClick={(event) => event.stopPropagation()}>
+            <h3>Deprovision {selected.namespace}.{selected.name}</h3>
+            <p className="muted small">
+              This will run explicit undo steps and keep audit history. Type <strong>{selected.namespace}.{selected.name}</strong>{" "}
+              to confirm.
+            </p>
+            <div className="form-grid">
+              <label>
+                Mode
+                <select
+                  value={deprovisionMode}
+                  onChange={(event) => setDeprovisionMode(event.target.value as "safe" | "stop_services" | "force")}
+                >
+                  <option value="safe">safe</option>
+                  <option value="stop_services">stop_services</option>
+                  <option value="force">force</option>
+                </select>
+              </label>
+              <label>
+                Confirm text
+                <input value={deprovisionConfirmText} onChange={(event) => setDeprovisionConfirmText(event.target.value)} />
+              </label>
+              <label>
+                <input
+                  type="checkbox"
+                  checked={deprovisionDeleteDns}
+                  onChange={(event) => setDeprovisionDeleteDns(event.target.checked)}
+                />{" "}
+                Delete DNS records
+              </label>
+              <label>
+                <input
+                  type="checkbox"
+                  checked={deprovisionRemoveMarkers}
+                  onChange={(event) => setDeprovisionRemoveMarkers(event.target.checked)}
+                />{" "}
+                Remove runtime markers
+              </label>
+              <label>
+                <input type="checkbox" checked={deprovisionDryRun} onChange={(event) => setDeprovisionDryRun(event.target.checked)} />{" "}
+                Dry run only
+              </label>
+            </div>
+            {deprovisionPlan && (
+              <div className="stack">
+                <p className="muted small">
+                  Targets: {deprovisionPlan.summary.release_target_count} • Steps: {deprovisionPlan.summary.step_count}
+                </p>
+                {deprovisionPlan.warnings.length > 0 && (
+                  <InlineMessage
+                    tone="error"
+                    title="Warnings"
+                    body={deprovisionPlan.warnings.join(" ")}
+                  />
+                )}
+                <div className="item-row">
+                  <strong>Actions in plan</strong>
+                </div>
+                <div className="stack">
+                  {deprovisionPlan.steps.map((step) => (
+                    <div key={step.id} className="muted small">
+                      {step.title}
+                    </div>
+                  ))}
+                </div>
+              </div>
+            )}
+            <div className="inline-actions">
+              <button className="ghost" onClick={() => setShowDeprovisionModal(false)}>
+                Cancel
+              </button>
+              <button
+                className="danger"
+                disabled={
+                  loading ||
+                  !deprovisionConfirmText ||
+                  !deprovisionPlan ||
+                  (!deprovisionPlan.flags.can_execute && deprovisionMode !== "force")
+                }
+                onClick={handleExecuteDeprovision}
+              >
+                Execute deprovision
+              </button>
+            </div>
+          </section>
+        </div>
+      )}
     </>
   );
 }
