@@ -302,13 +302,25 @@ export default function BlueprintsPage() {
   const handleArchive = async () => {
     if (!selectedId) return;
     if (!confirm("Archive this blueprint?")) return;
+    const archivedId = selectedId;
     try {
       setLoading(true);
       setError(null);
-      await archiveBlueprint(selectedId);
-      await load();
-      const detail = await getBlueprint(selectedId);
-      setSelected(detail);
+      await archiveBlueprint(archivedId);
+      const data = await listBlueprints();
+      setItems(data.blueprints);
+      const next = data.blueprints.find((item) => item.id !== archivedId) ?? null;
+      if (!next) {
+        setSelectedId(null);
+        setSelected(null);
+        setForm(emptyForm);
+        setMetadataText("");
+        setDevTasks([]);
+        setReleaseTargets([]);
+        setSelectedReleaseTargetId("");
+      } else {
+        setSelectedId(next.id);
+      }
       setMessage("Blueprint archived.");
     } catch (err) {
       setError((err as Error).message);
