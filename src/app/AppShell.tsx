@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
 import { Navigate, Route, Routes, useLocation } from "react-router-dom";
 import { getMe, getMyProfile, getTenantBranding } from "../api/xyn";
 import { NAV_GROUPS, NavUserContext } from "./nav/nav.config";
@@ -39,6 +39,7 @@ import { useNotifications } from "./state/notificationsStore";
 
 export default function AppShell() {
   const location = useLocation();
+  const contentRef = useRef<HTMLElement | null>(null);
   const [authed, setAuthed] = useState(false);
   const [roles, setRoles] = useState<string[]>([]);
   const [authUser, setAuthUser] = useState<Record<string, unknown> | null>(null);
@@ -126,6 +127,19 @@ export default function AppShell() {
     setReportOpen(true);
   });
 
+  useLayoutEffect(() => {
+    window.scrollTo({ top: 0, left: 0, behavior: "auto" });
+    if (contentRef.current) {
+      contentRef.current.scrollTop = 0;
+    }
+  }, [location.pathname]);
+
+  useEffect(() => {
+    if (!authLoaded || authed) return;
+    const returnTo = `${location.pathname}${location.search || ""}` || "/app";
+    window.location.href = `/auth/login?appId=xyn-ui&returnTo=${encodeURIComponent(returnTo)}`;
+  }, [authLoaded, authed, location.pathname, location.search]);
+
   if (!authLoaded) {
     return (
       <div className="app-shell">
@@ -135,6 +149,22 @@ export default function AppShell() {
             <div>
               <h1>{brandName}</h1>
               <p>Loading session...</p>
+            </div>
+          </div>
+        </header>
+      </div>
+    );
+  }
+
+  if (!authed) {
+    return (
+      <div className="app-shell">
+        <header className="app-header">
+          <div className="brand">
+            <img className="brand-logo" src="/xyence-logo.png" alt="Xyence logo" />
+            <div>
+              <h1>{brandName}</h1>
+              <p>Redirecting to sign in...</p>
             </div>
           </div>
         </header>
@@ -167,7 +197,7 @@ export default function AppShell() {
       </header>
       <div className="app-body">
         <Sidebar user={navUser} />
-        <main className="app-content">
+        <main className="app-content" ref={contentRef}>
           {breadcrumbTrail.length > 0 && (
             <div className="app-breadcrumbs" aria-label="Breadcrumb">
               {breadcrumbTrail.map((crumb) => crumb.label).join(" / ")}
