@@ -808,6 +808,13 @@ export type IdentityProvider = {
     acceptAudiences?: string[];
     acceptAzp?: boolean;
   };
+  fallback_default_role_id?: string | null;
+  require_group_match?: boolean;
+  group_claim_path?: string;
+  group_role_mappings?: Array<{
+    remote_group_name: string;
+    xyn_role_id: string;
+  }>;
   last_discovery_refresh_at?: string;
 };
 

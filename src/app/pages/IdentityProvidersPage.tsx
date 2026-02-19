@@ -17,6 +17,13 @@ type ProviderForm = IdentityProvider & {
   };
 };
 
+type GroupRoleMapping = {
+  remote_group_name: string;
+  xyn_role_id: string;
+};
+
+const ROLE_OPTIONS = ["platform_admin", "platform_architect", "platform_operator", "app_user"];
+
 const emptyForm: ProviderForm = {
   id: "",
   display_name: "",
@@ -55,6 +62,10 @@ const emptyForm: ProviderForm = {
     acceptAudiences: [],
     acceptAzp: true,
   },
+  fallback_default_role_id: null,
+  require_group_match: false,
+  group_claim_path: "groups",
+  group_role_mappings: [],
 };
 
 const splitCsv = (value: string) =>
@@ -62,6 +73,20 @@ const splitCsv = (value: string) =>
     .split(",")
     .map((item) => item.trim())
     .filter(Boolean);
+
+const validateGroupMappings = (mappings: GroupRoleMapping[]): string[] => {
+  const errors: string[] = [];
+  const seen = new Set<string>();
+  mappings.forEach((mapping, index) => {
+    const remote = (mapping.remote_group_name || "").trim();
+    const roleId = (mapping.xyn_role_id || "").trim();
+    if (!remote) errors.push(`Mapping ${index + 1}: remote group name is required.`);
+    if (!roleId) errors.push(`Mapping ${index + 1}: Xyn role is required.`);
+    if (remote && seen.has(remote)) errors.push(`Mapping ${index + 1}: duplicate remote group name '${remote}'.`);
+    if (remote) seen.add(remote);
+  });
+  return errors;
+};
 
 const normalizeProviderPayload = (payload: ProviderForm): Record<string, unknown> => {
   const prompt = (payload.prompt || "").trim();
@@ -81,6 +106,7 @@ export default function IdentityProvidersPage() {
   const [loading, setLoading] = useState(false);
   const [message, setMessage] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
+  const [formErrors, setFormErrors] = useState<string[]>([]);
   const [testResult, setTestResult] = useState<string | null>(null);
   const didAutoSelectRef = useRef(false);
 
@@ -140,8 +166,16 @@ export default function IdentityProvidersPage() {
         acceptAudiences: selected.audience_rules?.acceptAudiences || [],
         acceptAzp: selected.audience_rules?.acceptAzp ?? true,
       },
+      fallback_default_role_id: selected.fallback_default_role_id || null,
+      require_group_match: selected.require_group_match ?? false,
+      group_claim_path: selected.group_claim_path || "groups",
+      group_role_mappings: (selected.group_role_mappings || []).map((entry) => ({
+        remote_group_name: entry.remote_group_name || "",
+        xyn_role_id: entry.xyn_role_id || "",
+      })),
     });
     setUseExistingSecretRef(hasExistingRef);
+    setFormErrors([]);
   }, [selected]);
 
   const buildPayload = () => {
@@ -169,16 +203,28 @@ export default function IdentityProvidersPage() {
 
     return {
       ...base,
+      group_claim_path: (base.group_claim_path || "").trim() || "groups",
+      group_role_mappings: (base.group_role_mappings || []).map((mapping) => ({
+        remote_group_name: (mapping.remote_group_name || "").trim(),
+        xyn_role_id: (mapping.xyn_role_id || "").trim(),
+      })),
       client,
     };
   };
 
   const handleCreate = async () => {
+    const payload = buildPayload() as ProviderForm;
+    const errors = validateGroupMappings((payload.group_role_mappings || []) as GroupRoleMapping[]);
+    if (errors.length) {
+      setFormErrors(errors);
+      return;
+    }
     try {
       setLoading(true);
       setError(null);
       setMessage(null);
-      const created = await createIdentityProvider(buildPayload() as IdentityProvider);
+      setFormErrors([]);
+      const created = await createIdentityProvider(payload as IdentityProvider);
       await load();
       setSelectedId(created.id);
       setMessage("Identity provider created.");
@@ -191,11 +237,18 @@ export default function IdentityProvidersPage() {
 
   const handleUpdate = async () => {
     if (!selectedId) return;
+    const payload = buildPayload() as ProviderForm;
+    const errors = validateGroupMappings((payload.group_role_mappings || []) as GroupRoleMapping[]);
+    if (errors.length) {
+      setFormErrors(errors);
+      return;
+    }
     try {
       setLoading(true);
       setError(null);
       setMessage(null);
-      await updateIdentityProvider(selectedId, buildPayload() as Partial<IdentityProvider>);
+      setFormErrors([]);
+      await updateIdentityProvider(selectedId, payload as Partial<IdentityProvider>);
       await load();
       setMessage("Identity provider updated.");
     } catch (err) {
@@ -256,6 +309,7 @@ export default function IdentityProvidersPage() {
               setForm(emptyForm);
               setUseExistingSecretRef(false);
               setTestResult(null);
+              setFormErrors([]);
             }}
             disabled={loading}
           >
@@ -268,6 +322,9 @@ export default function IdentityProvidersPage() {
       </div>
 
       {error && <InlineMessage tone="error" title="Request failed" body={error} />}
+      {formErrors.length > 0 && (
+        <InlineMessage tone="error" title="Validation" body={formErrors.join(" ")} />
+      )}
       {message && <InlineMessage tone="info" title="Update" body={message} />}
       {testResult && <InlineMessage tone="info" title="Test" body={testResult} />}
 
@@ -543,6 +600,136 @@ export default function IdentityProvidersPage() {
                 }
               />
             </label>
+            <label>
+              Fallback default role
+              <select
+                value={form.fallback_default_role_id || ""}
+                onChange={(event) =>
+                  setForm({
+                    ...form,
+                    fallback_default_role_id: event.target.value || null,
+                  })
+                }
+              >
+                <option value="">None</option>
+                {ROLE_OPTIONS.map((option) => (
+                  <option key={option} value={option}>
+                    {option}
+                  </option>
+                ))}
+              </select>
+            </label>
+            <label>
+              Require group match
+              <input
+                type="checkbox"
+                checked={Boolean(form.require_group_match)}
+                onChange={(event) =>
+                  setForm({
+                    ...form,
+                    require_group_match: event.target.checked,
+                  })
+                }
+              />
+            </label>
+            <label>
+              Group claim path
+              <input
+                className="input"
+                value={form.group_claim_path || "groups"}
+                onChange={(event) =>
+                  setForm({
+                    ...form,
+                    group_claim_path: event.target.value,
+                  })
+                }
+                placeholder="groups or realm_access.roles"
+              />
+              <span className="muted small">Examples: groups, realm_access.roles, custom.claims.groups</span>
+            </label>
+            <div style={{ gridColumn: "1 / -1" }}>
+              <div className="card-header">
+                <h4>Group role mappings</h4>
+              </div>
+              <table className="table">
+                <thead>
+                  <tr>
+                    <th>Remote Group Name</th>
+                    <th>Xyn Role</th>
+                    <th />
+                  </tr>
+                </thead>
+                <tbody>
+                  {(form.group_role_mappings || []).map((mapping, index) => (
+                    <tr key={`${mapping.remote_group_name}-${index}`}>
+                      <td>
+                        <input
+                          className="input"
+                          value={mapping.remote_group_name}
+                          onChange={(event) => {
+                            const next = [...(form.group_role_mappings || [])];
+                            next[index] = { ...next[index], remote_group_name: event.target.value };
+                            setForm({ ...form, group_role_mappings: next });
+                          }}
+                          placeholder="group-name"
+                        />
+                      </td>
+                      <td>
+                        <select
+                          value={mapping.xyn_role_id}
+                          onChange={(event) => {
+                            const next = [...(form.group_role_mappings || [])];
+                            next[index] = { ...next[index], xyn_role_id: event.target.value };
+                            setForm({ ...form, group_role_mappings: next });
+                          }}
+                        >
+                          <option value="">Select role</option>
+                          {ROLE_OPTIONS.map((option) => (
+                            <option key={option} value={option}>
+                              {option}
+                            </option>
+                          ))}
+                        </select>
+                      </td>
+                      <td>
+                        <button
+                          type="button"
+                          className="ghost"
+                          onClick={() => {
+                            const next = (form.group_role_mappings || []).filter((_, idx) => idx !== index);
+                            setForm({ ...form, group_role_mappings: next });
+                          }}
+                        >
+                          Remove
+                        </button>
+                      </td>
+                    </tr>
+                  ))}
+                  {(form.group_role_mappings || []).length === 0 && (
+                    <tr>
+                      <td colSpan={3} className="muted small">
+                        No mappings configured.
+                      </td>
+                    </tr>
+                  )}
+                </tbody>
+              </table>
+              <button
+                type="button"
+                className="ghost"
+                onClick={() =>
+                  setForm({
+                    ...form,
+                    group_role_mappings: [
+                      ...(form.group_role_mappings || []),
+                      { remote_group_name: "", xyn_role_id: "" },
+                    ],
+                  })
+                }
+              >
+                Add mapping
+              </button>
+            </div>
           </div>
           <div className="form-actions">
             <button
