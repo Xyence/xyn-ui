@@ -14,7 +14,7 @@ import {
 } from "@xyflow/react";
 import "@xyflow/react/dist/style.css";
 import InlineMessage from "../../components/InlineMessage";
-import { checkDrift, deployLatest, fetchMap, rollbackLastSuccess } from "../../api/xyn";
+import { checkDrift, deployLatest, fetchMap, listBlueprints, rollbackLastSuccess } from "../../api/xyn";
 import type { XynMapEdge, XynMapNode, XynMapNodeKind, XynMapResponse } from "../../api/types";
 
 type FlowNodeData = {
@@ -102,6 +102,60 @@ function buildLayout(nodes: XynMapNode[], edges: XynMapEdge[]): { nodes: FlowNod
   return { nodes: flowNodes, edges: flowEdges };
 }
 
+function pruneArchivedBlueprints(mapData: XynMapResponse, activeBlueprintIds: Set<string>): XynMapResponse {
+  const activeBlueprintNodeIds = new Set(
+    mapData.nodes
+      .filter((node) => node.kind === "blueprint" && activeBlueprintIds.has(node.ref.id))
+      .map((node) => node.id)
+  );
+
+  const outgoing = new Map<string, string[]>();
+  for (const edge of mapData.edges) {
+    const targets = outgoing.get(edge.from);
+    if (targets) {
+      targets.push(edge.to);
+    } else {
+      outgoing.set(edge.from, [edge.to]);
+    }
+  }
+
+  const reachable = new Set<string>(activeBlueprintNodeIds);
+  const queue = Array.from(activeBlueprintNodeIds);
+  while (queue.length > 0) {
+    const current = queue.shift();
+    if (!current) continue;
+    const targets = outgoing.get(current) || [];
+    for (const target of targets) {
+      if (!reachable.has(target)) {
+        reachable.add(target);
+        queue.push(target);
+      }
+    }
+  }
+
+  const nodes = mapData.nodes.filter((node) => {
+    if (node.kind === "blueprint") {
+      return activeBlueprintNodeIds.has(node.id);
+    }
+    return reachable.has(node.id);
+  });
+  const nodeIds = new Set(nodes.map((node) => node.id));
+  const edges = mapData.edges.filter((edge) => nodeIds.has(edge.from) && nodeIds.has(edge.to));
+
+  return {
+    ...mapData,
+    meta: {
+      ...mapData.meta,
+      options: {
+        ...mapData.meta.options,
+        blueprints: (mapData.meta.options?.blueprints || []).filter((item) => activeBlueprintIds.has(item.id)),
+      },
+    },
+    nodes,
+    edges,
+  };
+}
+
 export default function XynMapPage() {
   const [searchParams, setSearchParams] = useSearchParams();
   const [mapData, setMapData] = useState<XynMapResponse | null>(null);
@@ -119,15 +173,24 @@ export default function XynMapPage() {
     try {
       setLoading(true);
       setError(null);
+      const blueprintData = await listBlueprints();
+      const activeBlueprintIds = new Set((blueprintData.blueprints || []).map((item) => item.id));
+      const effectiveBlueprintFilter =
+        blueprintFilter && activeBlueprintIds.has(blueprintFilter) ? blueprintFilter : "";
+      if (blueprintFilter && !effectiveBlueprintFilter) {
+        setBlueprintFilter("");
+      }
+
       const payload = await fetchMap({
-        blueprint_id: blueprintFilter || undefined,
+        blueprint_id: effectiveBlueprintFilter || undefined,
         environment_id: environmentFilter || undefined,
         tenant_id: tenantFilter || undefined,
         include_runs: true,
         include_instances: true,
       });
-      setMapData(payload);
-      if (selectedNodeId && !payload.nodes.find((node) => node.id === selectedNodeId)) {
+      const prunedPayload = pruneArchivedBlueprints(payload, activeBlueprintIds);
+      setMapData(prunedPayload);
+      if (selectedNodeId && !prunedPayload.nodes.find((node) => node.id === selectedNodeId)) {
         setSelectedNodeId(null);
       }
     } catch (err) {
