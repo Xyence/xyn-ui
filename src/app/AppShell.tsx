@@ -281,7 +281,7 @@ export default function AppShell() {
               element={<PeopleRolesPage workspaceId={activeWorkspace?.id || ""} canAdmin={canWorkspaceAdmin} />}
             />
             <Route path="devices" element={<DevicesPage />} />
-            <Route path="guides" element={<GuidesPage />} />
+            <Route path="guides" element={<GuidesPage roles={roles} />} />
             <Route path="map" element={<XynMapPage />} />
             <Route path="blueprints" element={<BlueprintsPage />} />
             <Route path="drafts" element={<DraftSessionsPage />} />

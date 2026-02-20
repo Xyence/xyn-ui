@@ -1,7 +1,7 @@
 import { useEffect, useMemo, useState } from "react";
 import { useLocation, useNavigate } from "react-router-dom";
 import InlineMessage from "../../components/InlineMessage";
-import { getDocBySlug, listDocs } from "../../api/xyn";
+import { getDocBySlug, listDocs, publishDoc, updateDoc } from "../../api/xyn";
 import type { DocPage } from "../../api/types";
 import { renderMarkdown } from "../../public/markdown";
 
@@ -10,14 +10,22 @@ function useQuery() {
   return useMemo(() => new URLSearchParams(location.search), [location.search]);
 }
 
-export default function GuidesPage() {
+type GuidesPageProps = {
+  roles?: string[];
+};
+
+export default function GuidesPage({ roles = [] }: GuidesPageProps) {
   const navigate = useNavigate();
   const query = useQuery();
   const [docs, setDocs] = useState<DocPage[]>([]);
   const [selectedSlug, setSelectedSlug] = useState<string>(query.get("slug") || "");
   const [selectedDoc, setSelectedDoc] = useState<DocPage | null>(null);
+  const [editBody, setEditBody] = useState<string>("");
   const [message, setMessage] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
+  const [saving, setSaving] = useState(false);
+  const canEdit = roles.includes("platform_admin") || roles.includes("platform_architect");
+  const editSlug = query.get("edit") || "";
 
   useEffect(() => {
     let mounted = true;
@@ -59,7 +67,10 @@ export default function GuidesPage() {
       try {
         setError(null);
         const response = await getDocBySlug(selectedSlug);
-        if (mounted) setSelectedDoc(response.doc);
+        if (mounted) {
+          setSelectedDoc(response.doc);
+          setEditBody(response.doc.body_markdown || "");
+        }
       } catch (err) {
         if (mounted) setError((err as Error).message);
       }
@@ -129,7 +140,53 @@ export default function GuidesPage() {
                 Updated {selectedDoc.updated_at || "—"}
                 {selectedDoc.updated_by_email ? ` by ${selectedDoc.updated_by_email}` : ""}
               </p>
-              <div className="markdown-body" dangerouslySetInnerHTML={{ __html: renderMarkdown(selectedDoc.body_markdown) }} />
+              {canEdit && editSlug === selectedDoc.slug ? (
+                <div className="stack">
+                  <textarea rows={18} value={editBody} onChange={(event) => setEditBody(event.target.value)} />
+                  <div className="inline-actions">
+                    <button
+                      className="primary"
+                      disabled={saving}
+                      onClick={async () => {
+                        if (!selectedDoc) return;
+                        try {
+                          setSaving(true);
+                          const updated = await updateDoc(selectedDoc.id, { body_markdown: editBody });
+                          setSelectedDoc(updated.doc);
+                          setMessage("Doc draft saved.");
+                        } catch (err) {
+                          setError((err as Error).message);
+                        } finally {
+                          setSaving(false);
+                        }
+                      }}
+                    >
+                      Save draft
+                    </button>
+                    <button
+                      className="ghost"
+                      disabled={saving}
+                      onClick={async () => {
+                        if (!selectedDoc) return;
+                        try {
+                          setSaving(true);
+                          const published = await publishDoc(selectedDoc.id);
+                          setSelectedDoc(published.doc);
+                          setMessage("Doc published.");
+                        } catch (err) {
+                          setError((err as Error).message);
+                        } finally {
+                          setSaving(false);
+                        }
+                      }}
+                    >
+                      Publish
+                    </button>
+                  </div>
+                </div>
+              ) : (
+                <div className="markdown-body" dangerouslySetInnerHTML={{ __html: renderMarkdown(selectedDoc.body_markdown) }} />
+              )}
             </>
           ) : (
             <p className="muted">Select a guide.</p>
