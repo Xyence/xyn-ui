@@ -16,51 +16,43 @@ describe("nav.utils", () => {
   });
 
   it("finds active item and containing group/subgroup", () => {
-    const match = findActiveItem("/app/platform/identity-providers", NAV_GROUPS);
-    expect(match?.groupId).toBe("control-plane");
-    expect(match?.subgroupId).toBe("access-identity");
-    expect(match?.item.id).toBe("identity-providers");
+    const match = findActiveItem("/app/artifacts", NAV_GROUPS);
+    expect(match?.groupId).toBe("artifacts");
+    expect(match?.subgroupId).toBeUndefined();
+    expect(match?.item.id).toBe("artifacts");
   });
 
   it("builds breadcrumbs from nav config", () => {
-    const crumbs = getBreadcrumbs("/app/runs", NAV_GROUPS);
-    expect(crumbs.map((entry) => entry.label)).toEqual(["Deploy & Runtime", "Runs"]);
+    const crumbs = getBreadcrumbs("/app/activity", NAV_GROUPS);
+    expect(crumbs.map((entry) => entry.label)).toEqual(["Activity", "Activity"]);
   });
 
   it("persists and hydrates nav state", () => {
     persistNavState({
-      expandedGroupIds: ["design", "package"],
-      expandedSubgroupIds: ["access-identity"],
+      expandedGroupIds: ["home", "artifacts"],
+      expandedSubgroupIds: [],
       collapsed: true,
     });
     const hydrated = hydrateNavState();
-    expect(hydrated.expandedGroupIds).toEqual(["design", "package"]);
-    expect(hydrated.expandedSubgroupIds).toEqual(["access-identity"]);
+    expect(hydrated.expandedGroupIds).toEqual(["home", "artifacts"]);
+    expect(hydrated.expandedSubgroupIds).toEqual([]);
     expect(hydrated.collapsed).toBe(true);
     expect(window.localStorage.getItem(NAV_STATE_STORAGE_KEY)).toContain("expandedGroupIds");
   });
 
   it("filters by label/keywords and returns matches", () => {
-    const filtered = filterNav(NAV_GROUPS, "oidc");
+    const filtered = filterNav(NAV_GROUPS, "artifact");
     const labels = filtered.matches.map((entry) => entry.item.label);
-    expect(labels).toContain("OIDC App Clients");
+    expect(labels).toContain("Artifacts");
     expect(filtered.groups.length).toBeGreaterThan(0);
   });
 
-  it("RBAC visibility hides platform admin items for non-admin users", () => {
+  it("RBAC visibility can filter by required roles", () => {
+    const roleLocked = [{ id: "x", label: "X", icon: "BookOpen", items: [{ id: "a", label: "A", path: "/a", requiredRoles: ["admin"] }] }];
     const userNav = visibleNav(NAV_GROUPS, { roles: [] });
-    const flattened = userNav.flatMap((group) => [
-      ...(group.items || []),
-      ...((group.subgroups || []).flatMap((subgroup) => subgroup.items)),
-    ]);
-    expect(flattened.some((item) => item.path === "/app/platform/secret-stores")).toBe(false);
-
-    const adminNav = visibleNav(NAV_GROUPS, { roles: ["platform_admin"] });
-    const adminFlattened = adminNav.flatMap((group) => [
-      ...(group.items || []),
-      ...((group.subgroups || []).flatMap((subgroup) => subgroup.items)),
-    ]);
-    expect(adminFlattened.some((item) => item.path === "/app/platform/secret-stores")).toBe(true);
+    expect(userNav.length).toBeGreaterThan(0);
+    expect(visibleNav(roleLocked, { roles: [] }).length).toBe(0);
+    expect(visibleNav(roleLocked, { roles: ["admin"] }).length).toBe(1);
   });
 
   it("supports hidden roles for specific items", () => {

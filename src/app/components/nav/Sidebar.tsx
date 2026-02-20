@@ -62,6 +62,9 @@ type QuickAction = {
 
 type Props = {
   user: NavUserContext;
+  workspaces?: Array<{ id: string; name: string }>;
+  activeWorkspaceId?: string;
+  onWorkspaceChange?: (workspaceId: string) => void;
 };
 
 const QUICK_ACTIONS: QuickAction[] = [
@@ -120,7 +123,7 @@ function NavTooltip({ content, disabled, children }: { content: string; disabled
   );
 }
 
-export default function Sidebar({ user }: Props) {
+export default function Sidebar({ user, workspaces = [], activeWorkspaceId = "", onWorkspaceChange }: Props) {
   const { pathname } = useLocation();
   const navigate = useNavigate();
   const scrollRef = useRef<HTMLElement | null>(null);
@@ -286,6 +289,22 @@ export default function Sidebar({ user }: Props) {
       data-testid="xyn-sidebar"
     >
       <div className="sidebar-top">
+        {!state.collapsed && workspaces.length > 0 && (
+          <label className="sidebar-search-wrap">
+            <span className="muted small">Workspace</span>
+            <select
+              value={activeWorkspaceId}
+              onChange={(event) => onWorkspaceChange?.(event.target.value)}
+              aria-label="Workspace selector"
+            >
+              {workspaces.map((workspace) => (
+                <option key={workspace.id} value={workspace.id}>
+                  {workspace.name}
+                </option>
+              ))}
+            </select>
+          </label>
+        )}
         {!state.collapsed && (
           <label className="sidebar-search-wrap">
             <span className="sr-only">Search</span>

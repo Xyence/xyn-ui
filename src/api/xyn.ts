@@ -74,6 +74,11 @@ import type {
   ReportRecord,
   PlatformConfig,
   PlatformConfigResponse,
+  WorkspaceListResponse,
+  ArtifactSummary,
+  ArtifactDetail,
+  ArtifactEventSummary,
+  WorkspaceMembershipSummary,
 } from "./types";
 import { authHeaders, resolveApiBaseUrl } from "./client";
 
@@ -141,10 +146,177 @@ export async function getWhoAmI(): Promise<{ authenticated: boolean; username?: 
   return handle<{ authenticated: boolean; username?: string; email?: string }>(response);
 }
 
-export async function getMe(): Promise<{ user: Record<string, string | null>; roles: string[] }> {
+export async function getMe(): Promise<{
+  user: Record<string, string | null>;
+  roles: string[];
+  workspaces?: Array<{ id: string; slug: string; name: string; role: string; termination_authority?: boolean }>;
+}> {
   const apiBaseUrl = resolveApiBaseUrl();
   const response = await apiFetch(`${apiBaseUrl}/xyn/api/me`, { credentials: "include" });
-  return handle<{ user: Record<string, string | null>; roles: string[] }>(response);
+  return handle<{
+    user: Record<string, string | null>;
+    roles: string[];
+    workspaces?: Array<{ id: string; slug: string; name: string; role: string; termination_authority?: boolean }>;
+  }>(response);
+}
+
+export async function listWorkspaces(): Promise<WorkspaceListResponse> {
+  const apiBaseUrl = resolveApiBaseUrl();
+  const response = await apiFetch(`${apiBaseUrl}/xyn/api/workspaces`, { credentials: "include" });
+  return handle<WorkspaceListResponse>(response);
+}
+
+export async function listWorkspaceArtifacts(
+  workspaceId: string,
+  filters?: { type?: string; status?: string }
+): Promise<{ artifacts: ArtifactSummary[] }> {
+  const apiBaseUrl = resolveApiBaseUrl();
+  const url = new URL(`${apiBaseUrl}/xyn/api/workspaces/${workspaceId}/artifacts`);
+  if (filters?.type) url.searchParams.set("type", filters.type);
+  if (filters?.status) url.searchParams.set("status", filters.status);
+  const response = await apiFetch(url.toString(), { credentials: "include" });
+  return handle<{ artifacts: ArtifactSummary[] }>(response);
+}
+
+export async function createWorkspaceArtifact(
+  workspaceId: string,
+  payload: Record<string, unknown>
+): Promise<{ id: string }> {
+  const apiBaseUrl = resolveApiBaseUrl();
+  const response = await apiFetch(`${apiBaseUrl}/xyn/api/workspaces/${workspaceId}/artifacts`, {
+    method: "POST",
+    headers: buildHeaders(),
+    credentials: "include",
+    body: JSON.stringify(payload),
+  });
+  return handle<{ id: string }>(response);
+}
+
+export async function getWorkspaceArtifact(workspaceId: string, artifactId: string): Promise<ArtifactDetail> {
+  const apiBaseUrl = resolveApiBaseUrl();
+  const response = await apiFetch(`${apiBaseUrl}/xyn/api/workspaces/${workspaceId}/artifacts/${artifactId}`, {
+    credentials: "include",
+  });
+  return handle<ArtifactDetail>(response);
+}
+
+export async function updateWorkspaceArtifact(
+  workspaceId: string,
+  artifactId: string,
+  payload: Record<string, unknown>
+): Promise<ArtifactDetail> {
+  const apiBaseUrl = resolveApiBaseUrl();
+  const response = await apiFetch(`${apiBaseUrl}/xyn/api/workspaces/${workspaceId}/artifacts/${artifactId}`, {
+    method: "PATCH",
+    headers: buildHeaders(),
+    credentials: "include",
+    body: JSON.stringify(payload),
+  });
+  return handle<ArtifactDetail>(response);
+}
+
+export async function publishWorkspaceArtifact(workspaceId: string, artifactId: string): Promise<{ id: string; status: string }> {
+  const apiBaseUrl = resolveApiBaseUrl();
+  const response = await apiFetch(`${apiBaseUrl}/xyn/api/workspaces/${workspaceId}/artifacts/${artifactId}/publish`, {
+    method: "POST",
+    credentials: "include",
+  });
+  return handle<{ id: string; status: string }>(response);
+}
+
+export async function deprecateWorkspaceArtifact(workspaceId: string, artifactId: string): Promise<{ id: string; status: string }> {
+  const apiBaseUrl = resolveApiBaseUrl();
+  const response = await apiFetch(`${apiBaseUrl}/xyn/api/workspaces/${workspaceId}/artifacts/${artifactId}/deprecate`, {
+    method: "POST",
+    credentials: "include",
+  });
+  return handle<{ id: string; status: string }>(response);
+}
+
+export async function reactToWorkspaceArtifact(workspaceId: string, artifactId: string, value: "endorse" | "oppose" | "neutral"): Promise<void> {
+  const apiBaseUrl = resolveApiBaseUrl();
+  const response = await apiFetch(`${apiBaseUrl}/xyn/api/workspaces/${workspaceId}/artifacts/${artifactId}/reactions`, {
+    method: "POST",
+    headers: buildHeaders(),
+    credentials: "include",
+    body: JSON.stringify({ value }),
+  });
+  await handle<void>(response);
+}
+
+export async function commentOnWorkspaceArtifact(
+  workspaceId: string,
+  artifactId: string,
+  payload: { body: string; parent_comment_id?: string | null }
+): Promise<{ id: string }> {
+  const apiBaseUrl = resolveApiBaseUrl();
+  const response = await apiFetch(`${apiBaseUrl}/xyn/api/workspaces/${workspaceId}/artifacts/${artifactId}/comments`, {
+    method: "POST",
+    headers: buildHeaders(),
+    credentials: "include",
+    body: JSON.stringify(payload),
+  });
+  return handle<{ id: string }>(response);
+}
+
+export async function moderateWorkspaceComment(
+  workspaceId: string,
+  artifactId: string,
+  commentId: string,
+  status: "hidden" | "deleted"
+): Promise<void> {
+  const apiBaseUrl = resolveApiBaseUrl();
+  const response = await apiFetch(
+    `${apiBaseUrl}/xyn/api/workspaces/${workspaceId}/artifacts/${artifactId}/comments/${commentId}`,
+    {
+      method: "PATCH",
+      headers: buildHeaders(),
+      credentials: "include",
+      body: JSON.stringify({ status }),
+    }
+  );
+  await handle<void>(response);
+}
+
+export async function listWorkspaceActivity(workspaceId: string): Promise<{ events: ArtifactEventSummary[] }> {
+  const apiBaseUrl = resolveApiBaseUrl();
+  const response = await apiFetch(`${apiBaseUrl}/xyn/api/workspaces/${workspaceId}/activity`, { credentials: "include" });
+  return handle<{ events: ArtifactEventSummary[] }>(response);
+}
+
+export async function listWorkspaceMemberships(workspaceId: string): Promise<{ memberships: WorkspaceMembershipSummary[] }> {
+  const apiBaseUrl = resolveApiBaseUrl();
+  const response = await apiFetch(`${apiBaseUrl}/xyn/api/workspaces/${workspaceId}/memberships`, { credentials: "include" });
+  return handle<{ memberships: WorkspaceMembershipSummary[] }>(response);
+}
+
+export async function createWorkspaceMembership(
+  workspaceId: string,
+  payload: { user_identity_id: string; role: string; termination_authority?: boolean }
+): Promise<{ id: string }> {
+  const apiBaseUrl = resolveApiBaseUrl();
+  const response = await apiFetch(`${apiBaseUrl}/xyn/api/workspaces/${workspaceId}/memberships`, {
+    method: "POST",
+    headers: buildHeaders(),
+    credentials: "include",
+    body: JSON.stringify(payload),
+  });
+  return handle<{ id: string }>(response);
+}
+
+export async function updateWorkspaceMembership(
+  workspaceId: string,
+  membershipId: string,
+  payload: { role?: string; termination_authority?: boolean }
+): Promise<{ id: string }> {
+  const apiBaseUrl = resolveApiBaseUrl();
+  const response = await apiFetch(`${apiBaseUrl}/xyn/api/workspaces/${workspaceId}/memberships/${membershipId}`, {
+    method: "PATCH",
+    headers: buildHeaders(),
+    credentials: "include",
+    body: JSON.stringify(payload),
+  });
+  return handle<{ id: string }>(response);
 }
 
 export async function getMyProfile(): Promise<MyProfile> {

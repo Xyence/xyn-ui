@@ -21,22 +21,20 @@ describe("Sidebar", () => {
   });
 
   it("renders groups and items from nav config", () => {
-    renderSidebar("/app/map");
-    expect(screen.getByText("Overview")).toBeInTheDocument();
-    expect(screen.getByText("Map")).toBeInTheDocument();
-    expect(screen.getByText("Design")).toBeInTheDocument();
+    renderSidebar("/app/home");
+    expect(screen.getByRole("link", { name: /^Home$/i })).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: /^Artifacts$/i })).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: /^People & Roles$/i })).toBeInTheDocument();
   });
 
   it("auto-expands active route group/subgroup", () => {
-    renderSidebar("/app/platform/identity-providers", ["platform_admin"]);
-    expect(screen.getByText("Platform Control Plane")).toBeInTheDocument();
-    expect(screen.getByText("Access & Identity")).toBeInTheDocument();
-    expect(screen.getByRole("link", { name: /Identity Providers/i })).toBeInTheDocument();
+    renderSidebar("/app/people-roles", ["admin"]);
+    expect(screen.getByRole("link", { name: /People & Roles/i })).toBeInTheDocument();
   });
 
   it("persists collapsed mode to localStorage", async () => {
     const user = userEvent.setup();
-    renderSidebar("/app/map");
+    renderSidebar("/app/home");
     await user.click(screen.getByRole("button", { name: /Collapse sidebar/i }));
     const stored = window.localStorage.getItem(NAV_STATE_STORAGE_KEY) || "";
     expect(stored).toContain('"collapsed":true');
@@ -44,19 +42,19 @@ describe("Sidebar", () => {
 
   it("search filtering reduces visible items and expands matching groups", async () => {
     const user = userEvent.setup();
-    renderSidebar("/app/map", ["platform_admin"]);
+    renderSidebar("/app/home", ["admin"]);
 
     const search = screen.getByRole("textbox", { name: "Search" });
-    await user.type(search, "oidc");
+    await user.type(search, "artifact");
 
-    expect(screen.getByText("OIDC App Clients")).toBeInTheDocument();
-    expect(screen.queryByText("Modules")).not.toBeInTheDocument();
+    expect(screen.getByRole("link", { name: /^Artifacts$/i })).toBeInTheDocument();
+    expect(screen.queryByRole("link", { name: /^People & Roles$/i })).not.toBeInTheDocument();
   });
 
-  it("hides admin-only items when user lacks role", async () => {
+  it("renders without role-gated sections", async () => {
     const user = userEvent.setup();
-    renderSidebar("/app/map", []);
-    await user.type(screen.getByRole("textbox", { name: "Search" }), "secret stores");
-    expect(screen.queryByText("Secret Stores")).not.toBeInTheDocument();
+    renderSidebar("/app/home", []);
+    await user.type(screen.getByRole("textbox", { name: "Search" }), "settings");
+    expect(screen.getByRole("link", { name: /^Settings$/i })).toBeInTheDocument();
   });
 });

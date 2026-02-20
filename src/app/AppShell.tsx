@@ -1,6 +1,6 @@
 import { useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
 import { Navigate, Route, Routes, useLocation } from "react-router-dom";
-import { getMe, getMyProfile, getTenantBranding } from "../api/xyn";
+import { getMe, getMyProfile, getTenantBranding, listWorkspaces } from "../api/xyn";
 import { NAV_GROUPS, NavUserContext } from "./nav/nav.config";
 import { getBreadcrumbs, visibleNav } from "./nav/nav.utils";
 import Sidebar from "./components/nav/Sidebar";
@@ -30,6 +30,11 @@ import ControlPlanePage from "./pages/ControlPlanePage";
 import GuidesPage from "./pages/GuidesPage";
 import XynMapPage from "./pages/XynMapPage";
 import PlatformSettingsPage from "./pages/PlatformSettingsPage";
+import WorkspaceHomePage from "./pages/WorkspaceHomePage";
+import ArtifactsPage from "./pages/ArtifactsPage";
+import ArtifactDetailPage from "./pages/ArtifactDetailPage";
+import PeopleRolesPage from "./pages/PeopleRolesPage";
+import WorkspaceSettingsPage from "./pages/WorkspaceSettingsPage";
 import { useGlobalHotkeys } from "./hooks/useGlobalHotkeys";
 import ReportOverlay from "./components/ReportOverlay";
 import UserMenu from "./components/common/UserMenu";
@@ -48,6 +53,8 @@ export default function AppShell() {
   const [brandName, setBrandName] = useState<string>("Xyn Console");
   const [brandLogo, setBrandLogo] = useState<string>("/xyence-logo.png");
   const [reportOpen, setReportOpen] = useState(false);
+  const [workspaces, setWorkspaces] = useState<Array<{ id: string; slug: string; name: string; role: string; termination_authority?: boolean }>>([]);
+  const [activeWorkspaceId, setActiveWorkspaceId] = useState<string>(() => localStorage.getItem("xyn.activeWorkspaceId") || "");
   const { push } = useNotifications();
 
   useEffect(() => {
@@ -63,6 +70,20 @@ export default function AppShell() {
           id: (me?.user?.subject as string | null) || (me?.user?.sub as string | null) || "",
           email: (me?.user?.email as string | null) || "",
         });
+        const meWorkspaces = me?.workspaces || [];
+        if (Array.isArray(meWorkspaces) && meWorkspaces.length > 0) {
+          setWorkspaces(meWorkspaces);
+          setActiveWorkspaceId((current) => current || meWorkspaces[0].id);
+        } else {
+          try {
+            const ws = await listWorkspaces();
+            if (!mounted) return;
+            setWorkspaces(ws.workspaces || []);
+            setActiveWorkspaceId((current) => current || ws.workspaces?.[0]?.id || "");
+          } catch {
+            // Keep empty workspaces in bootstrap errors.
+          }
+        }
         if (me?.user) {
           try {
             const profile = await getMyProfile();
@@ -98,6 +119,10 @@ export default function AppShell() {
     };
   }, []);
 
+  useEffect(() => {
+    if (activeWorkspaceId) localStorage.setItem("xyn.activeWorkspaceId", activeWorkspaceId);
+  }, [activeWorkspaceId]);
+
   const startLogin = () => {
     const returnTo = window.location.pathname || "/app";
     window.location.href = `/auth/login?appId=xyn-ui&returnTo=${encodeURIComponent(returnTo)}`;
@@ -114,6 +139,12 @@ export default function AppShell() {
   const isPlatformManager = isPlatformAdmin || isPlatformArchitect;
 
   const navUser: NavUserContext = useMemo(() => ({ roles, permissions: [] }), [roles]);
+  const activeWorkspace = useMemo(
+    () => workspaces.find((workspace) => workspace.id === activeWorkspaceId) || workspaces[0] || null,
+    [workspaces, activeWorkspaceId]
+  );
+  const workspaceRole = activeWorkspace?.role || "reader";
+  const canWorkspaceAdmin = workspaceRole === "admin";
   const breadcrumbTrail = useMemo(() => {
     const allowed = visibleNav(NAV_GROUPS, navUser);
     return getBreadcrumbs(location.pathname, allowed);
@@ -196,7 +227,12 @@ export default function AppShell() {
         </div>
       </header>
       <div className="app-body">
-        <Sidebar user={navUser} />
+        <Sidebar
+          user={navUser}
+          workspaces={workspaces.map((workspace) => ({ id: workspace.id, name: workspace.name }))}
+          activeWorkspaceId={activeWorkspace?.id || ""}
+          onWorkspaceChange={setActiveWorkspaceId}
+        />
         <main className="app-content" ref={contentRef}>
           {breadcrumbTrail.length > 0 && (
             <div className="app-breadcrumbs" aria-label="Breadcrumb">
@@ -204,47 +240,20 @@ export default function AppShell() {
             </div>
           )}
           <Routes>
-            <Route path="/" element={<Navigate to="map" replace />} />
-            <Route path="map" element={<XynMapPage />} />
-            <Route path="instances" element={<InstancesPage />} />
-            <Route path="blueprints" element={<BlueprintsPage />} />
-            <Route path="drafts" element={<DraftSessionsPage />} />
-            <Route path="drafts/:draftId" element={<DraftSessionsPage />} />
-            <Route path="registries" element={<RegistriesPage />} />
-            <Route path="modules" element={<ModulesPage />} />
-            <Route path="release-plans" element={<ReleasePlansPage />} />
-            <Route path="releases" element={<ReleasesPage />} />
-            <Route path="runs" element={<RunsPage />} />
-            <Route path="dev-tasks" element={<DevTasksPage />} />
-            <Route path="context-packs" element={<ContextPacksPage />} />
-            <Route path="activity" element={<ActivityPage />} />
-            {!isPlatformAdmin && (
-              <>
-                <Route path="tenants" element={<MyTenantsPage />} />
-                <Route path="tenants/:tenantId" element={<PlatformTenantContactsPage />} />
-              </>
-            )}
-            {isPlatformManager && (
-              <>
-                {isPlatformAdmin && (
-                  <>
-                    <Route path="platform/tenants" element={<PlatformTenantsPage />} />
-                    <Route path="platform/tenants/:tenantId" element={<PlatformTenantContactsPage />} />
-                    <Route path="platform/users" element={<PlatformUsersPage />} />
-                    <Route path="platform/roles" element={<PlatformRolesPage />} />
-                  </>
-                )}
-                <Route path="platform/environments" element={<EnvironmentsPage />} />
-                <Route path="platform/control-plane" element={<ControlPlanePage />} />
-                <Route path="platform/identity-providers" element={<IdentityProvidersPage />} />
-                <Route path="platform/oidc-app-clients" element={<OidcAppClientsPage />} />
-                {isPlatformAdmin && <Route path="platform/secret-stores" element={<SecretStoresPage />} />}
-                {isPlatformAdmin && <Route path="platform/secret-refs" element={<SecretRefsPage />} />}
-                <Route path="platform/branding" element={<PlatformBrandingPage />} />
-                {isPlatformAdmin && <Route path="platform/settings" element={<PlatformSettingsPage />} />}
-                <Route path="platform/guides" element={<GuidesPage />} />
-              </>
-            )}
+            <Route path="/" element={<Navigate to="home" replace />} />
+            <Route path="home" element={<WorkspaceHomePage workspaceName={activeWorkspace?.name || "Workspace"} />} />
+            <Route path="artifacts" element={<ArtifactsPage workspaceId={activeWorkspace?.id || ""} />} />
+            <Route
+              path="artifacts/:artifactId"
+              element={<ArtifactDetailPage workspaceId={activeWorkspace?.id || ""} workspaceRole={workspaceRole} />}
+            />
+            <Route path="activity" element={<ActivityPage workspaceId={activeWorkspace?.id || ""} />} />
+            <Route
+              path="people-roles"
+              element={<PeopleRolesPage workspaceId={activeWorkspace?.id || ""} canAdmin={canWorkspaceAdmin} />}
+            />
+            <Route path="settings" element={<WorkspaceSettingsPage workspaceName={activeWorkspace?.name || "Workspace"} />} />
+            <Route path="*" element={<Navigate to="home" replace />} />
           </Routes>
         </main>
       </div>

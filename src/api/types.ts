@@ -822,6 +822,81 @@ export type IdentityProviderListResponse = { identity_providers: IdentityProvide
 
 export type IdentityProviderPayload = IdentityProvider;
 
+export type WorkspaceSummary = {
+  id: string;
+  slug: string;
+  name: string;
+  description?: string;
+  role: "reader" | "contributor" | "publisher" | "moderator" | "admin";
+  termination_authority?: boolean;
+};
+
+export type WorkspaceListResponse = {
+  workspaces: WorkspaceSummary[];
+};
+
+export type ArtifactSummary = {
+  id: string;
+  workspace_id: string;
+  type: string;
+  title: string;
+  slug: string;
+  status: "draft" | "reviewed" | "ratified" | "published" | "deprecated";
+  version: number;
+  visibility: "private" | "team" | "public";
+  published_at?: string | null;
+  updated_at?: string;
+  content?: {
+    summary?: string;
+    tags?: string[];
+  };
+};
+
+export type ArtifactDetail = ArtifactSummary & {
+  content: {
+    title?: string;
+    summary?: string;
+    body_markdown?: string;
+    body_html?: string;
+    tags?: string[];
+  };
+  provenance_json?: Record<string, unknown>;
+  scope_json?: Record<string, unknown>;
+  reactions?: {
+    endorse: number;
+    oppose: number;
+    neutral: number;
+  };
+  comments?: Array<{
+    id: string;
+    user_id?: string | null;
+    parent_comment_id?: string | null;
+    body: string;
+    status: "visible" | "hidden" | "deleted";
+    created_at?: string;
+  }>;
+};
+
+export type ArtifactEventSummary = {
+  id: string;
+  artifact_id: string;
+  artifact_title: string;
+  event_type: string;
+  actor_id?: string | null;
+  payload_json?: Record<string, unknown>;
+  created_at?: string;
+};
+
+export type WorkspaceMembershipSummary = {
+  id: string;
+  workspace_id: string;
+  user_identity_id: string;
+  email?: string;
+  display_name?: string;
+  role: "reader" | "contributor" | "publisher" | "moderator" | "admin";
+  termination_authority: boolean;
+};
+
 export type OidcAppClient = {
   id: string;
   app_id: string;
