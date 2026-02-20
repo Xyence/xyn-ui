@@ -45,8 +45,50 @@ html.xyn-nav-collapsed .app-body {
   border-bottom: 1px solid var(--sidebar-border);
 }
 
+.sidebar-top-expanded {
+  width: 100%;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.sidebar-workspace-row {
+  width: 100%;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.sidebar-workspace-label {
+  color: var(--sidebar-muted);
+  font-size: 0.72rem;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  font-weight: 700;
+  flex: 0 0 auto;
+}
+
+.sidebar-workspace-select {
+  min-width: 0;
+  flex: 1 1 auto;
+  height: 36px;
+  padding: 6px 10px;
+}
+
+.sidebar-tools-row {
+  width: 100%;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
 .sidebar-search-wrap {
   width: 100%;
+  min-width: 0;
+}
+
+.sidebar-filter-wrap {
+  flex: 1 1 auto;
 }
 
 .sidebar-search {
@@ -67,6 +109,15 @@ html.xyn-nav-collapsed .app-body {
 
 .sidebar-create-wrap {
   position: relative;
+  flex: 0 0 auto;
+}
+
+.sidebar-create-button {
+  padding: 0 10px;
+}
+
+.sidebar-create-label {
+  display: inline-flex;
 }
 
 .sidebar-create-popover {
@@ -224,6 +275,10 @@ html.xyn-nav-collapsed .app-body {
   justify-content: center;
 }
 
+.nav-sidebar.is-collapsed .sidebar-top-expanded {
+  display: none;
+}
+
 .nav-sidebar.is-collapsed .nav-group,
 .nav-sidebar.is-collapsed .nav-subgroup {
   border: 0;
@@ -273,6 +328,16 @@ html.xyn-nav-collapsed .app-body {
 .nav-sidebar.is-collapsed .sidebar-scroll::-webkit-scrollbar {
   width: 0;
   height: 0;
+}
+
+@media (max-width: 1180px) {
+  .sidebar-create-button {
+    padding: 0 8px;
+  }
+
+  .sidebar-create-label {
+    display: none;
+  }
 }
 
 .sidebar-scroll-arrow {

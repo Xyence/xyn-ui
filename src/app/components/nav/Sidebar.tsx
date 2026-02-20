@@ -289,34 +289,71 @@ export default function Sidebar({ user, workspaces = [], activeWorkspaceId = "",
       data-testid="xyn-sidebar"
     >
       <div className="sidebar-top">
-        {!state.collapsed && workspaces.length > 0 && (
-          <label className="sidebar-search-wrap">
-            <span className="muted small">Workspace</span>
-            <select
-              value={activeWorkspaceId}
-              onChange={(event) => onWorkspaceChange?.(event.target.value)}
-              aria-label="Workspace selector"
-            >
-              {workspaces.map((workspace) => (
-                <option key={workspace.id} value={workspace.id}>
-                  {workspace.name}
-                </option>
-              ))}
-            </select>
-          </label>
-        )}
         {!state.collapsed && (
-          <label className="sidebar-search-wrap">
-            <span className="sr-only">Search</span>
-            <input
-              className="input sidebar-search"
-              placeholder="Filter..."
-              value={query}
-              onChange={(event) => setQuery(event.target.value)}
-              onKeyDown={onSearchKeyDown}
-              aria-label="Search"
-            />
-          </label>
+          <div className="sidebar-top-expanded">
+            {workspaces.length > 0 && (
+              <div className="sidebar-workspace-row">
+                <span className="sidebar-workspace-label">Workspace</span>
+                <select
+                  className="sidebar-workspace-select"
+                  value={activeWorkspaceId}
+                  onChange={(event) => onWorkspaceChange?.(event.target.value)}
+                  aria-label="Workspace selector"
+                >
+                  {workspaces.map((workspace) => (
+                    <option key={workspace.id} value={workspace.id}>
+                      {workspace.name}
+                    </option>
+                  ))}
+                </select>
+              </div>
+            )}
+
+            <div className="sidebar-tools-row">
+              <label className="sidebar-search-wrap sidebar-filter-wrap">
+                <span className="sr-only">Search</span>
+                <input
+                  className="input sidebar-search"
+                  placeholder="Filter..."
+                  value={query}
+                  onChange={(event) => setQuery(event.target.value)}
+                  onKeyDown={onSearchKeyDown}
+                  aria-label="Search"
+                />
+              </label>
+
+              {quickActions.length > 0 && (
+                <div className="sidebar-create-wrap">
+                  <button
+                    type="button"
+                    className="ghost sidebar-create-button"
+                    onClick={() => setCreateOpen((value) => !value)}
+                    aria-haspopup="menu"
+                    aria-expanded={createOpen}
+                    aria-label="Create"
+                  >
+                    <Plus size={16} />
+                    <span className="sidebar-create-label">Create</span>
+                  </button>
+                  <Popover open={createOpen} onClose={() => setCreateOpen(false)} className="sidebar-create-popover">
+                    <Menu>
+                      {quickActions.map((action) => (
+                        <MenuItem
+                          key={action.id}
+                          onSelect={() => {
+                            setCreateOpen(false);
+                            navigate(action.path);
+                          }}
+                        >
+                          {action.label}
+                        </MenuItem>
+                      ))}
+                    </Menu>
+                  </Popover>
+                </div>
+              )}
+            </div>
+          </div>
         )}
 
         {state.collapsed && (
@@ -337,36 +374,6 @@ export default function Sidebar({ user, workspaces = [], activeWorkspaceId = "",
               <Search size={18} />
             </button>
           </NavTooltip>
-        )}
-
-        {!state.collapsed && quickActions.length > 0 && (
-          <div className="sidebar-create-wrap">
-            <button
-              type="button"
-              className="ghost sidebar-create-button"
-              onClick={() => setCreateOpen((value) => !value)}
-              aria-haspopup="menu"
-              aria-expanded={createOpen}
-            >
-              <Plus size={16} />
-              <span>Create</span>
-            </button>
-            <Popover open={createOpen} onClose={() => setCreateOpen(false)} className="sidebar-create-popover">
-              <Menu>
-                {quickActions.map((action) => (
-                  <MenuItem
-                    key={action.id}
-                    onSelect={() => {
-                      setCreateOpen(false);
-                      navigate(action.path);
-                    }}
-                  >
-                    {action.label}
-                  </MenuItem>
-                ))}
-              </Menu>
-            </Popover>
-          </div>
         )}
       </div>
 
