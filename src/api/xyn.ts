@@ -65,6 +65,11 @@ import type {
   DeviceListResponse,
   DevicePayload,
   Device,
+  DraftAction,
+  ActionEvent,
+  ActionEvidence,
+  ActionRatification,
+  ExecutionReceipt,
   ControlPlaneStateResponse,
   XynMapResponse,
   SecretStore,
@@ -450,6 +455,90 @@ export async function deleteDevice(id: string): Promise<void> {
     credentials: "include",
   });
   await handle<void>(response);
+}
+
+export async function createDeviceAction(
+  deviceId: string,
+  payload: { action_type: string; params?: Record<string, unknown>; instance_id?: string; instance_ref?: string }
+): Promise<{ action: DraftAction; requires_confirmation: boolean; requires_ratification: boolean; next_status: string }> {
+  const apiBaseUrl = resolveApiBaseUrl();
+  const response = await apiFetch(`${apiBaseUrl}/xyn/api/devices/${deviceId}/actions`, {
+    method: "POST",
+    headers: buildHeaders(),
+    credentials: "include",
+    body: JSON.stringify(payload),
+  });
+  return handle<{ action: DraftAction; requires_confirmation: boolean; requires_ratification: boolean; next_status: string }>(
+    response
+  );
+}
+
+export async function confirmAction(
+  actionId: string
+): Promise<{ action: DraftAction; receipt?: ExecutionReceipt; success?: boolean }> {
+  const apiBaseUrl = resolveApiBaseUrl();
+  const response = await apiFetch(`${apiBaseUrl}/xyn/api/actions/${actionId}/confirm`, {
+    method: "POST",
+    headers: buildHeaders(),
+    credentials: "include",
+    body: JSON.stringify({}),
+  });
+  return handle<{ action: DraftAction; receipt?: ExecutionReceipt; success?: boolean }>(response);
+}
+
+export async function ratifyAction(
+  actionId: string,
+  payload: { method?: string; notes?: string } = {}
+): Promise<{ action: DraftAction; receipt?: ExecutionReceipt; success?: boolean }> {
+  const apiBaseUrl = resolveApiBaseUrl();
+  const response = await apiFetch(`${apiBaseUrl}/xyn/api/actions/${actionId}/ratify`, {
+    method: "POST",
+    headers: buildHeaders(),
+    credentials: "include",
+    body: JSON.stringify(payload),
+  });
+  return handle<{ action: DraftAction; receipt?: ExecutionReceipt; success?: boolean }>(response);
+}
+
+export async function executeAction(
+  actionId: string
+): Promise<{ action: DraftAction; receipt: ExecutionReceipt; success: boolean }> {
+  const apiBaseUrl = resolveApiBaseUrl();
+  const response = await apiFetch(`${apiBaseUrl}/xyn/api/actions/${actionId}/execute`, {
+    method: "POST",
+    headers: buildHeaders(),
+    credentials: "include",
+    body: JSON.stringify({}),
+  });
+  return handle<{ action: DraftAction; receipt: ExecutionReceipt; success: boolean }>(response);
+}
+
+export async function listActions(deviceId?: string): Promise<{ actions: DraftAction[] }> {
+  const apiBaseUrl = resolveApiBaseUrl();
+  const url = new URL(`${apiBaseUrl}/xyn/api/actions`);
+  if (deviceId) {
+    url.searchParams.set("device_id", deviceId);
+  }
+  const response = await apiFetch(url.toString(), { credentials: "include" });
+  return handle<{ actions: DraftAction[] }>(response);
+}
+
+export async function getAction(
+  actionId: string
+): Promise<{ action: DraftAction; timeline: ActionEvent[]; evidence: ActionEvidence[]; ratifications: ActionRatification[] }> {
+  const apiBaseUrl = resolveApiBaseUrl();
+  const response = await apiFetch(`${apiBaseUrl}/xyn/api/actions/${actionId}`, {
+    credentials: "include",
+  });
+  return handle<{ action: DraftAction; timeline: ActionEvent[]; evidence: ActionEvidence[]; ratifications: ActionRatification[] }>(response);
+}
+
+export async function getActionReceipts(actionId: string): Promise<{ receipts: ExecutionReceipt[] }> {
+  const apiBaseUrl = resolveApiBaseUrl();
+  const response = await apiFetch(`${apiBaseUrl}/xyn/api/actions/${actionId}/receipts`, {
+    credentials: "include",
+  });
+  return handle<{ receipts: ExecutionReceipt[] }>(response);
 }
 
 export async function listBlueprints(query = ""): Promise<BlueprintListResponse> {

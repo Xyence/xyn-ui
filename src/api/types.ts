@@ -686,6 +686,73 @@ export type DevicePayload = {
   metadata_json?: Record<string, unknown> | null;
 };
 
+export type GovernedActionStatus =
+  | "draft"
+  | "pending_verification"
+  | "pending_ratification"
+  | "executing"
+  | "succeeded"
+  | "failed"
+  | "canceled";
+
+export type DraftAction = {
+  id: string;
+  tenant_id: string;
+  device_id?: string | null;
+  instance_ref?: string | null;
+  action_type: string;
+  action_class: string;
+  params_json: Record<string, unknown>;
+  status: GovernedActionStatus;
+  requested_by?: string | null;
+  custodian_id?: string | null;
+  last_error_code?: string;
+  last_error_message?: string;
+  provenance_json?: Record<string, unknown>;
+  created_at?: string;
+  updated_at?: string;
+};
+
+export type ActionEvent = {
+  id: string;
+  event_type: string;
+  from_status?: string;
+  to_status?: string;
+  actor_id?: string | null;
+  payload_json?: Record<string, unknown>;
+  created_at?: string;
+};
+
+export type ActionEvidence = {
+  id: string;
+  verifier_type: string;
+  status: "required" | "satisfied" | "failed";
+  evidence_json?: Record<string, unknown>;
+  created_at?: string;
+};
+
+export type ActionRatification = {
+  id: string;
+  ratified_by?: string | null;
+  ratified_at?: string;
+  method: string;
+  notes?: string;
+};
+
+export type ExecutionReceipt = {
+  id: string;
+  draft_action_id: string;
+  executed_at?: string;
+  executed_by?: string | null;
+  adapter_key?: string;
+  request_payload_redacted_json?: Record<string, unknown>;
+  response_redacted_json?: Record<string, unknown>;
+  outcome: "success" | "failure";
+  error_code?: string;
+  error_message?: string;
+  logs_ref?: string;
+};
+
 export type ReleaseSummary = {
   id: string;
   version: string;

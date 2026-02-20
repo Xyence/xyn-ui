@@ -294,7 +294,7 @@ export default function BlueprintsPage() {
       return;
     }
     const previous = previousBlueprintStatusRef.current;
-    const current = selected.status;
+    const current = selected.status ?? null;
     if (previous === "deprovisioning" && current !== "deprovisioning") {
       (async () => {
         let failed = current !== "deprovisioned";

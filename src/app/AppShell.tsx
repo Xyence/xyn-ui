@@ -35,6 +35,7 @@ import ArtifactsPage from "./pages/ArtifactsPage";
 import ArtifactDetailPage from "./pages/ArtifactDetailPage";
 import PeopleRolesPage from "./pages/PeopleRolesPage";
 import WorkspaceSettingsPage from "./pages/WorkspaceSettingsPage";
+import DevicesPage from "./pages/DevicesPage";
 import { useGlobalHotkeys } from "./hooks/useGlobalHotkeys";
 import ReportOverlay from "./components/ReportOverlay";
 import UserMenu from "./components/common/UserMenu";
@@ -252,6 +253,7 @@ export default function AppShell() {
               path="people-roles"
               element={<PeopleRolesPage workspaceId={activeWorkspace?.id || ""} canAdmin={canWorkspaceAdmin} />}
             />
+            <Route path="devices" element={<DevicesPage />} />
             <Route path="settings" element={<WorkspaceSettingsPage workspaceName={activeWorkspace?.name || "Workspace"} />} />
             <Route path="*" element={<Navigate to="home" replace />} />
           </Routes>
