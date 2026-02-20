@@ -614,7 +614,7 @@ export default function BlueprintsPage() {
           <div className="card-header">
             <h3>Blueprints</h3>
           </div>
-          <div className="instance-list">
+          <div className="instance-list" data-tour="blueprints-list">
             {items.map((item) => {
               const projectKey = `${item.namespace}.${item.name}`;
               const draftCount = item.active_draft_count ?? 0;

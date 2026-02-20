@@ -447,7 +447,7 @@ export default function RunsPage() {
           )}
         </section>
 
-        <section className="card">
+        <section className="card" data-tour="run-artifacts">
           <div className="card-header">
             <h3>Artifacts</h3>
           </div>

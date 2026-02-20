@@ -944,6 +944,60 @@ export type ArtifactDetail = ArtifactSummary & {
   }>;
 };
 
+export type DocPage = {
+  id: string;
+  artifact_id: string;
+  workspace_id: string;
+  type: string;
+  title: string;
+  slug: string;
+  status: "draft" | "published" | "deprecated";
+  visibility: "private" | "team" | "public";
+  route_bindings: string[];
+  tags: string[];
+  body_markdown: string;
+  summary?: string;
+  version: number;
+  created_at?: string;
+  updated_at?: string;
+  published_at?: string | null;
+  created_by?: string | null;
+  updated_by?: string | null;
+  updated_by_email?: string | null;
+};
+
+export type TourStep = {
+  id: string;
+  route: string;
+  selector?: string;
+  text: string;
+};
+
+export type TourDefinition = {
+  slug: string;
+  title: string;
+  description?: string;
+  steps: TourStep[];
+};
+
+export type AiPurpose = {
+  slug: string;
+  enabled: boolean;
+  system_prompt_markdown: string;
+  updated_at?: string;
+  model_config?: {
+    id: string;
+    provider: "openai" | "anthropic" | "google";
+    model_name: string;
+    temperature: number;
+    max_tokens: number;
+    top_p?: number;
+    frequency_penalty?: number;
+    presence_penalty?: number;
+    extra_json?: Record<string, unknown>;
+  } | null;
+};
+
 export type ArtifactEventSummary = {
   id: string;
   artifact_id: string;

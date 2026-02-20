@@ -1,5 +1,5 @@
 import { useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
-import { Navigate, Route, Routes, useLocation } from "react-router-dom";
+import { Navigate, Route, Routes, useLocation, useNavigate } from "react-router-dom";
 import { getMe, getMyProfile, getTenantBranding, listWorkspaces } from "../api/xyn";
 import { NAV_GROUPS, NavUserContext } from "./nav/nav.config";
 import { getBreadcrumbs, visibleNav } from "./nav/nav.utils";
@@ -42,9 +42,13 @@ import UserMenu from "./components/common/UserMenu";
 import NotificationBell from "./components/notifications/NotificationBell";
 import ToastHost from "./components/notifications/ToastHost";
 import { useNotifications } from "./state/notificationsStore";
+import HelpDrawer from "./components/help/HelpDrawer";
+import TourOverlay from "./components/help/TourOverlay";
+import { resolveRouteId } from "./help/routeHelp";
 
 export default function AppShell() {
   const location = useLocation();
+  const navigate = useNavigate();
   const contentRef = useRef<HTMLElement | null>(null);
   const [authed, setAuthed] = useState(false);
   const [roles, setRoles] = useState<string[]>([]);
@@ -56,6 +60,9 @@ export default function AppShell() {
   const [reportOpen, setReportOpen] = useState(false);
   const [workspaces, setWorkspaces] = useState<Array<{ id: string; slug: string; name: string; role: string; termination_authority?: boolean }>>([]);
   const [activeWorkspaceId, setActiveWorkspaceId] = useState<string>(() => localStorage.getItem("xyn.activeWorkspaceId") || "");
+  const [helpOpen, setHelpOpen] = useState(false);
+  const [tourSlug, setTourSlug] = useState<string | null>(null);
+  const [tourLaunchToken, setTourLaunchToken] = useState(0);
   const { push } = useNotifications();
 
   useEffect(() => {
@@ -150,14 +157,34 @@ export default function AppShell() {
     const allowed = visibleNav(NAV_GROUPS, navUser);
     return getBreadcrumbs(location.pathname, allowed);
   }, [location.pathname, navUser]);
+  const routeId = useMemo(() => resolveRouteId(location.pathname), [location.pathname]);
 
   useGlobalHotkeys((event) => {
+    const target = event.target as HTMLElement | null;
+    const targetTag = (target?.tagName || "").toLowerCase();
+    const typingTarget = targetTag === "input" || targetTag === "textarea" || targetTag === "select" || target?.isContentEditable;
+    if (!typingTarget && event.key === "?") {
+      event.preventDefault();
+      setHelpOpen((prev) => !prev);
+      return;
+    }
     const metaOrCtrl = event.metaKey || event.ctrlKey;
     if (!metaOrCtrl || !event.shiftKey) return;
     if (event.key.toLowerCase() !== "b") return;
     event.preventDefault();
     setReportOpen(true);
   });
+
+  useEffect(() => {
+    const onStartTour = (event: Event) => {
+      const detail = (event as CustomEvent<{ slug?: string }>).detail || {};
+      const slug = detail.slug || "deploy-subscriber-notes";
+      setTourSlug(slug);
+      setTourLaunchToken((value) => value + 1);
+    };
+    window.addEventListener("xyn:start-tour", onStartTour as EventListener);
+    return () => window.removeEventListener("xyn:start-tour", onStartTour as EventListener);
+  }, []);
 
   useLayoutEffect(() => {
     window.scrollTo({ top: 0, left: 0, behavior: "auto" });
@@ -254,11 +281,55 @@ export default function AppShell() {
               element={<PeopleRolesPage workspaceId={activeWorkspace?.id || ""} canAdmin={canWorkspaceAdmin} />}
             />
             <Route path="devices" element={<DevicesPage />} />
+            <Route path="guides" element={<GuidesPage />} />
+            <Route path="map" element={<XynMapPage />} />
+            <Route path="blueprints" element={<BlueprintsPage />} />
+            <Route path="drafts" element={<DraftSessionsPage />} />
+            <Route path="modules" element={<ModulesPage />} />
+            <Route path="release-plans" element={<ReleasePlansPage />} />
+            <Route path="releases" element={<ReleasesPage />} />
+            <Route path="instances" element={<InstancesPage />} />
+            <Route path="runs" element={<RunsPage />} />
+            <Route path="dev-tasks" element={<DevTasksPage />} />
+            <Route path="environments" element={<EnvironmentsPage />} />
+            <Route path="registries" element={<RegistriesPage />} />
+            <Route path="context-packs" element={<ContextPacksPage />} />
+            <Route path="my-tenants" element={<MyTenantsPage />} />
+            <Route path="control-plane" element={<ControlPlanePage />} />
+            <Route path="platform/tenants" element={<PlatformTenantsPage />} />
+            <Route path="platform/tenant-contacts" element={<PlatformTenantContactsPage />} />
+            <Route path="platform/users" element={<PlatformUsersPage />} />
+            <Route path="platform/roles" element={<PlatformRolesPage />} />
+            <Route path="platform/branding" element={<PlatformBrandingPage />} />
+            <Route path="platform/settings" element={<PlatformSettingsPage />} />
+            <Route path="platform/identity-providers" element={<IdentityProvidersPage />} />
+            <Route path="platform/oidc-app-clients" element={<OidcAppClientsPage />} />
+            <Route path="platform/secret-stores" element={<SecretStoresPage />} />
+            <Route path="platform/secret-refs" element={<SecretRefsPage />} />
             <Route path="settings" element={<WorkspaceSettingsPage workspaceName={activeWorkspace?.name || "Workspace"} />} />
             <Route path="*" element={<Navigate to="home" replace />} />
           </Routes>
         </main>
       </div>
+      <HelpDrawer
+        open={helpOpen}
+        onClose={() => setHelpOpen(false)}
+        routeId={routeId}
+        workspaceId={activeWorkspace?.id || ""}
+        roles={roles}
+        onStartTour={(slug) => {
+          setTourSlug(slug);
+          setTourLaunchToken((value) => value + 1);
+        }}
+      />
+      <TourOverlay
+        userKey={userContext.id || userContext.email || "anon"}
+        launchSlug={tourSlug}
+        launchToken={tourLaunchToken}
+        currentPath={location.pathname}
+        navigateTo={(path) => navigate(path)}
+        onClose={() => setTourSlug(null)}
+      />
       <ReportOverlay
         open={reportOpen}
         onClose={() => setReportOpen(false)}

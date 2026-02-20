@@ -84,6 +84,9 @@ import type {
   ArtifactDetail,
   ArtifactEventSummary,
   WorkspaceMembershipSummary,
+  DocPage,
+  TourDefinition,
+  AiPurpose,
 } from "./types";
 import { authHeaders, resolveApiBaseUrl } from "./client";
 
@@ -322,6 +325,125 @@ export async function updateWorkspaceMembership(
     body: JSON.stringify(payload),
   });
   return handle<{ id: string }>(response);
+}
+
+export async function getDocByRoute(routeId: string, workspaceId?: string): Promise<{ doc: DocPage | null; route_id: string }> {
+  const apiBaseUrl = resolveApiBaseUrl();
+  const url = new URL(`${apiBaseUrl}/xyn/api/docs/by-route`);
+  url.searchParams.set("route_id", routeId);
+  if (workspaceId) {
+    url.searchParams.set("workspace_id", workspaceId);
+  }
+  const response = await apiFetch(url.toString(), { credentials: "include" });
+  return handle<{ doc: DocPage | null; route_id: string }>(response);
+}
+
+export async function listDocs(params?: { tags?: string[]; includeDrafts?: boolean }): Promise<{ docs: DocPage[] }> {
+  const apiBaseUrl = resolveApiBaseUrl();
+  const url = new URL(`${apiBaseUrl}/xyn/api/docs`);
+  if (params?.tags && params.tags.length > 0) {
+    url.searchParams.set("tags", params.tags.join(","));
+  }
+  if (params?.includeDrafts) {
+    url.searchParams.set("include_drafts", "1");
+  }
+  const response = await apiFetch(url.toString(), { credentials: "include" });
+  return handle<{ docs: DocPage[] }>(response);
+}
+
+export async function getDocBySlug(slug: string): Promise<{ doc: DocPage }> {
+  const apiBaseUrl = resolveApiBaseUrl();
+  const response = await apiFetch(`${apiBaseUrl}/xyn/api/docs/slug/${encodeURIComponent(slug)}`, { credentials: "include" });
+  return handle<{ doc: DocPage }>(response);
+}
+
+export async function createDoc(payload: {
+  title: string;
+  slug?: string;
+  body_markdown?: string;
+  summary?: string;
+  visibility?: "private" | "team" | "public";
+  route_bindings?: string[];
+  tags?: string[];
+}): Promise<{ doc: DocPage }> {
+  const apiBaseUrl = resolveApiBaseUrl();
+  const response = await apiFetch(`${apiBaseUrl}/xyn/api/docs`, {
+    method: "POST",
+    headers: buildHeaders(),
+    credentials: "include",
+    body: JSON.stringify(payload),
+  });
+  return handle<{ doc: DocPage }>(response);
+}
+
+export async function updateDoc(
+  docId: string,
+  payload: Partial<{
+    title: string;
+    slug: string;
+    body_markdown: string;
+    summary: string;
+    visibility: "private" | "team" | "public";
+    route_bindings: string[];
+    tags: string[];
+  }>
+): Promise<{ doc: DocPage }> {
+  const apiBaseUrl = resolveApiBaseUrl();
+  const response = await apiFetch(`${apiBaseUrl}/xyn/api/docs/${docId}`, {
+    method: "PUT",
+    headers: buildHeaders(),
+    credentials: "include",
+    body: JSON.stringify(payload),
+  });
+  return handle<{ doc: DocPage }>(response);
+}
+
+export async function publishDoc(docId: string): Promise<{ doc: DocPage }> {
+  const apiBaseUrl = resolveApiBaseUrl();
+  const response = await apiFetch(`${apiBaseUrl}/xyn/api/docs/${docId}/publish`, {
+    method: "POST",
+    credentials: "include",
+  });
+  return handle<{ doc: DocPage }>(response);
+}
+
+export async function getTour(tourSlug: string): Promise<TourDefinition> {
+  const apiBaseUrl = resolveApiBaseUrl();
+  const response = await apiFetch(`${apiBaseUrl}/xyn/api/tours/${encodeURIComponent(tourSlug)}`, { credentials: "include" });
+  return handle<TourDefinition>(response);
+}
+
+export async function listAiPurposes(): Promise<{ purposes: AiPurpose[] }> {
+  const apiBaseUrl = resolveApiBaseUrl();
+  const response = await apiFetch(`${apiBaseUrl}/xyn/api/ai/purposes`, { credentials: "include" });
+  return handle<{ purposes: AiPurpose[] }>(response);
+}
+
+export async function updateAiPurpose(
+  slug: string,
+  payload: Partial<{
+    enabled: boolean;
+    system_prompt_markdown: string;
+    model_config: {
+      provider: "openai" | "anthropic" | "google";
+      model_name: string;
+      temperature?: number;
+      max_tokens?: number;
+      top_p?: number;
+      frequency_penalty?: number;
+      presence_penalty?: number;
+      extra_json?: Record<string, unknown>;
+    };
+  }>
+): Promise<{ purpose: AiPurpose }> {
+  const apiBaseUrl = resolveApiBaseUrl();
+  const response = await apiFetch(`${apiBaseUrl}/xyn/api/ai/purposes/${encodeURIComponent(slug)}`, {
+    method: "PUT",
+    headers: buildHeaders(),
+    credentials: "include",
+    body: JSON.stringify(payload),
+  });
+  return handle<{ purpose: AiPurpose }>(response);
 }
 
 export async function getMyProfile(): Promise<MyProfile> {

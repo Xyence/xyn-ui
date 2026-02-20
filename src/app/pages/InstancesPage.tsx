@@ -417,7 +417,7 @@ export default function InstancesPage() {
             </button>
           </div>
 
-          <div className="instance-list">
+          <div className="instance-list" data-tour="instance-select">
             {instances.length === 0 && <p className="muted">No instances found.</p>}
             {instances.map((instance) => (
               <button

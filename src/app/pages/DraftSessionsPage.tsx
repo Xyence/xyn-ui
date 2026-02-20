@@ -1199,7 +1199,7 @@ export default function DraftSessionsPage() {
               <section className="draft-section">
                 <h4>Workflow</h4>
                 <div className="inline-actions draft-workflow-actions">
-                  <button className="ghost" onClick={handleGenerateDraft} disabled={loading || !hasPromptInputs}>
+                  <button className="ghost" data-tour="draft-generate" onClick={handleGenerateDraft} disabled={loading || !hasPromptInputs}>
                     Generate draft
                   </button>
                   <button
