@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { Link } from "react-router-dom";
 import InlineMessage from "../../components/InlineMessage";
 import {
@@ -7,6 +7,7 @@ import {
   deprovisionBlueprint,
   getBlueprint,
   getBlueprintDeprovisionPlan,
+  getRun,
   listBlueprintDevTasks,
   listBlueprints,
   runDevTask,
@@ -28,7 +29,7 @@ import type {
 } from "../../api/types";
 import { extractBlueprintIntent } from "./blueprintIntent";
 import { useNotifications } from "../state/notificationsStore";
-import { notifyQueued, notifySucceeded } from "../../lib/notifyFromJob";
+import { notifyFailed, notifyQueued, notifySucceeded } from "../../lib/notifyFromJob";
 
 const emptyForm: BlueprintCreatePayload = {
   name: "",
@@ -72,6 +73,7 @@ export default function BlueprintsPage() {
   const [deprovisionDryRun, setDeprovisionDryRun] = useState(false);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const previousBlueprintStatusRef = useRef<string | null>(null);
   const { push } = useNotifications();
   const devTasksPageSize = 8;
   const devTaskTotalPages = Math.max(1, Math.ceil(devTasks.length / devTasksPageSize));
@@ -233,6 +235,7 @@ export default function BlueprintsPage() {
   useEffect(() => {
     if (!selectedId) {
       setSelected(null);
+      previousBlueprintStatusRef.current = null;
       return;
     }
     (async () => {
@@ -261,6 +264,79 @@ export default function BlueprintsPage() {
       }
     })();
   }, [selectedId]);
+
+  useEffect(() => {
+    if (!selectedId || !selected) return;
+    if (selected.status !== "deprovisioning") return;
+    let cancelled = false;
+    const timer = window.setInterval(async () => {
+      if (cancelled) return;
+      try {
+        const detail = await getBlueprint(selectedId);
+        if (!cancelled) {
+          setSelected(detail);
+        }
+      } catch (err) {
+        if (!cancelled) {
+          setError((err as Error).message);
+        }
+      }
+    }, 3000);
+    return () => {
+      cancelled = true;
+      window.clearInterval(timer);
+    };
+  }, [selectedId, selected?.status]);
+
+  useEffect(() => {
+    if (!selectedId || !selected) {
+      previousBlueprintStatusRef.current = null;
+      return;
+    }
+    const previous = previousBlueprintStatusRef.current;
+    const current = selected.status;
+    if (previous === "deprovisioning" && current !== "deprovisioning") {
+      (async () => {
+        let failed = current !== "deprovisioned";
+        let failureMessage = "See run logs for details.";
+        if (selected.deprovision_last_run_id) {
+          try {
+            const run = await getRun(selected.deprovision_last_run_id);
+            if (run.status === "failed" || run.status === "canceled") {
+              failed = true;
+            }
+            if (run.error) {
+              failureMessage = run.error;
+            }
+          } catch {
+            // Ignore run fetch failures and fall back to blueprint status.
+          }
+        }
+        if (failed) {
+          notifyFailed(push, {
+            action: "blueprint.deprovision",
+            entityType: "blueprint",
+            entityId: selectedId,
+            title: "Deprovision failed",
+            message: failureMessage,
+            href: selected.deprovision_last_run_id ? `/app/runs?run=${selected.deprovision_last_run_id}` : "/app/runs",
+            dedupeKey: `blueprint.deprovision:${selectedId}`,
+          });
+          return;
+        }
+        notifySucceeded(push, {
+          action: "blueprint.deprovision",
+          entityType: "blueprint",
+          entityId: selectedId,
+          title: "Deprovision completed",
+          message: selected.deprovision_last_run_id || undefined,
+          href: selected.deprovision_last_run_id ? `/app/runs?run=${selected.deprovision_last_run_id}` : "/app/runs",
+          dedupeKey: `blueprint.deprovision:${selectedId}`,
+        });
+      })();
+    }
+    previousBlueprintStatusRef.current = current;
+  }, [push, selected, selectedId]);
 
   useEffect(() => {
     if (devTaskPage > devTaskTotalPages) {
