@@ -1054,6 +1054,8 @@ export type TourDefinition = TourDefinitionV1 | TourDefinitionV2;
 
 export type AiPurpose = {
   slug: string;
+  name?: string;
+  description?: string;
   enabled: boolean;
   system_prompt_markdown: string;
   updated_at?: string;
@@ -1068,6 +1070,70 @@ export type AiPurpose = {
     presence_penalty?: number;
     extra_json?: Record<string, unknown>;
   } | null;
+};
+
+export type AiProvider = {
+  id: string;
+  slug: "openai" | "anthropic" | "google";
+  name: string;
+  enabled: boolean;
+};
+
+export type AiCredential = {
+  id: string;
+  provider: "openai" | "anthropic" | "google";
+  provider_id: string;
+  name: string;
+  auth_type: "api_key_encrypted" | "env_ref";
+  env_var_name?: string;
+  is_default: boolean;
+  enabled: boolean;
+  secret?: {
+    configured: boolean;
+    masked?: string | null;
+    last4?: string | null;
+  };
+  created_at?: string;
+  updated_at?: string;
+};
+
+export type AiModelConfig = {
+  id: string;
+  provider: "openai" | "anthropic" | "google";
+  provider_id: string;
+  credential_id?: string | null;
+  model_name: string;
+  temperature?: number | null;
+  max_tokens?: number | null;
+  top_p?: number | null;
+  frequency_penalty?: number | null;
+  presence_penalty?: number | null;
+  extra_json?: Record<string, unknown>;
+  enabled: boolean;
+  created_at?: string;
+  updated_at?: string;
+};
+
+export type AiAgent = {
+  id: string;
+  slug: string;
+  name: string;
+  model_config_id: string;
+  model_config?: AiModelConfig;
+  system_prompt_text?: string;
+  context_pack_refs_json?: unknown[];
+  enabled: boolean;
+  purposes: string[];
+  created_at?: string;
+  updated_at?: string;
+};
+
+export type AiInvokeResponse = {
+  content: string;
+  provider: "openai" | "anthropic" | "google";
+  model: string;
+  usage?: Record<string, unknown> | null;
+  agent_slug: string;
 };
 
 export type ArtifactEventSummary = {

@@ -14,6 +14,9 @@ import IdentityProvidersPage from "./pages/IdentityProvidersPage";
 import OidcAppClientsPage from "./pages/OidcAppClientsPage";
 import SecretStoresPage from "./pages/SecretStoresPage";
 import SecretRefsPage from "./pages/SecretRefsPage";
+import AICredentialsPage from "./pages/AICredentialsPage";
+import AIModelConfigsPage from "./pages/AIModelConfigsPage";
+import AIAgentsPage from "./pages/AIAgentsPage";
 import ReleasePlansPage from "./pages/ReleasePlansPage";
 import ReleasesPage from "./pages/ReleasesPage";
 import RunsPage from "./pages/RunsPage";
@@ -307,6 +310,9 @@ export default function AppShell() {
             <Route path="platform/oidc-app-clients" element={<OidcAppClientsPage />} />
             <Route path="platform/secret-stores" element={<SecretStoresPage />} />
             <Route path="platform/secret-refs" element={<SecretRefsPage />} />
+            <Route path="platform/ai/credentials" element={<AICredentialsPage />} />
+            <Route path="platform/ai/model-configs" element={<AIModelConfigsPage />} />
+            <Route path="platform/ai/agents" element={<AIAgentsPage />} />
             <Route path="settings" element={<WorkspaceSettingsPage workspaceName={activeWorkspace?.name || "Workspace"} />} />
             <Route path="*" element={<Navigate to="home" replace />} />
           </Routes>

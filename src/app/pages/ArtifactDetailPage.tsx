@@ -8,6 +8,8 @@ import {
   moderateWorkspaceComment,
   publishWorkspaceArtifact,
   reactToWorkspaceArtifact,
+  listAiAgents,
+  invokeAi,
   updateWorkspaceArtifact,
 } from "../../api/xyn";
 import type { ArtifactDetail } from "../../api/types";
@@ -18,6 +20,11 @@ export default function ArtifactDetailPage({ workspaceId, workspaceRole }: { wor
   const [bodyMarkdown, setBodyMarkdown] = useState("");
   const [summary, setSummary] = useState("");
   const [commentBody, setCommentBody] = useState("");
+  const [assistAgents, setAssistAgents] = useState<Array<{ id: string; slug: string; name: string }>>([]);
+  const [selectedAgent, setSelectedAgent] = useState("");
+  const [assistInstruction, setAssistInstruction] = useState("");
+  const [assistBusy, setAssistBusy] = useState(false);
+  const [message, setMessage] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
 
   const load = useCallback(async () => {
@@ -37,13 +44,84 @@ export default function ArtifactDetailPage({ workspaceId, workspaceRole }: { wor
     load();
   }, [load]);
 
+  useEffect(() => {
+    let mounted = true;
+    (async () => {
+      try {
+        const data = await listAiAgents({ purpose: "documentation", enabled: true });
+        if (!mounted) return;
+        const options = (data.agents || []).map((item) => ({ id: item.id, slug: item.slug, name: item.name }));
+        setAssistAgents(options);
+        if (!selectedAgent && options.length) {
+          const stored = localStorage.getItem("xyn.articleAiAgentSlug") || "";
+          setSelectedAgent(options.find((item) => item.slug === stored)?.slug || options[0].slug);
+        }
+      } catch {
+        if (!mounted) return;
+        setAssistAgents([]);
+      }
+    })();
+    return () => {
+      mounted = false;
+    };
+  }, [selectedAgent]);
+
   const save = async () => {
     if (!artifactId) return;
     try {
+      setMessage(null);
       await updateWorkspaceArtifact(workspaceId, artifactId, { summary, body_markdown: bodyMarkdown });
       await load();
+      setMessage("Saved.");
     } catch (err) {
       setError((err as Error).message);
+    }
+  };
+
+  const runAssist = async (mode: "draft" | "rewrite" | "edits") => {
+    if (!artifactId) return;
+    if (!selectedAgent) {
+      setError("No documentation agent selected. Configure one in Platform -> AI -> Agents.");
+      return;
+    }
+    try {
+      setError(null);
+      setMessage(null);
+      setAssistBusy(true);
+      localStorage.setItem("xyn.articleAiAgentSlug", selectedAgent);
+      const prompt =
+        mode === "draft"
+          ? `Draft article content from this idea. Return markdown only. Idea:\n${assistInstruction || summary || item?.title || ""}`
+          : mode === "rewrite"
+          ? `Rewrite this article for clarity. Keep meaning and output markdown only.\n\n${bodyMarkdown}`
+          : `Suggest edits and provide an improved markdown version.\n\n${bodyMarkdown}`;
+      const result = await invokeAi({
+        agent_slug: selectedAgent,
+        messages: [{ role: "user", content: prompt }],
+        metadata: { feature: "articles_ai_assist", artifact_id: artifactId, mode },
+      });
+      const nextBody = String(result.content || "").trim();
+      if (!nextBody) {
+        throw new Error("AI returned empty content.");
+      }
+      setBodyMarkdown(nextBody);
+      await updateWorkspaceArtifact(workspaceId, artifactId, {
+        summary,
+        body_markdown: nextBody,
+        ai_metadata: {
+          agent_slug: result.agent_slug,
+          provider: result.provider,
+          model_name: result.model,
+          invoked_at: new Date().toISOString(),
+          mode,
+        },
+      } as Record<string, unknown>);
+      await load();
+      setMessage(`AI ${mode} complete.`);
+    } catch (err) {
+      setError((err as Error).message);
+    } finally {
+      setAssistBusy(false);
     }
   };
 
@@ -115,6 +193,7 @@ export default function ArtifactDetailPage({ workspaceId, workspaceRole }: { wor
         </div>
       </div>
       {error && <InlineMessage tone="error" title="Request failed" body={error} />}
+      {message && <InlineMessage tone="info" title="Update" body={message} />}
       <section className="card">
         <div className="form-grid">
           <label>
@@ -125,6 +204,33 @@ export default function ArtifactDetailPage({ workspaceId, workspaceRole }: { wor
             Body Markdown
             <textarea className="input" rows={16} value={bodyMarkdown} onChange={(event) => setBodyMarkdown(event.target.value)} />
           </label>
+        </div>
+      </section>
+      <section className="card">
+        <div className="card-header">
+          <h3>AI Assist</h3>
+        </div>
+        <div className="form-grid">
+          <label>
+            Documentation agent
+            <select value={selectedAgent} onChange={(event) => setSelectedAgent(event.target.value)}>
+              {!assistAgents.length && <option value="">No documentation agents found</option>}
+              {assistAgents.map((agent) => (
+                <option key={agent.id} value={agent.slug}>
+                  {agent.name} ({agent.slug})
+                </option>
+              ))}
+            </select>
+          </label>
+          <label>
+            Idea / instruction
+            <textarea className="input" rows={4} value={assistInstruction} onChange={(event) => setAssistInstruction(event.target.value)} />
+          </label>
+        </div>
+        <div className="inline-actions">
+          <button className="ghost" onClick={() => runAssist("draft")} disabled={assistBusy || !selectedAgent}>Draft from idea</button>
+          <button className="ghost" onClick={() => runAssist("rewrite")} disabled={assistBusy || !selectedAgent}>Rewrite section</button>
+          <button className="ghost" onClick={() => runAssist("edits")} disabled={assistBusy || !selectedAgent}>Suggest edits</button>
         </div>
       </section>
       <section className="card">

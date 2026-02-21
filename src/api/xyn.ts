@@ -87,6 +87,11 @@ import type {
   DocPage,
   TourDefinition,
   AiPurpose,
+  AiProvider,
+  AiCredential,
+  AiModelConfig,
+  AiAgent,
+  AiInvokeResponse,
 } from "./types";
 import { authHeaders, resolveApiBaseUrl } from "./client";
 
@@ -444,6 +449,163 @@ export async function updateAiPurpose(
     body: JSON.stringify(payload),
   });
   return handle<{ purpose: AiPurpose }>(response);
+}
+
+export async function listAiProviders(): Promise<{ providers: AiProvider[] }> {
+  const apiBaseUrl = resolveApiBaseUrl();
+  const response = await apiFetch(`${apiBaseUrl}/xyn/api/ai/providers`, { credentials: "include" });
+  return handle<{ providers: AiProvider[] }>(response);
+}
+
+export async function listAiCredentials(): Promise<{ credentials: AiCredential[] }> {
+  const apiBaseUrl = resolveApiBaseUrl();
+  const response = await apiFetch(`${apiBaseUrl}/xyn/api/ai/credentials`, { credentials: "include" });
+  return handle<{ credentials: AiCredential[] }>(response);
+}
+
+export async function createAiCredential(
+  payload: Partial<AiCredential> & { provider: "openai" | "anthropic" | "google"; name: string; auth_type: "api_key_encrypted" | "env_ref"; api_key?: string }
+): Promise<{ credential: AiCredential }> {
+  const apiBaseUrl = resolveApiBaseUrl();
+  const response = await apiFetch(`${apiBaseUrl}/xyn/api/ai/credentials`, {
+    method: "POST",
+    headers: buildHeaders(),
+    credentials: "include",
+    body: JSON.stringify(payload),
+  });
+  return handle<{ credential: AiCredential }>(response);
+}
+
+export async function updateAiCredential(
+  id: string,
+  payload: Partial<AiCredential> & { api_key?: string }
+): Promise<{ credential: AiCredential }> {
+  const apiBaseUrl = resolveApiBaseUrl();
+  const response = await apiFetch(`${apiBaseUrl}/xyn/api/ai/credentials/${encodeURIComponent(id)}`, {
+    method: "PATCH",
+    headers: buildHeaders(),
+    credentials: "include",
+    body: JSON.stringify(payload),
+  });
+  return handle<{ credential: AiCredential }>(response);
+}
+
+export async function deleteAiCredential(id: string): Promise<void> {
+  const apiBaseUrl = resolveApiBaseUrl();
+  const response = await apiFetch(`${apiBaseUrl}/xyn/api/ai/credentials/${encodeURIComponent(id)}`, {
+    method: "DELETE",
+    credentials: "include",
+  });
+  await handle<void>(response);
+}
+
+export async function listAiModelConfigs(): Promise<{ model_configs: AiModelConfig[] }> {
+  const apiBaseUrl = resolveApiBaseUrl();
+  const response = await apiFetch(`${apiBaseUrl}/xyn/api/ai/model-configs`, { credentials: "include" });
+  return handle<{ model_configs: AiModelConfig[] }>(response);
+}
+
+export async function createAiModelConfig(payload: Partial<AiModelConfig> & { provider: "openai" | "anthropic" | "google"; model_name: string }): Promise<{ model_config: AiModelConfig }> {
+  const apiBaseUrl = resolveApiBaseUrl();
+  const response = await apiFetch(`${apiBaseUrl}/xyn/api/ai/model-configs`, {
+    method: "POST",
+    headers: buildHeaders(),
+    credentials: "include",
+    body: JSON.stringify(payload),
+  });
+  return handle<{ model_config: AiModelConfig }>(response);
+}
+
+export async function updateAiModelConfig(id: string, payload: Partial<AiModelConfig>): Promise<{ model_config: AiModelConfig }> {
+  const apiBaseUrl = resolveApiBaseUrl();
+  const response = await apiFetch(`${apiBaseUrl}/xyn/api/ai/model-configs/${encodeURIComponent(id)}`, {
+    method: "PATCH",
+    headers: buildHeaders(),
+    credentials: "include",
+    body: JSON.stringify(payload),
+  });
+  return handle<{ model_config: AiModelConfig }>(response);
+}
+
+export async function deleteAiModelConfig(id: string): Promise<void> {
+  const apiBaseUrl = resolveApiBaseUrl();
+  const response = await apiFetch(`${apiBaseUrl}/xyn/api/ai/model-configs/${encodeURIComponent(id)}`, {
+    method: "DELETE",
+    credentials: "include",
+  });
+  await handle<void>(response);
+}
+
+export async function listAiAgents(params?: { purpose?: string; enabled?: boolean }): Promise<{ agents: AiAgent[] }> {
+  const apiBaseUrl = resolveApiBaseUrl();
+  const url = new URL(`${apiBaseUrl}/xyn/api/ai/agents`);
+  if (params?.purpose) url.searchParams.set("purpose", params.purpose);
+  if (params?.enabled !== undefined) url.searchParams.set("enabled", params.enabled ? "true" : "false");
+  const response = await apiFetch(url.toString(), { credentials: "include" });
+  return handle<{ agents: AiAgent[] }>(response);
+}
+
+export async function createAiAgent(payload: {
+  slug: string;
+  name: string;
+  model_config_id: string;
+  system_prompt_text?: string;
+  enabled?: boolean;
+  purposes?: string[];
+}): Promise<{ agent: AiAgent }> {
+  const apiBaseUrl = resolveApiBaseUrl();
+  const response = await apiFetch(`${apiBaseUrl}/xyn/api/ai/agents`, {
+    method: "POST",
+    headers: buildHeaders(),
+    credentials: "include",
+    body: JSON.stringify(payload),
+  });
+  return handle<{ agent: AiAgent }>(response);
+}
+
+export async function updateAiAgent(
+  id: string,
+  payload: Partial<{
+    slug: string;
+    name: string;
+    model_config_id: string;
+    system_prompt_text: string;
+    enabled: boolean;
+    purposes: string[];
+  }>
+): Promise<{ agent: AiAgent }> {
+  const apiBaseUrl = resolveApiBaseUrl();
+  const response = await apiFetch(`${apiBaseUrl}/xyn/api/ai/agents/${encodeURIComponent(id)}`, {
+    method: "PATCH",
+    headers: buildHeaders(),
+    credentials: "include",
+    body: JSON.stringify(payload),
+  });
+  return handle<{ agent: AiAgent }>(response);
+}
+
+export async function deleteAiAgent(id: string): Promise<void> {
+  const apiBaseUrl = resolveApiBaseUrl();
+  const response = await apiFetch(`${apiBaseUrl}/xyn/api/ai/agents/${encodeURIComponent(id)}`, {
+    method: "DELETE",
+    credentials: "include",
+  });
+  await handle<void>(response);
+}
+
+export async function invokeAi(payload: {
+  agent_slug: string;
+  messages: Array<{ role: "system" | "user" | "assistant"; content: string }>;
+  metadata?: Record<string, unknown>;
+}): Promise<AiInvokeResponse> {
+  const apiBaseUrl = resolveApiBaseUrl();
+  const response = await apiFetch(`${apiBaseUrl}/xyn/api/ai/invoke`, {
+    method: "POST",
+    headers: buildHeaders(),
+    credentials: "include",
+    body: JSON.stringify(payload),
+  });
+  return handle<AiInvokeResponse>(response);
 }
 
 export async function getMyProfile(): Promise<MyProfile> {
