@@ -890,7 +890,7 @@ export default function DraftSessionsPage() {
           <button className="ghost" onClick={() => refreshSessions()} disabled={loading}>
             Refresh
           </button>
-          <button className="primary" onClick={openCreate}>
+          <button className="primary" data-tour="draft-create" onClick={openCreate}>
             New draft session
           </button>
         </div>
@@ -1204,6 +1204,7 @@ export default function DraftSessionsPage() {
                   </button>
                   <button
                     className="primary"
+                    data-tour="draft-promote"
                     onClick={openSubmitModal}
                     disabled={loading || !hasDraftOutput || hasFatalValidationErrors}
                   >

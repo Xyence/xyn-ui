@@ -966,19 +966,91 @@ export type DocPage = {
   updated_by_email?: string | null;
 };
 
-export type TourStep = {
+export type TourStepV1 = {
   id: string;
   route: string;
   selector?: string;
   text: string;
 };
 
-export type TourDefinition = {
+export type TourDefinitionV1 = {
   slug: string;
   title: string;
   description?: string;
-  steps: TourStep[];
+  steps: TourStepV1[];
 };
+
+export type TourVariableDefinitionV2 =
+  | {
+      type: "generated";
+      format?: "base32";
+      length?: number;
+    }
+  | {
+      type: "template";
+      value: string;
+    }
+  | {
+      type: "static";
+      value: string;
+    };
+
+export type TourAttachV2 = {
+  selector?: string | null;
+  fallback?: "center";
+  wait_ms?: number;
+};
+
+export type TourActionV2 =
+  | {
+      type: "ui_hint";
+      text: string;
+      label?: string;
+    }
+  | {
+      type: "copy_to_clipboard";
+      label: string;
+      value_template: string;
+    }
+  | {
+      type: "set_context";
+      label: string;
+      key: string;
+      value_template: string;
+    }
+  | {
+      type: "ensure_resource";
+      label: string;
+      resource: string;
+      id_key: string;
+      create_via?: {
+        method: "POST";
+        path: string;
+        body_template?: Record<string, unknown>;
+      };
+      instructions?: string;
+    };
+
+export type TourStepV2 = {
+  id: string;
+  route: string;
+  attach?: TourAttachV2 | null;
+  title: string;
+  body: string;
+  actions?: TourActionV2[];
+  wait_for?: string | null;
+};
+
+export type TourDefinitionV2 = {
+  schema_version: 2;
+  slug: string;
+  title: string;
+  description?: string;
+  variables?: Record<string, TourVariableDefinitionV2>;
+  steps: TourStepV2[];
+};
+
+export type TourDefinition = TourDefinitionV1 | TourDefinitionV2;
 
 export type AiPurpose = {
   slug: string;

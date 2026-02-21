@@ -511,18 +511,18 @@ export default function ReleasePlansPage() {
             >
               {selected ? "Save changes" : "Create"}
             </button>
+            <button
+              className="ghost"
+              data-tour="release-plan-deploy"
+              onClick={handleDeploy}
+              disabled={loading || !selected || !targetInstanceId || isDraftSelected || !isBuildReady}
+            >
+              Deploy this plan
+            </button>
             {selected && (
               <>
                 <button className="ghost" onClick={handleGenerate} disabled={loading}>
                   Generate via DevTask
-                </button>
-                <button
-                  className="ghost"
-                  data-tour="release-plan-deploy"
-                  onClick={handleDeploy}
-                  disabled={loading || !targetInstanceId || isDraftSelected || !isBuildReady}
-                >
-                  Deploy (SSM)
                 </button>
                 <button className="danger" onClick={handleDelete} disabled={loading}>
                   Delete
