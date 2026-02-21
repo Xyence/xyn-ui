@@ -428,7 +428,7 @@ export async function updateAiPurpose(
   slug: string,
   payload: Partial<{
     enabled: boolean;
-    system_prompt_markdown: string;
+    preamble: string;
     model_config: {
       provider: "openai" | "anthropic" | "google";
       model_name: string;

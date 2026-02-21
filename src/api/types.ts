@@ -1057,7 +1057,9 @@ export type AiPurpose = {
   name?: string;
   description?: string;
   enabled: boolean;
-  system_prompt_markdown: string;
+  preamble: string;
+  system_prompt?: string;
+  system_prompt_markdown?: string;
   updated_at?: string;
   model_config?: {
     id: string;

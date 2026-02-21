@@ -3,6 +3,8 @@ import InlineMessage from "../../components/InlineMessage";
 import type { AiPurpose } from "../../api/types";
 import { listAiPurposes, updateAiPurpose } from "../../api/xyn";
 
+const PREAMBLE_MAX = 1000;
+
 export default function AIPurposesPage() {
   const [items, setItems] = useState<AiPurpose[]>([]);
   const [selected, setSelected] = useState<AiPurpose | null>(null);
@@ -13,8 +15,12 @@ export default function AIPurposesPage() {
     try {
       setError(null);
       const data = await listAiPurposes();
-      setItems(data.purposes || []);
-      setSelected((prev) => (prev ? (data.purposes || []).find((item) => item.slug === prev.slug) || data.purposes?.[0] || null : data.purposes?.[0] || null));
+      const normalized = (data.purposes || []).map((item) => ({
+        ...item,
+        preamble: item.preamble ?? item.system_prompt ?? item.system_prompt_markdown ?? "",
+      }));
+      setItems(normalized);
+      setSelected((prev) => (prev ? normalized.find((item) => item.slug === prev.slug) || normalized[0] || null : normalized[0] || null));
     } catch (err) {
       setError((err as Error).message);
     }
@@ -31,7 +37,7 @@ export default function AIPurposesPage() {
       setMessage(null);
       await updateAiPurpose(selected.slug, {
         enabled: selected.enabled,
-        system_prompt_markdown: selected.system_prompt_markdown,
+        preamble: (selected.preamble || "").slice(0, PREAMBLE_MAX),
       });
       setMessage("Purpose updated.");
       await load();
@@ -89,8 +95,17 @@ export default function AIPurposesPage() {
                 </select>
               </label>
               <label>
-                System prompt
-                <textarea className="input" rows={12} value={selected.system_prompt_markdown || ""} onChange={(event) => setSelected({ ...selected, system_prompt_markdown: event.target.value })} />
+                Preamble
+                <textarea
+                  className="input"
+                  rows={8}
+                  maxLength={PREAMBLE_MAX}
+                  value={selected.preamble || ""}
+                  onChange={(event) => setSelected({ ...selected, preamble: event.target.value })}
+                />
+                <span className="muted small">
+                  Short purpose-level guidance prepended to an agent&apos;s system prompt at runtime ({(selected.preamble || "").length}/{PREAMBLE_MAX}).
+                </span>
               </label>
             </div>
           )}
