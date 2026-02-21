@@ -315,8 +315,8 @@ export default function AIAgentsPage() {
               <div style={{ marginTop: 18 }}>
                 <h4>Test agent</h4>
                 <p className="muted small">Run a simple prompt through this agent to verify credentials and model responsiveness.</p>
-                <label>
-                  Test prompt
+                <div className="stacked-field">
+                  <span>Test prompt</span>
                   <textarea
                     className="input"
                     rows={4}
@@ -324,7 +324,7 @@ export default function AIAgentsPage() {
                     onChange={(event) => setTestPrompt(event.target.value)}
                     placeholder="Enter a short test prompt"
                   />
-                </label>
+                </div>
                 <div className="inline-actions" style={{ marginTop: 10 }}>
                   <button className="ghost" onClick={runAgentTest} disabled={testRunning || !testPrompt.trim()}>
                     {testRunning ? "Testing..." : "Run test"}
