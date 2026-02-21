@@ -1,7 +1,7 @@
 import { useEffect, useMemo, useState } from "react";
 import InlineMessage from "../../components/InlineMessage";
 import type { AiAgent, AiModelConfig, AiPurpose } from "../../api/types";
-import { createAiAgent, deleteAiAgent, listAiAgents, listAiModelConfigs, listAiPurposes, updateAiAgent } from "../../api/xyn";
+import { createAiAgent, deleteAiAgent, invokeAi, listAiAgents, listAiModelConfigs, listAiPurposes, updateAiAgent } from "../../api/xyn";
 
 type AgentFormState = {
   id: string;
@@ -36,6 +36,10 @@ export default function AIAgentsPage() {
   const [filterPurpose, setFilterPurpose] = useState("all");
   const [selectedAgentId, setSelectedAgentId] = useState<string | null>(null);
   const [editForm, setEditForm] = useState<AgentFormState | null>(null);
+  const [testPrompt, setTestPrompt] = useState("Reply with a short health check confirming credentials and model responsiveness.");
+  const [testRunning, setTestRunning] = useState(false);
+  const [testResult, setTestResult] = useState<{ provider: string; model: string; content: string } | null>(null);
+  const [testError, setTestError] = useState<string | null>(null);
   const [form, setForm] = useState({
     slug: "",
     name: "",
@@ -75,6 +79,11 @@ export default function AIAgentsPage() {
   useEffect(() => {
     load();
   }, [filterPurpose]);
+
+  useEffect(() => {
+    setTestResult(null);
+    setTestError(null);
+  }, [selectedAgentId]);
 
   const create = async () => {
     try {
@@ -126,6 +135,33 @@ export default function AIAgentsPage() {
       await load();
     } catch (err) {
       setError((err as Error).message);
+    }
+  };
+
+  const runAgentTest = async () => {
+    if (!selectedAgent || !testPrompt.trim()) return;
+    try {
+      setTestRunning(true);
+      setTestError(null);
+      setTestResult(null);
+      const response = await invokeAi({
+        agent_slug: selectedAgent.slug,
+        messages: [{ role: "user", content: testPrompt.trim() }],
+        metadata: {
+          feature: "ai_agents_page_test",
+          source: "platform_ai_agents",
+          agent_id: selectedAgent.id,
+        },
+      });
+      setTestResult({
+        provider: response.provider,
+        model: response.model,
+        content: response.content || "",
+      });
+    } catch (err) {
+      setTestError((err as Error).message || "Test invocation failed.");
+    } finally {
+      setTestRunning(false);
     }
   };
 
@@ -275,6 +311,32 @@ export default function AIAgentsPage() {
               <div className="inline-actions" style={{ marginTop: 12 }}>
                 <button className="primary" onClick={saveEdit} disabled={!editForm.name.trim() || !editForm.model_config_id}>Save changes</button>
                 <button className="danger" onClick={() => remove(selectedAgent)}>Delete agent</button>
+              </div>
+              <div style={{ marginTop: 18 }}>
+                <h4>Test agent</h4>
+                <p className="muted small">Run a simple prompt through this agent to verify credentials and model responsiveness.</p>
+                <label>
+                  Test prompt
+                  <textarea
+                    className="input"
+                    rows={4}
+                    value={testPrompt}
+                    onChange={(event) => setTestPrompt(event.target.value)}
+                    placeholder="Enter a short test prompt"
+                  />
+                </label>
+                <div className="inline-actions" style={{ marginTop: 10 }}>
+                  <button className="ghost" onClick={runAgentTest} disabled={testRunning || !testPrompt.trim()}>
+                    {testRunning ? "Testing..." : "Run test"}
+                  </button>
+                </div>
+                {testError && <InlineMessage tone="error" title="Test failed" body={testError} />}
+                {testResult && (
+                  <div className="card" style={{ marginTop: 10 }}>
+                    <div className="muted small">Provider: {testResult.provider} · Model: {testResult.model}</div>
+                    <pre style={{ whiteSpace: "pre-wrap", margin: "8px 0 0 0" }}>{testResult.content || "(no content)"}</pre>
+                  </div>
+                )}
               </div>
             </>
           )}
