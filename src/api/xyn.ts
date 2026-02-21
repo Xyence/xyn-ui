@@ -561,13 +561,13 @@ export async function updateAiModelConfig(id: string, payload: Partial<AiModelCo
   return handle<{ model_config: AiModelConfig }>(response);
 }
 
-export async function deleteAiModelConfig(id: string): Promise<void> {
+export async function deleteAiModelConfig(id: string): Promise<{ model_config: AiModelConfig; status: string; message?: string }> {
   const apiBaseUrl = resolveApiBaseUrl();
   const response = await apiFetch(`${apiBaseUrl}/xyn/api/ai/model-configs/${encodeURIComponent(id)}`, {
     method: "DELETE",
     credentials: "include",
   });
-  await handle<void>(response);
+  return handle<{ model_config: AiModelConfig; status: string; message?: string }>(response);
 }
 
 export async function getAiModelConfigCompat(id: string): Promise<AiModelConfigCompat> {

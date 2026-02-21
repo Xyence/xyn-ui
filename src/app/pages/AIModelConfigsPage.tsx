@@ -82,7 +82,7 @@ export default function AIModelConfigsPage() {
   };
 
   const remove = async (item: AiModelConfig) => {
-    if (!window.confirm(`Delete model config '${item.model_name}'?`)) return;
+    if (!window.confirm(`Deprecate model config '${item.model_name}'?`)) return;
     try {
       await deleteAiModelConfig(item.id);
       await load();
@@ -167,7 +167,7 @@ export default function AIModelConfigsPage() {
               </div>
               <div className="inline-actions">
                 <button className="ghost" onClick={() => toggleEnabled(item)}>{item.enabled ? "Disable" : "Enable"}</button>
-                <button className="danger" onClick={() => remove(item)}>Delete</button>
+                <button className="danger" onClick={() => remove(item)}>Deprecate</button>
               </div>
             </div>
           ))}
