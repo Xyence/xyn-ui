@@ -242,7 +242,17 @@ export default function AIModelConfigsPage() {
                 <div>
                   <strong>{item.model_name}</strong>
                   <span className="muted small">
-                    {item.provider} · temp {item.temperature ?? "-"} · max {item.max_tokens ?? "-"} · purposes:{" "}
+                    {item.provider}
+                    {typeof compatByModelConfigId[item.id]?.effective_params?.temperature === "number"
+                      ? ` · temp ${compatByModelConfigId[item.id]?.effective_params?.temperature}`
+                      : ""}
+                    {typeof compatByModelConfigId[item.id]?.effective_params?.top_p === "number"
+                      ? ` · top_p ${compatByModelConfigId[item.id]?.effective_params?.top_p}`
+                      : ""}
+                    {typeof compatByModelConfigId[item.id]?.effective_params?.max_tokens === "number"
+                      ? ` · max ${compatByModelConfigId[item.id]?.effective_params?.max_tokens}`
+                      : ""}
+                    {" · purposes: "}
                     {purposes
                       .filter((purpose) => purpose.model_config?.id === item.id)
                       .map((purpose) => purpose.slug)
