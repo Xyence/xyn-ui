@@ -5,6 +5,7 @@ import { useNotifications, type NotificationItem } from "../../state/notificatio
 type ActiveToast = NotificationItem | null;
 
 function shouldToast(item: NotificationItem, busy: boolean): boolean {
+  if (!item.unread) return false;
   if (!item.status) return false;
   if (!["queued", "succeeded", "failed"].includes(item.status)) return false;
   if (busy && item.status === "queued") return false;
@@ -23,6 +24,7 @@ export default function ToastHost() {
   const [queue, setQueue] = useState<NotificationItem[]>([]);
   const seenRef = useRef<Set<string>>(new Set());
   const lastShownAtRef = useRef(0);
+  const sessionStartedAtRef = useRef(Date.now());
 
   const busy = useMemo(() => {
     const cutoff = Date.now() - 10000;
@@ -36,6 +38,8 @@ export default function ToastHost() {
         const key = `${item.id}:${item.version}`;
         if (seenRef.current.has(key)) continue;
         seenRef.current.add(key);
+        // Prevent replaying stored notifications on reload. Toasts are for current-session events only.
+        if (item.ts < sessionStartedAtRef.current - 2000) continue;
         if (!shouldToast(item, busy)) continue;
         const existingIdx = item.dedupeKey ? next.findIndex((entry) => entry.dedupeKey === item.dedupeKey) : -1;
         if (existingIdx >= 0) {
