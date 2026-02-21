@@ -1,4 +1,5 @@
 import { useEffect, useMemo, useState } from "react";
+import { ChevronRight } from "lucide-react";
 import { useLocation, useNavigate } from "react-router-dom";
 import InlineMessage from "../../components/InlineMessage";
 import { getDocBySlug, listDocs, publishDoc, updateDoc } from "../../api/xyn";
@@ -26,6 +27,7 @@ export default function GuidesPage({ roles = [] }: GuidesPageProps) {
   const [saving, setSaving] = useState(false);
   const canEdit = roles.includes("platform_admin") || roles.includes("platform_architect");
   const editSlug = query.get("edit") || "";
+  const preferredCoreConceptsSlug = "core-concepts";
 
   useEffect(() => {
     let mounted = true;
@@ -34,8 +36,16 @@ export default function GuidesPage({ roles = [] }: GuidesPageProps) {
         setError(null);
         const response = await listDocs({ tags: ["guide"], includeDrafts: true });
         if (!mounted) return;
-        setDocs(response.docs);
-        const target = selectedSlug || response.docs[0]?.slug || "";
+        const filteredDocs = response.docs.filter(
+          (doc) => doc.slug !== "subscriber-notes" && doc.title !== "Subscriber Notes Walkthrough"
+        );
+        setDocs(filteredDocs);
+        const requestedSlug = query.get("slug") || "";
+        const hasRequested = requestedSlug && filteredDocs.some((doc) => doc.slug === requestedSlug);
+        const defaultSlug = filteredDocs.some((doc) => doc.slug === preferredCoreConceptsSlug)
+          ? preferredCoreConceptsSlug
+          : filteredDocs[0]?.slug || "";
+        const target = hasRequested ? requestedSlug : defaultSlug;
         if (target) {
           setSelectedSlug(target);
         }
@@ -48,7 +58,7 @@ export default function GuidesPage({ roles = [] }: GuidesPageProps) {
     return () => {
       mounted = false;
     };
-  }, [selectedSlug]);
+  }, [query]);
 
   useEffect(() => {
     const tour = query.get("tour");
@@ -97,35 +107,45 @@ export default function GuidesPage({ roles = [] }: GuidesPageProps) {
           <div className="card-header">
             <h3>Guide Index</h3>
           </div>
-          {docs.length === 0 ? (
-            <p className="muted">No guide docs available yet.</p>
-          ) : (
-            <div className="list-group">
-              {docs.map((doc) => (
-                <button
-                  type="button"
-                  key={doc.id}
-                  className={`instance-row ${selectedSlug === doc.slug ? "active" : ""}`}
-                  onClick={() => {
-                    setSelectedSlug(doc.slug);
-                    setMessage(null);
-                  }}
-                >
-                  <strong>{doc.title}</strong>
-                  <span className="muted small">{doc.tags.join(", ") || "guide"}</span>
-                </button>
-              ))}
-            </div>
-          )}
-          <div className="actions" style={{ marginTop: 12 }}>
+          <div className="guides-section">
+            <div className="guides-subheader">Documentation</div>
+            {docs.length === 0 ? (
+              <p className="muted">No guide docs available yet.</p>
+            ) : (
+              <div className="guides-list">
+                {docs.map((doc) => (
+                  <button
+                    type="button"
+                    key={doc.id}
+                    className={`instance-row ${selectedSlug === doc.slug ? "active" : ""}`}
+                    onClick={() => {
+                      setSelectedSlug(doc.slug);
+                      setMessage(null);
+                    }}
+                  >
+                    <strong>{doc.title}</strong>
+                    <span className="muted small">{doc.tags.join(", ") || "guide"}</span>
+                  </button>
+                ))}
+              </div>
+            )}
+          </div>
+          <div className="guides-section">
+            <div className="guides-subheader">Tours</div>
             <button
-              className="ghost"
+              className="instance-row guides-tour-row"
               onClick={() => {
                 window.dispatchEvent(new CustomEvent("xyn:start-tour", { detail: { slug: "deploy-subscriber-notes" } }));
                 setMessage("Tour started.");
               }}
             >
-              Start "Deploy Subscriber Notes" tour
+              <div>
+                <strong>Deploy Subscriber Notes</strong>
+                <span className="muted small">Guided end-to-end onboarding flow</span>
+              </div>
+              <span className="guides-tour-arrow" aria-hidden="true">
+                <ChevronRight size={16} />
+              </span>
             </button>
           </div>
         </section>

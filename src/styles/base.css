@@ -713,6 +713,44 @@ button:disabled {
   }
 }
 
+.guides-section {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+.guides-section + .guides-section {
+  margin-top: 8px;
+  padding-top: 12px;
+  border-top: 1px solid var(--border);
+}
+
+.guides-subheader {
+  font-size: 0.74rem;
+  font-weight: 700;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: var(--muted);
+}
+
+.guides-list {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+.guides-tour-row {
+  width: 100%;
+  cursor: pointer;
+}
+
+.guides-tour-arrow {
+  color: var(--accent);
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+}
+
 .notification-drawer-header {
   display: flex;
   align-items: center;
