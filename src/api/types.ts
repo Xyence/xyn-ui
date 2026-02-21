@@ -1123,6 +1123,7 @@ export type AiAgent = {
   model_config?: AiModelConfig;
   system_prompt_text?: string;
   context_pack_refs_json?: unknown[];
+  is_default?: boolean;
   enabled: boolean;
   purposes: string[];
   created_at?: string;

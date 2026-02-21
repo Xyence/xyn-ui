@@ -550,6 +550,7 @@ export async function createAiAgent(payload: {
   name: string;
   model_config_id: string;
   system_prompt_text?: string;
+  is_default?: boolean;
   enabled?: boolean;
   purposes?: string[];
 }): Promise<{ agent: AiAgent }> {
@@ -570,6 +571,7 @@ export async function updateAiAgent(
     name: string;
     model_config_id: string;
     system_prompt_text: string;
+    is_default: boolean;
     enabled: boolean;
     purposes: string[];
   }>

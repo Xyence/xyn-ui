@@ -77,11 +77,13 @@ export default function AIAgentsPage() {
     }
   };
 
-  const togglePurpose = (slug: string) => {
-    setForm((prev) => {
-      const has = prev.purposes.includes(slug);
-      return { ...prev, purposes: has ? prev.purposes.filter((item) => item !== slug) : [...prev.purposes, slug] };
-    });
+  const setDefault = async (item: AiAgent) => {
+    try {
+      await updateAiAgent(item.id, { is_default: true });
+      await load();
+    } catch (err) {
+      setError((err as Error).message);
+    }
   };
 
   return (
@@ -124,20 +126,29 @@ export default function AIAgentsPage() {
             </select>
           </label>
           <label>
+            Purposes (multi-select)
+            <select
+              multiple
+              className="input"
+              value={form.purposes}
+              onChange={(event) => {
+                const selected = Array.from(event.target.selectedOptions).map((option) => option.value);
+                setForm({ ...form, purposes: selected });
+              }}
+            >
+              {purposes.map((purpose) => (
+                <option key={purpose.slug} value={purpose.slug}>
+                  {purpose.slug}
+                </option>
+              ))}
+            </select>
+          </label>
+          <label>
             System prompt
             <textarea className="input" rows={6} value={form.system_prompt_text} onChange={(event) => setForm({ ...form, system_prompt_text: event.target.value })} />
           </label>
         </div>
-        <div className="muted small" style={{ marginTop: 12 }}>Purposes</div>
-        <div className="inline-actions" style={{ marginTop: 8, flexWrap: "wrap" }}>
-          {purposes.map((purpose) => {
-            const active = form.purposes.includes(purpose.slug);
-            return (
-              <button key={purpose.slug} className={active ? "primary" : "ghost"} onClick={() => togglePurpose(purpose.slug)}>
-                {purpose.slug}
-              </button>
-            );
-          })}
+        <div className="inline-actions" style={{ marginTop: 12, flexWrap: "wrap" }}>
           <button className="primary" onClick={create} disabled={!form.slug.trim() || !form.name.trim() || !form.model_config_id}>Create</button>
         </div>
       </section>
@@ -149,10 +160,11 @@ export default function AIAgentsPage() {
             <div className="instance-row" key={item.id}>
               <div>
                 <strong>{item.name}</strong>
-                <span className="muted small">{item.slug} · {item.model_config?.provider}:{item.model_config?.model_name} · {item.purposes.join(", ") || "no purposes"}</span>
+                <span className="muted small">{item.slug} · {item.model_config?.provider}:{item.model_config?.model_name} · {item.purposes.join(", ") || "no purposes"}{item.is_default ? " · default" : ""}</span>
               </div>
               <div className="inline-actions">
                 <button className="ghost" onClick={() => toggleEnabled(item)}>{item.enabled ? "Disable" : "Enable"}</button>
+                <button className="ghost" onClick={() => setDefault(item)}>Set default</button>
                 <button className="danger" onClick={() => remove(item)}>Delete</button>
               </div>
             </div>
