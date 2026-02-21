@@ -1084,7 +1084,8 @@ export type AiCredential = {
   provider: "openai" | "anthropic" | "google";
   provider_id: string;
   name: string;
-  auth_type: "api_key_encrypted" | "env_ref";
+  auth_type: "api_key" | "env_ref";
+  secret_ref_id?: string | null;
   env_var_name?: string;
   is_default: boolean;
   enabled: boolean;

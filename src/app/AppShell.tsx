@@ -17,6 +17,7 @@ import SecretRefsPage from "./pages/SecretRefsPage";
 import AICredentialsPage from "./pages/AICredentialsPage";
 import AIModelConfigsPage from "./pages/AIModelConfigsPage";
 import AIAgentsPage from "./pages/AIAgentsPage";
+import AIPurposesPage from "./pages/AIPurposesPage";
 import ReleasePlansPage from "./pages/ReleasePlansPage";
 import ReleasesPage from "./pages/ReleasesPage";
 import RunsPage from "./pages/RunsPage";
@@ -313,6 +314,7 @@ export default function AppShell() {
             <Route path="platform/ai/credentials" element={<AICredentialsPage />} />
             <Route path="platform/ai/model-configs" element={<AIModelConfigsPage />} />
             <Route path="platform/ai/agents" element={<AIAgentsPage />} />
+            <Route path="platform/ai/purposes" element={<AIPurposesPage />} />
             <Route path="settings" element={<WorkspaceSettingsPage workspaceName={activeWorkspace?.name || "Workspace"} />} />
             <Route path="*" element={<Navigate to="home" replace />} />
           </Routes>

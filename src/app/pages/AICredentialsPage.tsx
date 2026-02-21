@@ -8,7 +8,7 @@ export default function AICredentialsPage() {
   const [items, setItems] = useState<AiCredential[]>([]);
   const [error, setError] = useState<string | null>(null);
   const [message, setMessage] = useState<string | null>(null);
-  const [form, setForm] = useState({ provider: "openai" as "openai" | "anthropic" | "google", name: "", auth_type: "env_ref" as "api_key_encrypted" | "env_ref", api_key: "", env_var_name: "", enabled: true, is_default: false });
+  const [form, setForm] = useState({ provider: "openai" as "openai" | "anthropic" | "google", name: "", auth_type: "api_key" as "api_key" | "env_ref", api_key: "", env_var_name: "", enabled: true, is_default: false });
 
   const load = async () => {
     try {
@@ -33,7 +33,7 @@ export default function AICredentialsPage() {
         provider: form.provider,
         name: form.name,
         auth_type: form.auth_type,
-        api_key: form.auth_type === "api_key_encrypted" ? form.api_key : undefined,
+        api_key: form.auth_type === "api_key" ? form.api_key : undefined,
         env_var_name: form.auth_type === "env_ref" ? form.env_var_name : undefined,
         enabled: form.enabled,
         is_default: form.is_default,
@@ -105,12 +105,12 @@ export default function AICredentialsPage() {
           </label>
           <label>
             Auth type
-            <select value={form.auth_type} onChange={(event) => setForm({ ...form, auth_type: event.target.value as "api_key_encrypted" | "env_ref" })}>
+            <select value={form.auth_type} onChange={(event) => setForm({ ...form, auth_type: event.target.value as "api_key" | "env_ref" })}>
+              <option value="api_key">api_key</option>
               <option value="env_ref">env_ref</option>
-              <option value="api_key_encrypted">api_key_encrypted</option>
             </select>
           </label>
-          {form.auth_type === "api_key_encrypted" ? (
+          {form.auth_type === "api_key" ? (
             <label>
               API key
               <input className="input" type="password" value={form.api_key} onChange={(event) => setForm({ ...form, api_key: event.target.value })} placeholder="sk-..." />
@@ -138,7 +138,7 @@ export default function AICredentialsPage() {
             <div className="instance-row" key={item.id}>
               <div>
                 <strong>{item.name}</strong>
-                <span className="muted small">{item.provider} · {item.auth_type} · {item.secret?.masked || "not configured"}{item.is_default ? " · default" : ""}</span>
+                <span className="muted small">{item.provider} · {item.auth_type} · {item.secret_ref_id ? "secret-store" : "fallback"} · {item.secret?.masked || "not configured"}{item.is_default ? " · default" : ""}</span>
               </div>
               <div className="inline-actions">
                 <button className="ghost" onClick={() => toggleEnabled(item)}>{item.enabled ? "Disable" : "Enable"}</button>

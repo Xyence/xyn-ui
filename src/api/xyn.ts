@@ -464,7 +464,7 @@ export async function listAiCredentials(): Promise<{ credentials: AiCredential[]
 }
 
 export async function createAiCredential(
-  payload: Partial<AiCredential> & { provider: "openai" | "anthropic" | "google"; name: string; auth_type: "api_key_encrypted" | "env_ref"; api_key?: string }
+  payload: Partial<AiCredential> & { provider: "openai" | "anthropic" | "google"; name: string; auth_type: "api_key" | "env_ref"; api_key?: string }
 ): Promise<{ credential: AiCredential }> {
   const apiBaseUrl = resolveApiBaseUrl();
   const response = await apiFetch(`${apiBaseUrl}/xyn/api/ai/credentials`, {

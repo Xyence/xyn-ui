@@ -133,6 +133,7 @@ export const NAV_GROUPS: NavGroup[] = [
       { id: "ai-credentials", label: "AI Credentials", path: "/app/platform/ai/credentials", icon: "KeyRound", requiredRoles: ["platform_admin", "platform_architect"] },
       { id: "ai-model-configs", label: "AI Model Configs", path: "/app/platform/ai/model-configs", icon: "SlidersHorizontal", requiredRoles: ["platform_admin", "platform_architect"] },
       { id: "ai-agents", label: "AI Agents", path: "/app/platform/ai/agents", icon: "Bot", requiredRoles: ["platform_admin", "platform_architect"] },
+      { id: "ai-purposes", label: "AI Purposes", path: "/app/platform/ai/purposes", icon: "Filter", requiredRoles: ["platform_admin", "platform_architect"] },
       { id: "my-tenants", label: "My Tenants", path: "/app/my-tenants", icon: "UsersRound", requiredRoles: ["platform_admin", "platform_architect", "platform_operator"] },
       { id: "control-plane", label: "Control Plane", path: "/app/control-plane", icon: "ShieldCheck", requiredRoles: ["platform_admin", "platform_architect"] },
     ],

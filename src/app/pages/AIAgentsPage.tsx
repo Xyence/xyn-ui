@@ -121,7 +121,8 @@ export default function AIAgentsPage() {
             <textarea className="input" rows={6} value={form.system_prompt_text} onChange={(event) => setForm({ ...form, system_prompt_text: event.target.value })} />
           </label>
         </div>
-        <div className="inline-actions" style={{ marginTop: 12, flexWrap: "wrap" }}>
+        <div className="muted small" style={{ marginTop: 12 }}>Purposes</div>
+        <div className="inline-actions" style={{ marginTop: 8, flexWrap: "wrap" }}>
           {purposes.map((purpose) => {
             const active = form.purposes.includes(purpose.slug);
             return (

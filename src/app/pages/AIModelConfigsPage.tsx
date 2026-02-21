@@ -1,22 +1,29 @@
 import { useEffect, useState } from "react";
 import InlineMessage from "../../components/InlineMessage";
-import type { AiCredential, AiModelConfig } from "../../api/types";
-import { createAiModelConfig, deleteAiModelConfig, listAiCredentials, listAiModelConfigs, listAiProviders, updateAiModelConfig } from "../../api/xyn";
+import type { AiCredential, AiModelConfig, AiPurpose } from "../../api/types";
+import { createAiModelConfig, deleteAiModelConfig, listAiCredentials, listAiModelConfigs, listAiProviders, listAiPurposes, updateAiModelConfig } from "../../api/xyn";
 
 export default function AIModelConfigsPage() {
   const [providers, setProviders] = useState<Array<{ slug: "openai" | "anthropic" | "google"; name: string }>>([]);
   const [credentials, setCredentials] = useState<AiCredential[]>([]);
   const [items, setItems] = useState<AiModelConfig[]>([]);
+  const [purposes, setPurposes] = useState<AiPurpose[]>([]);
   const [error, setError] = useState<string | null>(null);
   const [form, setForm] = useState({ provider: "openai" as "openai" | "anthropic" | "google", credential_id: "", model_name: "", temperature: "0.2", max_tokens: "1200", enabled: true });
 
   const load = async () => {
     try {
       setError(null);
-      const [providerData, credentialData, modelData] = await Promise.all([listAiProviders(), listAiCredentials(), listAiModelConfigs()]);
+      const [providerData, credentialData, modelData, purposeData] = await Promise.all([
+        listAiProviders(),
+        listAiCredentials(),
+        listAiModelConfigs(),
+        listAiPurposes(),
+      ]);
       setProviders(providerData.providers.map((item) => ({ slug: item.slug, name: item.name })));
       setCredentials(credentialData.credentials || []);
       setItems(modelData.model_configs || []);
+      setPurposes(purposeData.purposes || []);
     } catch (err) {
       setError((err as Error).message);
     }
@@ -120,7 +127,13 @@ export default function AIModelConfigsPage() {
             <div className="instance-row" key={item.id}>
               <div>
                 <strong>{item.model_name}</strong>
-                <span className="muted small">{item.provider} · temp {item.temperature ?? "-"} · max {item.max_tokens ?? "-"}</span>
+                <span className="muted small">
+                  {item.provider} · temp {item.temperature ?? "-"} · max {item.max_tokens ?? "-"} · purposes:{" "}
+                  {purposes
+                    .filter((purpose) => purpose.model_config?.id === item.id)
+                    .map((purpose) => purpose.slug)
+                    .join(", ") || "none"}
+                </span>
               </div>
               <div className="inline-actions">
                 <button className="ghost" onClick={() => toggleEnabled(item)}>{item.enabled ? "Disable" : "Enable"}</button>
