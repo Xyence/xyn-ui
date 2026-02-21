@@ -285,6 +285,7 @@ export default function AppShell() {
             <Route path="map" element={<XynMapPage />} />
             <Route path="blueprints" element={<BlueprintsPage />} />
             <Route path="drafts" element={<DraftSessionsPage />} />
+            <Route path="drafts/:draftId" element={<DraftSessionsPage />} />
             <Route path="modules" element={<ModulesPage />} />
             <Route path="release-plans" element={<ReleasePlansPage />} />
             <Route path="releases" element={<ReleasesPage />} />

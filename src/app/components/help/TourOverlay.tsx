@@ -17,6 +17,18 @@ type PersistedState = {
   completed: boolean;
 };
 
+function normalizePath(path: string): string {
+  const trimmed = (path || "").trim();
+  if (!trimmed) return "/";
+  return trimmed.endsWith("/") && trimmed !== "/" ? trimmed.slice(0, -1) : trimmed;
+}
+
+function routeMatchesCurrentPath(stepRoute: string, currentPath: string): boolean {
+  const expected = normalizePath(stepRoute);
+  const current = normalizePath(currentPath);
+  return current === expected || current.startsWith(`${expected}/`);
+}
+
 function storageKey(userKey: string, slug: string): string {
   return `xyn.tour.progress.${slug}.${userKey || "anon"}`;
 }
@@ -71,7 +83,7 @@ export default function TourOverlay({ userKey, launchSlug, launchToken, currentP
         setIndex(nextIndex);
         setOpen(true);
         const targetRoute = definition.steps[nextIndex]?.route;
-        if (targetRoute && targetRoute !== currentPath) {
+        if (targetRoute && !routeMatchesCurrentPath(targetRoute, currentPath)) {
           navigateTo(targetRoute);
         }
       } catch {
@@ -87,7 +99,7 @@ export default function TourOverlay({ userKey, launchSlug, launchToken, currentP
 
   useEffect(() => {
     if (!open || !step) return;
-    if (step.route && step.route !== currentPath) {
+    if (step.route && !routeMatchesCurrentPath(step.route, currentPath)) {
       navigateTo(step.route);
       return;
     }
