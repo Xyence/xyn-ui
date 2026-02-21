@@ -295,18 +295,20 @@ export default function TourOverlay({ userKey, launchSlug, launchToken, currentP
     let highlighted: Element | null = null;
     (async () => {
       const selector = interpolatedStep.attach?.selector || null;
-      if (selector) {
-        const waitMs = Math.max(0, interpolatedStep.attach?.wait_ms || 0);
-        highlighted = waitMs > 0 ? await pollForSelector(selector, waitMs) : document.querySelector(selector);
-        if (cancelled) return;
-        if (highlighted) {
-          highlighted.classList.add("tour-highlighted");
-          if (highlighted instanceof HTMLElement) {
-            highlighted.scrollIntoView({ behavior: "smooth", block: "center" });
-          }
-          setAttachedToSelector(true);
-          return;
+      if (!selector) {
+        setAttachedToSelector(true);
+        return;
+      }
+      const waitMs = Math.max(0, interpolatedStep.attach?.wait_ms || 0);
+      highlighted = waitMs > 0 ? await pollForSelector(selector, waitMs) : document.querySelector(selector);
+      if (cancelled) return;
+      if (highlighted) {
+        highlighted.classList.add("tour-highlighted");
+        if (highlighted instanceof HTMLElement) {
+          highlighted.scrollIntoView({ behavior: "smooth", block: "center" });
         }
+        setAttachedToSelector(true);
+        return;
       }
       setAttachedToSelector(false);
     })();
@@ -443,7 +445,7 @@ export default function TourOverlay({ userKey, launchSlug, launchToken, currentP
         </div>
         <h5>{interpolatedStep.title}</h5>
         <p>{interpolatedStep.body}</p>
-        {!attachedToSelector && (
+        {Boolean(interpolatedStep.attach?.selector) && !attachedToSelector && (
           <p className="muted small">Showing centered guidance while this page renders its target controls.</p>
         )}
         {interpolatedStep.actions.length > 0 && (
