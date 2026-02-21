@@ -1056,7 +1056,8 @@ export type AiPurpose = {
   slug: string;
   name?: string;
   description?: string;
-  enabled: boolean;
+  status: "active" | "deprecated";
+  enabled?: boolean;
   preamble: string;
   system_prompt?: string;
   system_prompt_markdown?: string;

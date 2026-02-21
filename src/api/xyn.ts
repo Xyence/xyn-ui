@@ -431,6 +431,7 @@ export async function updateAiPurpose(
     name: string;
     description: string;
     enabled: boolean;
+    status: "active" | "deprecated";
     preamble: string;
     model_config: {
       provider: "openai" | "anthropic" | "google";
@@ -460,6 +461,7 @@ export async function createAiPurpose(
     name: string;
     description?: string;
     enabled?: boolean;
+    status?: "active" | "deprecated";
     preamble?: string;
   }
 ): Promise<{ purpose: AiPurpose }> {
@@ -473,13 +475,13 @@ export async function createAiPurpose(
   return handle<{ purpose: AiPurpose }>(response);
 }
 
-export async function deleteAiPurpose(slug: string): Promise<void> {
+export async function deleteAiPurpose(slug: string): Promise<{ purpose: AiPurpose }> {
   const apiBaseUrl = resolveApiBaseUrl();
   const response = await apiFetch(`${apiBaseUrl}/xyn/api/ai/purposes/${encodeURIComponent(slug)}`, {
     method: "DELETE",
     credentials: "include",
   });
-  await handle<void>(response);
+  return handle<{ purpose: AiPurpose }>(response);
 }
 
 export async function listAiProviders(): Promise<{ providers: AiProvider[] }> {

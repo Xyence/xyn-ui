@@ -16,7 +16,7 @@ function slugifyPurpose(value: string): string {
     .slice(0, 63);
 }
 
-function parseApiError(err: unknown): { error?: string; message: string; referencedByAgents?: number } {
+function parseApiError(err: unknown): { error?: string; message: string } {
   const fallback = { message: (err as Error)?.message || "Request failed." };
   const raw = String((err as Error)?.message || "");
   try {
@@ -25,8 +25,6 @@ function parseApiError(err: unknown): { error?: string; message: string; referen
       return {
         error: typeof parsed.error === "string" ? parsed.error : undefined,
         message: typeof parsed.message === "string" ? parsed.message : raw,
-        referencedByAgents:
-          parsed.referenced_by && typeof parsed.referenced_by.agents === "number" ? parsed.referenced_by.agents : undefined,
       };
     }
     return fallback;
@@ -45,11 +43,10 @@ export default function AIPurposesPage() {
     name: "",
     slug: "",
     description: "",
-    enabled: true,
+    status: "active" as "active" | "deprecated",
     preamble: "",
   });
   const [createSlugEdited, setCreateSlugEdited] = useState(false);
-  const [deleteBlockedAgents, setDeleteBlockedAgents] = useState<number | null>(null);
 
   const load = async () => {
     try {
@@ -57,6 +54,7 @@ export default function AIPurposesPage() {
       const data = await listAiPurposes();
       const normalized = (data.purposes || []).map((item) => ({
         ...item,
+        status: item.status || (item.enabled ? "active" : "deprecated"),
         preamble: item.preamble ?? item.system_prompt ?? item.system_prompt_markdown ?? "",
       }));
       setItems(normalized);
@@ -78,7 +76,7 @@ export default function AIPurposesPage() {
       await updateAiPurpose(selected.slug, {
         name: selected.name || "",
         description: selected.description || "",
-        enabled: selected.enabled,
+        status: selected.status || "active",
         preamble: (selected.preamble || "").slice(0, PREAMBLE_MAX),
       });
       setMessage("Purpose updated.");
@@ -92,31 +90,17 @@ export default function AIPurposesPage() {
     try {
       setError(null);
       setMessage(null);
-      setDeleteBlockedAgents(null);
       await createAiPurpose({
         slug: createForm.slug.trim().toLowerCase(),
         name: createForm.name.trim(),
         description: createForm.description.trim(),
-        enabled: createForm.enabled,
+        status: createForm.status,
         preamble: createForm.preamble.slice(0, PREAMBLE_MAX),
       });
       setMessage("Purpose created.");
       setShowCreateModal(false);
-      setCreateForm({ name: "", slug: "", description: "", enabled: true, preamble: "" });
+      setCreateForm({ name: "", slug: "", description: "", status: "active", preamble: "" });
       setCreateSlugEdited(false);
-      await load();
-    } catch (err) {
-      setError(parseApiError(err).message);
-    }
-  };
-
-  const disableSelected = async () => {
-    if (!selected) return;
-    try {
-      setError(null);
-      await updateAiPurpose(selected.slug, { enabled: false });
-      setDeleteBlockedAgents(null);
-      setMessage("Purpose disabled.");
       await load();
     } catch (err) {
       setError(parseApiError(err).message);
@@ -125,22 +109,15 @@ export default function AIPurposesPage() {
 
   const removeSelected = async () => {
     if (!selected) return;
-    if (!window.confirm(`Delete purpose '${selected.slug}'?`)) return;
+    if (!window.confirm(`Deprecate purpose '${selected.slug}'?`)) return;
     try {
       setError(null);
       setMessage(null);
-      setDeleteBlockedAgents(null);
       await deleteAiPurpose(selected.slug);
-      setMessage("Purpose deleted.");
+      setMessage("Purpose deprecated.");
       await load();
     } catch (err) {
-      const parsed = parseApiError(err);
-      if (parsed.error === "purpose_in_use") {
-        setDeleteBlockedAgents(parsed.referencedByAgents ?? selected.referenced_by?.agents ?? 0);
-        setError(parsed.message);
-        return;
-      }
-      setError(parsed.message);
+      setError(parseApiError(err).message);
     }
   };
 
@@ -154,24 +131,12 @@ export default function AIPurposesPage() {
         <div className="inline-actions">
           <button className="ghost" onClick={load}>Refresh</button>
           <button className="ghost" onClick={() => setShowCreateModal(true)}>Create</button>
-          <button className="danger" onClick={removeSelected} disabled={!selected}>Delete</button>
+          <button className="danger" onClick={removeSelected} disabled={!selected}>Deprecate</button>
           <button className="primary" onClick={save} disabled={!selected}>Save</button>
         </div>
       </div>
       {error && <InlineMessage tone="error" title="Request failed" body={error} />}
       {message && <InlineMessage tone="info" title="Update" body={message} />}
-      {deleteBlockedAgents !== null && (
-        <>
-          <InlineMessage
-            tone="warn"
-            title="Purpose is in use"
-            body={`This purpose is currently referenced by ${deleteBlockedAgents} agent(s). You can't delete it; disable it instead.`}
-          />
-          <div className="inline-actions" style={{ marginBottom: 12 }}>
-            <button className="ghost" onClick={disableSelected} disabled={!selected}>Disable purpose</button>
-          </div>
-        </>
-      )}
 
       <div className="layout">
         <section className="card">
@@ -183,7 +148,7 @@ export default function AIPurposesPage() {
                   <strong>{item.name || item.slug}</strong>
                   <span className="muted small">{item.slug}</span>
                 </div>
-                <span className="muted">{item.enabled ? "enabled" : "disabled"}</span>
+                <span className="muted">{item.status || "active"}</span>
               </button>
             ))}
           </div>
@@ -218,12 +183,15 @@ export default function AIPurposesPage() {
                 />
               </label>
               <label>
-                Enabled
-                <select value={selected.enabled ? "yes" : "no"} onChange={(event) => setSelected({ ...selected, enabled: event.target.value === "yes" })}>
-                  <option value="yes">Yes</option>
-                  <option value="no">No</option>
+                Status
+                <select
+                  value={selected.status || "active"}
+                  onChange={(event) => setSelected({ ...selected, status: event.target.value as "active" | "deprecated" })}
+                >
+                  <option value="active">Active</option>
+                  <option value="deprecated">Deprecated</option>
                 </select>
-                <span className="muted small">Disable hides this purpose from selection but preserves history.</span>
+                <span className="muted small">Deprecation hides this purpose from selection but preserves history.</span>
               </label>
               <p className="muted small">Referenced by: {selected.referenced_by?.agents ?? 0} agents</p>
               <label>
@@ -287,13 +255,13 @@ export default function AIPurposesPage() {
                 />
               </label>
               <label>
-                Enabled
+                Status
                 <select
-                  value={createForm.enabled ? "yes" : "no"}
-                  onChange={(event) => setCreateForm((prev) => ({ ...prev, enabled: event.target.value === "yes" }))}
+                  value={createForm.status}
+                  onChange={(event) => setCreateForm((prev) => ({ ...prev, status: event.target.value as "active" | "deprecated" }))}
                 >
-                  <option value="yes">Yes</option>
-                  <option value="no">No</option>
+                  <option value="active">Active</option>
+                  <option value="deprecated">Deprecated</option>
                 </select>
               </label>
               <label>

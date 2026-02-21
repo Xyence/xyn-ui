@@ -54,8 +54,9 @@ export default function AIAgentsPage() {
         listAiModelConfigs(),
         listAiAgents(filterPurpose !== "all" ? { purpose: filterPurpose } : undefined),
       ]);
+      const activePurposes = (purposeData.purposes || []).filter((item) => (item.status || (item.enabled ? "active" : "deprecated")) === "active");
       const nextItems = agentData.agents || [];
-      setPurposes(purposeData.purposes || []);
+      setPurposes(activePurposes);
       setModelConfigs((modelData.model_configs || []).filter((item) => item.enabled));
       setItems(nextItems);
       if (!form.model_config_id && modelData.model_configs?.[0]?.id) {
