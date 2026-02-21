@@ -427,6 +427,9 @@ export async function listAiPurposes(): Promise<{ purposes: AiPurpose[] }> {
 export async function updateAiPurpose(
   slug: string,
   payload: Partial<{
+    slug: string;
+    name: string;
+    description: string;
     enabled: boolean;
     preamble: string;
     model_config: {
@@ -449,6 +452,34 @@ export async function updateAiPurpose(
     body: JSON.stringify(payload),
   });
   return handle<{ purpose: AiPurpose }>(response);
+}
+
+export async function createAiPurpose(
+  payload: {
+    slug: string;
+    name: string;
+    description?: string;
+    enabled?: boolean;
+    preamble?: string;
+  }
+): Promise<{ purpose: AiPurpose }> {
+  const apiBaseUrl = resolveApiBaseUrl();
+  const response = await apiFetch(`${apiBaseUrl}/xyn/api/ai/purposes`, {
+    method: "POST",
+    headers: buildHeaders(),
+    credentials: "include",
+    body: JSON.stringify(payload),
+  });
+  return handle<{ purpose: AiPurpose }>(response);
+}
+
+export async function deleteAiPurpose(slug: string): Promise<void> {
+  const apiBaseUrl = resolveApiBaseUrl();
+  const response = await apiFetch(`${apiBaseUrl}/xyn/api/ai/purposes/${encodeURIComponent(slug)}`, {
+    method: "DELETE",
+    credentials: "include",
+  });
+  await handle<void>(response);
 }
 
 export async function listAiProviders(): Promise<{ providers: AiProvider[] }> {

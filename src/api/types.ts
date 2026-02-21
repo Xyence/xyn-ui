@@ -1060,6 +1060,9 @@ export type AiPurpose = {
   preamble: string;
   system_prompt?: string;
   system_prompt_markdown?: string;
+  referenced_by?: {
+    agents: number;
+  };
   updated_at?: string;
   model_config?: {
     id: string;
