@@ -9,7 +9,13 @@ export default function AIModelConfigsPage() {
   const [items, setItems] = useState<AiModelConfig[]>([]);
   const [purposes, setPurposes] = useState<AiPurpose[]>([]);
   const [error, setError] = useState<string | null>(null);
-  const [form, setForm] = useState({ provider: "openai" as "openai" | "anthropic" | "google", credential_id: "", model_name: "", temperature: "0.2", max_tokens: "1200", enabled: true });
+  const [form, setForm] = useState({
+    provider: "openai" as "openai" | "anthropic" | "google",
+    credential_id: "",
+    model_name: "",
+    temperature: "0.2",
+    max_tokens: "1200",
+  });
 
   const load = async () => {
     try {
@@ -40,7 +46,7 @@ export default function AIModelConfigsPage() {
         model_name: form.model_name,
         temperature: Number(form.temperature),
         max_tokens: Number(form.max_tokens),
-        enabled: form.enabled,
+        enabled: true,
       });
       setForm({ ...form, model_name: "" });
       await load();
@@ -83,6 +89,7 @@ export default function AIModelConfigsPage() {
 
       <section className="card">
         <div className="card-header"><h3>Create model config</h3></div>
+        <div className="muted small">New model configs are enabled by default. Use the row actions below to disable/re-enable.</div>
         <div className="form-grid">
           <label>
             Provider
@@ -115,7 +122,6 @@ export default function AIModelConfigsPage() {
           </label>
         </div>
         <div className="inline-actions" style={{ marginTop: 12 }}>
-          <button className="ghost" onClick={() => setForm({ ...form, enabled: !form.enabled })}>{form.enabled ? "Enabled" : "Disabled"}</button>
           <button className="primary" onClick={create} disabled={!form.model_name.trim()}>Create</button>
         </div>
       </section>

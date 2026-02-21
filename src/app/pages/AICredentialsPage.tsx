@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import InlineMessage from "../../components/InlineMessage";
 import type { AiCredential } from "../../api/types";
 import { createAiCredential, deleteAiCredential, listAiCredentials, listAiProviders, updateAiCredential } from "../../api/xyn";
@@ -8,7 +8,15 @@ export default function AICredentialsPage() {
   const [items, setItems] = useState<AiCredential[]>([]);
   const [error, setError] = useState<string | null>(null);
   const [message, setMessage] = useState<string | null>(null);
-  const [form, setForm] = useState({ provider: "openai" as "openai" | "anthropic" | "google", name: "", auth_type: "api_key" as "api_key" | "env_ref", api_key: "", env_var_name: "", enabled: true, is_default: false });
+  const [form, setForm] = useState({
+    provider: "openai" as "openai" | "anthropic" | "google",
+    name: "",
+    auth_type: "api_key" as "api_key" | "env_ref",
+    api_key: "",
+    env_var_name: "",
+    is_default: false,
+  });
+  const autofillNonce = useMemo(() => Math.random().toString(36).slice(2, 10), []);
 
   const load = async () => {
     try {
@@ -35,10 +43,17 @@ export default function AICredentialsPage() {
         auth_type: form.auth_type,
         api_key: form.auth_type === "api_key" ? form.api_key : undefined,
         env_var_name: form.auth_type === "env_ref" ? form.env_var_name : undefined,
-        enabled: form.enabled,
+        enabled: true,
         is_default: form.is_default,
       });
-      setForm({ ...form, name: "", api_key: "", env_var_name: "", is_default: false });
+      setForm({
+        provider: form.provider,
+        name: "",
+        auth_type: form.auth_type,
+        api_key: "",
+        env_var_name: "",
+        is_default: false,
+      });
       setMessage("Credential created.");
       await load();
     } catch (err) {
@@ -90,7 +105,11 @@ export default function AICredentialsPage() {
 
       <section className="card">
         <div className="card-header"><h3>Create credential</h3></div>
+        <div className="muted small">New credentials are enabled by default. Use the row actions below to disable/re-enable.</div>
         <div className="form-grid">
+          {/* Decoy fields reduce browser/password-manager autofill noise in the real create inputs. */}
+          <input type="text" autoComplete="username" style={{ display: "none" }} aria-hidden="true" tabIndex={-1} />
+          <input type="password" autoComplete="current-password" style={{ display: "none" }} aria-hidden="true" tabIndex={-1} />
           <label>
             Provider
             <select value={form.provider} onChange={(event) => setForm({ ...form, provider: event.target.value as "openai" | "anthropic" | "google" })}>
@@ -101,7 +120,14 @@ export default function AICredentialsPage() {
           </label>
           <label>
             Name
-            <input className="input" value={form.name} onChange={(event) => setForm({ ...form, name: event.target.value })} placeholder="prod-openai" />
+            <input
+              className="input"
+              autoComplete="off"
+              name={`ai-credential-name-${autofillNonce}`}
+              value={form.name}
+              onChange={(event) => setForm({ ...form, name: event.target.value })}
+              placeholder="prod-openai"
+            />
           </label>
           <label>
             Auth type
@@ -113,17 +139,31 @@ export default function AICredentialsPage() {
           {form.auth_type === "api_key" ? (
             <label>
               API key
-              <input className="input" type="password" value={form.api_key} onChange={(event) => setForm({ ...form, api_key: event.target.value })} placeholder="sk-..." />
+              <input
+                className="input"
+                type="password"
+                autoComplete="new-password"
+                name={`ai-credential-api-key-${autofillNonce}`}
+                value={form.api_key}
+                onChange={(event) => setForm({ ...form, api_key: event.target.value })}
+                placeholder="sk-..."
+              />
             </label>
           ) : (
             <label>
               Env var name
-              <input className="input" value={form.env_var_name} onChange={(event) => setForm({ ...form, env_var_name: event.target.value })} placeholder="XYN_OPENAI_API_KEY" />
+              <input
+                className="input"
+                autoComplete="off"
+                name={`ai-credential-env-var-${autofillNonce}`}
+                value={form.env_var_name}
+                onChange={(event) => setForm({ ...form, env_var_name: event.target.value })}
+                placeholder="XYN_OPENAI_API_KEY"
+              />
             </label>
           )}
         </div>
         <div className="inline-actions" style={{ marginTop: 12 }}>
-          <button className="ghost" onClick={() => setForm({ ...form, enabled: !form.enabled })}>{form.enabled ? "Enabled" : "Disabled"}</button>
           <button className="ghost" onClick={() => setForm({ ...form, is_default: !form.is_default })}>{form.is_default ? "Default" : "Set default"}</button>
           <button className="primary" onClick={create} disabled={!form.name.trim()}>
             Create

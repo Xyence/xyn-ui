@@ -9,7 +9,13 @@ export default function AIAgentsPage() {
   const [items, setItems] = useState<AiAgent[]>([]);
   const [error, setError] = useState<string | null>(null);
   const [filterPurpose, setFilterPurpose] = useState("all");
-  const [form, setForm] = useState({ slug: "", name: "", model_config_id: "", system_prompt_text: "", enabled: true, purposes: ["documentation"] as string[] });
+  const [form, setForm] = useState({
+    slug: "",
+    name: "",
+    model_config_id: "",
+    system_prompt_text: "",
+    purposes: ["documentation"] as string[],
+  });
 
   const load = async () => {
     try {
@@ -42,7 +48,7 @@ export default function AIAgentsPage() {
         name: form.name,
         model_config_id: form.model_config_id,
         system_prompt_text: form.system_prompt_text,
-        enabled: form.enabled,
+        enabled: true,
         purposes: form.purposes,
       });
       setForm({ ...form, slug: "", name: "", system_prompt_text: "" });
@@ -99,6 +105,7 @@ export default function AIAgentsPage() {
 
       <section className="card">
         <div className="card-header"><h3>Create agent</h3></div>
+        <div className="muted small">New agents are enabled by default. Use the row actions below to disable/re-enable.</div>
         <div className="form-grid">
           <label>
             Name
@@ -131,7 +138,6 @@ export default function AIAgentsPage() {
               </button>
             );
           })}
-          <button className="ghost" onClick={() => setForm({ ...form, enabled: !form.enabled })}>{form.enabled ? "Enabled" : "Disabled"}</button>
           <button className="primary" onClick={create} disabled={!form.slug.trim() || !form.name.trim() || !form.model_config_id}>Create</button>
         </div>
       </section>
