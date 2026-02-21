@@ -1,12 +1,13 @@
 import { useCallback, useEffect, useState } from "react";
 import { Link } from "react-router-dom";
 import InlineMessage from "../../components/InlineMessage";
-import { createWorkspaceArtifact, listWorkspaceArtifacts } from "../../api/xyn";
-import type { ArtifactSummary } from "../../api/types";
+import { createArticle, listArticles } from "../../api/xyn";
+import type { ArticleSummary } from "../../api/types";
 
 export default function ArtifactsPage({ workspaceId }: { workspaceId: string }) {
-  const [items, setItems] = useState<ArtifactSummary[]>([]);
+  const [items, setItems] = useState<ArticleSummary[]>([]);
   const [title, setTitle] = useState("");
+  const [category, setCategory] = useState<"web" | "guide" | "core-concepts" | "release-note" | "internal" | "tutorial">("web");
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
@@ -17,8 +18,8 @@ export default function ArtifactsPage({ workspaceId }: { workspaceId: string }) 
     }
     try {
       setError(null);
-      const data = await listWorkspaceArtifacts(workspaceId, { type: "article" });
-      setItems(data.artifacts || []);
+      const data = await listArticles({ workspace_id: workspaceId, include_unpublished: true });
+      setItems(data.articles || []);
     } catch (err) {
       setError((err as Error).message);
     }
@@ -33,7 +34,7 @@ export default function ArtifactsPage({ workspaceId }: { workspaceId: string }) 
     try {
       setLoading(true);
       setError(null);
-      await createWorkspaceArtifact(workspaceId, { type: "article", title, body_markdown: "" });
+      await createArticle({ workspace_id: workspaceId, title, category, visibility_type: "private", body_markdown: "" });
       setTitle("");
       await load();
     } catch (err) {
@@ -58,6 +59,17 @@ export default function ArtifactsPage({ workspaceId }: { workspaceId: string }) 
             New Article Draft
             <input className="input" value={title} onChange={(event) => setTitle(event.target.value)} placeholder="Title" />
           </label>
+          <label>
+            Category
+            <select value={category} onChange={(event) => setCategory(event.target.value as typeof category)}>
+              <option value="web">web</option>
+              <option value="guide">guide</option>
+              <option value="core-concepts">core-concepts</option>
+              <option value="release-note">release-note</option>
+              <option value="internal">internal</option>
+              <option value="tutorial">tutorial</option>
+            </select>
+          </label>
           <button className="primary" onClick={createDraft} disabled={loading || !title.trim()}>
             Create draft
           </button>
@@ -72,7 +84,9 @@ export default function ArtifactsPage({ workspaceId }: { workspaceId: string }) 
             <Link className="instance-row" key={item.id} to={`/app/artifacts/${item.id}`}>
               <div>
                 <strong>{item.title}</strong>
-                <span className="muted small">{item.slug || item.id}</span>
+                <span className="muted small">
+                  {item.slug || item.id} · {item.category} · {item.visibility_type}
+                </span>
               </div>
               <div className="muted small">{item.status}</div>
             </Link>

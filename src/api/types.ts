@@ -944,6 +944,66 @@ export type ArtifactDetail = ArtifactSummary & {
   }>;
 };
 
+export type ArticleVisibilityType = "public" | "authenticated" | "role_based" | "private";
+export type ArticleCategory = "web" | "guide" | "core-concepts" | "release-note" | "internal" | "tutorial";
+
+export type ArticleSummary = {
+  id: string;
+  workspace_id: string;
+  type: "article";
+  title: string;
+  slug: string;
+  status: "draft" | "reviewed" | "ratified" | "published" | "deprecated";
+  version: number;
+  published_at?: string | null;
+  updated_at?: string;
+  category: ArticleCategory;
+  visibility_type: ArticleVisibilityType;
+  allowed_roles: string[];
+  route_bindings: string[];
+  tags: string[];
+  summary?: string;
+  cover_image_url?: string;
+  canonical_url?: string;
+};
+
+export type ArticleDetail = ArticleSummary & {
+  body_markdown: string;
+  body_html?: string;
+  provenance_json?: Record<string, unknown>;
+  license_json?: Record<string, unknown>;
+  reactions?: {
+    endorse: number;
+    oppose: number;
+    neutral: number;
+  };
+  comments?: Array<{
+    id: string;
+    user_id?: string | null;
+    parent_comment_id?: string | null;
+    body: string;
+    status: "visible" | "hidden" | "deleted";
+    created_at?: string;
+  }>;
+  created_at?: string;
+  created_by?: string | null;
+  updated_by?: string | null;
+  updated_by_email?: string | null;
+};
+
+export type ArticleRevision = {
+  id: string;
+  article_id: string;
+  revision_number: number;
+  body_markdown: string;
+  body_html?: string;
+  summary?: string;
+  created_by?: string | null;
+  created_by_email?: string | null;
+  created_at?: string;
+  provenance_json?: Record<string, unknown>;
+};
+
 export type DocPage = {
   id: string;
   artifact_id: string;

@@ -2,8 +2,8 @@ import { useEffect, useMemo, useState } from "react";
 import { ChevronRight } from "lucide-react";
 import { useLocation, useNavigate } from "react-router-dom";
 import InlineMessage from "../../components/InlineMessage";
-import { getDocBySlug, listDocs, publishDoc, updateDoc } from "../../api/xyn";
-import type { DocPage } from "../../api/types";
+import { getArticle, listArticles, transitionArticle, updateArticle, createArticleRevision } from "../../api/xyn";
+import type { ArticleDetail, ArticleSummary } from "../../api/types";
 import { renderMarkdown } from "../../public/markdown";
 
 function useQuery() {
@@ -18,41 +18,35 @@ type GuidesPageProps = {
 export default function GuidesPage({ roles = [] }: GuidesPageProps) {
   const navigate = useNavigate();
   const query = useQuery();
-  const [docs, setDocs] = useState<DocPage[]>([]);
-  const [selectedSlug, setSelectedSlug] = useState<string>(query.get("slug") || "");
-  const [selectedDoc, setSelectedDoc] = useState<DocPage | null>(null);
+  const [docs, setDocs] = useState<ArticleSummary[]>([]);
+  const [selectedId, setSelectedId] = useState<string>(query.get("id") || "");
+  const [selectedDoc, setSelectedDoc] = useState<ArticleDetail | null>(null);
   const [editBody, setEditBody] = useState<string>("");
   const [message, setMessage] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [saving, setSaving] = useState(false);
   const canEdit = roles.includes("platform_admin") || roles.includes("platform_architect");
-  const editSlug = query.get("edit") || "";
-  const preferredCoreConceptsSlug = "core-concepts";
+  const editMode = query.get("edit") === "1";
 
   useEffect(() => {
     let mounted = true;
     (async () => {
       try {
         setError(null);
-        const response = await listDocs({ tags: ["guide"], includeDrafts: true });
+        const response = await listArticles({ include_unpublished: true });
         if (!mounted) return;
-        const filteredDocs = response.docs.filter(
-          (doc) => doc.slug !== "subscriber-notes" && doc.title !== "Subscriber Notes Walkthrough"
+        const guides = (response.articles || []).filter((doc) =>
+          ["guide", "core-concepts", "tutorial"].includes(doc.category)
         );
-        setDocs(filteredDocs);
-        const requestedSlug = query.get("slug") || "";
-        const hasRequested = requestedSlug && filteredDocs.some((doc) => doc.slug === requestedSlug);
-        const defaultSlug = filteredDocs.some((doc) => doc.slug === preferredCoreConceptsSlug)
-          ? preferredCoreConceptsSlug
-          : filteredDocs[0]?.slug || "";
-        const target = hasRequested ? requestedSlug : defaultSlug;
+        setDocs(guides);
+        const requestedId = query.get("id") || "";
+        const preferred = guides.find((doc) => doc.slug === "core-concepts") || guides[0];
+        const target = requestedId && guides.some((doc) => doc.id === requestedId) ? requestedId : preferred?.id || "";
         if (target) {
-          setSelectedSlug(target);
+          setSelectedId(target);
         }
       } catch (err) {
-        if (mounted) {
-          setError((err as Error).message);
-        }
+        if (mounted) setError((err as Error).message);
       }
     })();
     return () => {
@@ -69,17 +63,17 @@ export default function GuidesPage({ roles = [] }: GuidesPageProps) {
 
   useEffect(() => {
     let mounted = true;
-    if (!selectedSlug) {
+    if (!selectedId) {
       setSelectedDoc(null);
       return;
     }
     (async () => {
       try {
         setError(null);
-        const response = await getDocBySlug(selectedSlug);
+        const response = await getArticle(selectedId);
         if (mounted) {
-          setSelectedDoc(response.doc);
-          setEditBody(response.doc.body_markdown || "");
+          setSelectedDoc(response.article);
+          setEditBody(response.article.body_markdown || "");
         }
       } catch (err) {
         if (mounted) setError((err as Error).message);
@@ -88,14 +82,14 @@ export default function GuidesPage({ roles = [] }: GuidesPageProps) {
     return () => {
       mounted = false;
     };
-  }, [selectedSlug]);
+  }, [selectedId]);
 
   return (
     <>
       <div className="page-header">
         <div>
           <h2>Guides</h2>
-          <p className="muted">Route-bound docs and onboarding walkthroughs.</p>
+          <p className="muted">Governed guide artifacts bound to routes and visibility controls.</p>
         </div>
       </div>
 
@@ -110,21 +104,21 @@ export default function GuidesPage({ roles = [] }: GuidesPageProps) {
           <div className="guides-section">
             <div className="guides-subheader">Documentation</div>
             {docs.length === 0 ? (
-              <p className="muted">No guide docs available yet.</p>
+              <p className="muted">No guide articles available yet.</p>
             ) : (
               <div className="guides-list">
                 {docs.map((doc) => (
                   <button
                     type="button"
                     key={doc.id}
-                    className={`instance-row ${selectedSlug === doc.slug ? "active" : ""}`}
+                    className={`instance-row ${selectedId === doc.id ? "active" : ""}`}
                     onClick={() => {
-                      setSelectedSlug(doc.slug);
+                      setSelectedId(doc.id);
                       setMessage(null);
                     }}
                   >
                     <strong>{doc.title}</strong>
-                    <span className="muted small">{doc.tags.join(", ") || "guide"}</span>
+                    <span className="muted small">{doc.category} · {doc.tags.join(", ") || "guide"}</span>
                   </button>
                 ))}
               </div>
@@ -160,7 +154,7 @@ export default function GuidesPage({ roles = [] }: GuidesPageProps) {
                 Updated {selectedDoc.updated_at || "—"}
                 {selectedDoc.updated_by_email ? ` by ${selectedDoc.updated_by_email}` : ""}
               </p>
-              {canEdit && editSlug === selectedDoc.slug ? (
+              {canEdit && editMode ? (
                 <div className="stack">
                   <textarea rows={18} value={editBody} onChange={(event) => setEditBody(event.target.value)} />
                   <div className="inline-actions">
@@ -171,9 +165,15 @@ export default function GuidesPage({ roles = [] }: GuidesPageProps) {
                         if (!selectedDoc) return;
                         try {
                           setSaving(true);
-                          const updated = await updateDoc(selectedDoc.id, { body_markdown: editBody });
-                          setSelectedDoc(updated.doc);
-                          setMessage("Doc draft saved.");
+                          await updateArticle(selectedDoc.id, { category: selectedDoc.category });
+                          const updated = await createArticleRevision(selectedDoc.id, {
+                            body_markdown: editBody,
+                            summary: selectedDoc.summary,
+                            tags: selectedDoc.tags,
+                            source: "manual",
+                          });
+                          setSelectedDoc(updated.article);
+                          setMessage("Guide draft saved.");
                         } catch (err) {
                           setError((err as Error).message);
                         } finally {
@@ -190,9 +190,9 @@ export default function GuidesPage({ roles = [] }: GuidesPageProps) {
                         if (!selectedDoc) return;
                         try {
                           setSaving(true);
-                          const published = await publishDoc(selectedDoc.id);
-                          setSelectedDoc(published.doc);
-                          setMessage("Doc published.");
+                          const published = await transitionArticle(selectedDoc.id, "published");
+                          setSelectedDoc(published.article);
+                          setMessage("Guide published.");
                         } catch (err) {
                           setError((err as Error).message);
                         } finally {

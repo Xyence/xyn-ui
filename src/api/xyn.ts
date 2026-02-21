@@ -82,6 +82,9 @@ import type {
   WorkspaceListResponse,
   ArtifactSummary,
   ArtifactDetail,
+  ArticleSummary,
+  ArticleDetail,
+  ArticleRevision,
   ArtifactEventSummary,
   WorkspaceMembershipSummary,
   DocPage,
@@ -227,6 +230,94 @@ export async function updateWorkspaceArtifact(
     body: JSON.stringify(payload),
   });
   return handle<ArtifactDetail>(response);
+}
+
+export async function listArticles(filters?: {
+  workspace_id?: string;
+  category?: string;
+  status?: string;
+  visibility?: string;
+  route_id?: string;
+  q?: string;
+  include_unpublished?: boolean;
+}): Promise<{ articles: ArticleSummary[] }> {
+  const apiBaseUrl = resolveApiBaseUrl();
+  const url = new URL(`${apiBaseUrl}/xyn/api/articles`);
+  if (filters?.workspace_id) url.searchParams.set("workspace_id", filters.workspace_id);
+  if (filters?.category) url.searchParams.set("category", filters.category);
+  if (filters?.status) url.searchParams.set("status", filters.status);
+  if (filters?.visibility) url.searchParams.set("visibility", filters.visibility);
+  if (filters?.route_id) url.searchParams.set("route_id", filters.route_id);
+  if (filters?.q) url.searchParams.set("q", filters.q);
+  if (filters?.include_unpublished) url.searchParams.set("include_unpublished", "1");
+  const response = await apiFetch(url.toString(), { credentials: "include" });
+  return handle<{ articles: ArticleSummary[] }>(response);
+}
+
+export async function createArticle(payload: Record<string, unknown>): Promise<{ article: ArticleDetail }> {
+  const apiBaseUrl = resolveApiBaseUrl();
+  const response = await apiFetch(`${apiBaseUrl}/xyn/api/articles`, {
+    method: "POST",
+    headers: buildHeaders(),
+    credentials: "include",
+    body: JSON.stringify(payload),
+  });
+  return handle<{ article: ArticleDetail }>(response);
+}
+
+export async function getArticle(articleId: string): Promise<{ article: ArticleDetail }> {
+  const apiBaseUrl = resolveApiBaseUrl();
+  const response = await apiFetch(`${apiBaseUrl}/xyn/api/articles/${articleId}`, {
+    credentials: "include",
+  });
+  return handle<{ article: ArticleDetail }>(response);
+}
+
+export async function updateArticle(articleId: string, payload: Record<string, unknown>): Promise<{ article: ArticleDetail }> {
+  const apiBaseUrl = resolveApiBaseUrl();
+  const response = await apiFetch(`${apiBaseUrl}/xyn/api/articles/${articleId}`, {
+    method: "PATCH",
+    headers: buildHeaders(),
+    credentials: "include",
+    body: JSON.stringify(payload),
+  });
+  return handle<{ article: ArticleDetail }>(response);
+}
+
+export async function listArticleRevisions(articleId: string): Promise<{ revisions: ArticleRevision[] }> {
+  const apiBaseUrl = resolveApiBaseUrl();
+  const response = await apiFetch(`${apiBaseUrl}/xyn/api/articles/${articleId}/revisions`, {
+    credentials: "include",
+  });
+  return handle<{ revisions: ArticleRevision[] }>(response);
+}
+
+export async function createArticleRevision(
+  articleId: string,
+  payload: Record<string, unknown>
+): Promise<{ revision: ArticleRevision; article: ArticleDetail }> {
+  const apiBaseUrl = resolveApiBaseUrl();
+  const response = await apiFetch(`${apiBaseUrl}/xyn/api/articles/${articleId}/revisions`, {
+    method: "POST",
+    headers: buildHeaders(),
+    credentials: "include",
+    body: JSON.stringify(payload),
+  });
+  return handle<{ revision: ArticleRevision; article: ArticleDetail }>(response);
+}
+
+export async function transitionArticle(
+  articleId: string,
+  toStatus: "reviewed" | "ratified" | "published" | "deprecated"
+): Promise<{ article: ArticleDetail }> {
+  const apiBaseUrl = resolveApiBaseUrl();
+  const response = await apiFetch(`${apiBaseUrl}/xyn/api/articles/${articleId}/transition`, {
+    method: "POST",
+    headers: buildHeaders(),
+    credentials: "include",
+    body: JSON.stringify({ to_status: toStatus }),
+  });
+  return handle<{ article: ArticleDetail }>(response);
 }
 
 export async function publishWorkspaceArtifact(workspaceId: string, artifactId: string): Promise<{ id: string; status: string }> {

@@ -3,22 +3,29 @@ import { useParams } from "react-router-dom";
 import InlineMessage from "../../components/InlineMessage";
 import {
   commentOnWorkspaceArtifact,
-  deprecateWorkspaceArtifact,
-  getWorkspaceArtifact,
   moderateWorkspaceComment,
-  publishWorkspaceArtifact,
   reactToWorkspaceArtifact,
   listAiAgents,
   invokeAi,
-  updateWorkspaceArtifact,
+  createArticleRevision,
+  getArticle,
+  listArticleRevisions,
+  transitionArticle,
+  updateArticle,
 } from "../../api/xyn";
-import type { ArtifactDetail } from "../../api/types";
+import type { ArticleDetail, ArticleRevision } from "../../api/types";
 
 export default function ArtifactDetailPage({ workspaceId, workspaceRole }: { workspaceId: string; workspaceRole: string }) {
   const { artifactId = "" } = useParams();
-  const [item, setItem] = useState<ArtifactDetail | null>(null);
+  const [item, setItem] = useState<ArticleDetail | null>(null);
+  const [revisions, setRevisions] = useState<ArticleRevision[]>([]);
   const [bodyMarkdown, setBodyMarkdown] = useState("");
   const [summary, setSummary] = useState("");
+  const [category, setCategory] = useState<string>("web");
+  const [visibilityType, setVisibilityType] = useState<"public" | "authenticated" | "role_based" | "private">("private");
+  const [allowedRolesText, setAllowedRolesText] = useState("");
+  const [routeBindingsText, setRouteBindingsText] = useState("");
+  const [tagsText, setTagsText] = useState("");
   const [commentBody, setCommentBody] = useState("");
   const [assistAgents, setAssistAgents] = useState<Array<{ id: string; slug: string; name: string }>>([]);
   const [selectedAgent, setSelectedAgent] = useState("");
@@ -31,10 +38,17 @@ export default function ArtifactDetailPage({ workspaceId, workspaceRole }: { wor
     if (!artifactId || !workspaceId) return;
     try {
       setError(null);
-      const data = await getWorkspaceArtifact(workspaceId, artifactId);
-      setItem(data);
-      setBodyMarkdown(data.content?.body_markdown || "");
-      setSummary(data.content?.summary || "");
+      const [articleRes, revisionsRes] = await Promise.all([getArticle(artifactId), listArticleRevisions(artifactId)]);
+      const article = articleRes.article;
+      setItem(article);
+      setRevisions(revisionsRes.revisions || []);
+      setBodyMarkdown(article.body_markdown || "");
+      setSummary(article.summary || "");
+      setCategory(article.category || "web");
+      setVisibilityType(article.visibility_type || "private");
+      setAllowedRolesText((article.allowed_roles || []).join(", "));
+      setRouteBindingsText((article.route_bindings || []).join(", "));
+      setTagsText((article.tags || []).join(", "));
     } catch (err) {
       setError((err as Error).message);
     }
@@ -50,11 +64,11 @@ export default function ArtifactDetailPage({ workspaceId, workspaceRole }: { wor
       try {
         const data = await listAiAgents({ purpose: "documentation", enabled: true });
         if (!mounted) return;
-        const options = (data.agents || []).map((item) => ({ id: item.id, slug: item.slug, name: item.name }));
+        const options = (data.agents || []).map((entry) => ({ id: entry.id, slug: entry.slug, name: entry.name }));
         setAssistAgents(options);
         if (!selectedAgent && options.length) {
           const stored = localStorage.getItem("xyn.articleAiAgentSlug") || "";
-          setSelectedAgent(options.find((item) => item.slug === stored)?.slug || options[0].slug);
+          setSelectedAgent(options.find((entry) => entry.slug === stored)?.slug || options[0].slug);
         }
       } catch {
         if (!mounted) return;
@@ -66,13 +80,31 @@ export default function ArtifactDetailPage({ workspaceId, workspaceRole }: { wor
     };
   }, [selectedAgent]);
 
+  const parseCsv = (value: string): string[] =>
+    value
+      .split(",")
+      .map((entry) => entry.trim())
+      .filter(Boolean);
+
   const save = async () => {
     if (!artifactId) return;
     try {
       setMessage(null);
-      await updateWorkspaceArtifact(workspaceId, artifactId, { summary, body_markdown: bodyMarkdown });
+      await updateArticle(artifactId, {
+        category,
+        visibility_type: visibilityType,
+        allowed_roles: parseCsv(allowedRolesText),
+        route_bindings: parseCsv(routeBindingsText),
+        tags: parseCsv(tagsText),
+      });
+      await createArticleRevision(artifactId, {
+        summary,
+        body_markdown: bodyMarkdown,
+        tags: parseCsv(tagsText),
+        source: "manual",
+      });
       await load();
-      setMessage("Saved.");
+      setMessage("Saved as new revision.");
     } catch (err) {
       setError((err as Error).message);
     }
@@ -93,8 +125,8 @@ export default function ArtifactDetailPage({ workspaceId, workspaceRole }: { wor
         mode === "draft"
           ? `Draft article content from this idea. Return markdown only. Idea:\n${assistInstruction || summary || item?.title || ""}`
           : mode === "rewrite"
-          ? `Rewrite this article for clarity. Keep meaning and output markdown only.\n\n${bodyMarkdown}`
-          : `Suggest edits and provide an improved markdown version.\n\n${bodyMarkdown}`;
+            ? `Rewrite this article for clarity. Keep meaning and output markdown only.\n\n${bodyMarkdown}`
+            : `Suggest edits and provide an improved markdown version.\n\n${bodyMarkdown}`;
       const result = await invokeAi({
         agent_slug: selectedAgent,
         messages: [{ role: "user", content: prompt }],
@@ -105,17 +137,19 @@ export default function ArtifactDetailPage({ workspaceId, workspaceRole }: { wor
         throw new Error("AI returned empty content.");
       }
       setBodyMarkdown(nextBody);
-      await updateWorkspaceArtifact(workspaceId, artifactId, {
+      await createArticleRevision(artifactId, {
         summary,
         body_markdown: nextBody,
-        ai_metadata: {
+        tags: parseCsv(tagsText),
+        source: "ai",
+        provenance_json: {
           agent_slug: result.agent_slug,
           provider: result.provider,
           model_name: result.model,
           invoked_at: new Date().toISOString(),
           mode,
         },
-      } as Record<string, unknown>);
+      });
       await load();
       setMessage(`AI ${mode} complete.`);
     } catch (err) {
@@ -125,20 +159,10 @@ export default function ArtifactDetailPage({ workspaceId, workspaceRole }: { wor
     }
   };
 
-  const publish = async () => {
+  const transition = async (status: "reviewed" | "ratified" | "published" | "deprecated") => {
     if (!artifactId) return;
     try {
-      await publishWorkspaceArtifact(workspaceId, artifactId);
-      await load();
-    } catch (err) {
-      setError((err as Error).message);
-    }
-  };
-
-  const deprecate = async () => {
-    if (!artifactId) return;
-    try {
-      await deprecateWorkspaceArtifact(workspaceId, artifactId);
+      await transitionArticle(artifactId, status);
       await load();
     } catch (err) {
       setError((err as Error).message);
@@ -187,15 +211,49 @@ export default function ArtifactDetailPage({ workspaceId, workspaceRole }: { wor
           <button className="ghost" onClick={() => react("endorse")}>Endorse</button>
           <button className="ghost" onClick={() => react("oppose")}>Oppose</button>
           <button className="ghost" onClick={() => react("neutral")}>Neutral</button>
-          <button className="primary" onClick={save}>Save</button>
-          <button className="primary" onClick={publish}>Publish</button>
-          <button className="danger" onClick={deprecate}>Deprecate</button>
+          <button className="primary" onClick={save}>Save revision</button>
+          <button className="ghost" onClick={() => transition("reviewed")}>Mark reviewed</button>
+          <button className="ghost" onClick={() => transition("ratified")}>Mark ratified</button>
+          <button className="primary" onClick={() => transition("published")}>Publish</button>
+          <button className="danger" onClick={() => transition("deprecated")}>Deprecate</button>
         </div>
       </div>
       {error && <InlineMessage tone="error" title="Request failed" body={error} />}
       {message && <InlineMessage tone="info" title="Update" body={message} />}
       <section className="card">
         <div className="form-grid">
+          <label>
+            Category
+            <select value={category} onChange={(event) => setCategory(event.target.value)}>
+              <option value="web">web</option>
+              <option value="guide">guide</option>
+              <option value="core-concepts">core-concepts</option>
+              <option value="release-note">release-note</option>
+              <option value="internal">internal</option>
+              <option value="tutorial">tutorial</option>
+            </select>
+          </label>
+          <label>
+            Visibility
+            <select value={visibilityType} onChange={(event) => setVisibilityType(event.target.value as typeof visibilityType)}>
+              <option value="public">public</option>
+              <option value="authenticated">authenticated</option>
+              <option value="role_based">role_based</option>
+              <option value="private">private</option>
+            </select>
+          </label>
+          <label>
+            Allowed roles (comma-separated)
+            <input className="input" value={allowedRolesText} onChange={(event) => setAllowedRolesText(event.target.value)} />
+          </label>
+          <label>
+            Route bindings (comma-separated)
+            <input className="input" value={routeBindingsText} onChange={(event) => setRouteBindingsText(event.target.value)} />
+          </label>
+          <label>
+            Tags (comma-separated)
+            <input className="input" value={tagsText} onChange={(event) => setTagsText(event.target.value)} />
+          </label>
           <label>
             Summary
             <textarea className="input" rows={3} value={summary} onChange={(event) => setSummary(event.target.value)} />
@@ -204,6 +262,25 @@ export default function ArtifactDetailPage({ workspaceId, workspaceRole }: { wor
             Body Markdown
             <textarea className="input" rows={16} value={bodyMarkdown} onChange={(event) => setBodyMarkdown(event.target.value)} />
           </label>
+        </div>
+      </section>
+      <section className="card">
+        <div className="card-header">
+          <h3>Revision History</h3>
+        </div>
+        <div className="instance-list">
+          {revisions.map((rev) => (
+            <div className="instance-row" key={rev.id}>
+              <div>
+                <strong>r{rev.revision_number}</strong>
+                <span className="muted small">
+                  {rev.created_at || "—"}
+                  {rev.created_by_email ? ` · ${rev.created_by_email}` : ""}
+                </span>
+              </div>
+            </div>
+          ))}
+          {revisions.length === 0 && <p className="muted">No revisions yet.</p>}
         </div>
       </section>
       <section className="card">
