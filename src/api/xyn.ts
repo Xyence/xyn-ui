@@ -92,6 +92,7 @@ import type {
   AiModelConfig,
   AiAgent,
   AiInvokeResponse,
+  AiModelConfigCompat,
 } from "./types";
 import { authHeaders, resolveApiBaseUrl } from "./client";
 
@@ -567,6 +568,14 @@ export async function deleteAiModelConfig(id: string): Promise<void> {
     credentials: "include",
   });
   await handle<void>(response);
+}
+
+export async function getAiModelConfigCompat(id: string): Promise<AiModelConfigCompat> {
+  const apiBaseUrl = resolveApiBaseUrl();
+  const response = await apiFetch(`${apiBaseUrl}/xyn/api/ai/model-configs/${encodeURIComponent(id)}/compat`, {
+    credentials: "include",
+  });
+  return handle<AiModelConfigCompat>(response);
 }
 
 export async function listAiAgents(params?: { purpose?: string; enabled?: boolean }): Promise<{ agents: AiAgent[] }> {

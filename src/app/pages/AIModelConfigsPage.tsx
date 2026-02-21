@@ -1,12 +1,17 @@
 import { useEffect, useState } from "react";
 import InlineMessage from "../../components/InlineMessage";
-import type { AiCredential, AiModelConfig, AiPurpose } from "../../api/types";
-import { createAiModelConfig, deleteAiModelConfig, listAiCredentials, listAiModelConfigs, listAiProviders, listAiPurposes, updateAiModelConfig } from "../../api/xyn";
+import type { AiCredential, AiModelConfig, AiModelConfigCompat, AiPurpose } from "../../api/types";
+import { createAiModelConfig, deleteAiModelConfig, getAiModelConfigCompat, listAiCredentials, listAiModelConfigs, listAiProviders, listAiPurposes, updateAiModelConfig } from "../../api/xyn";
+
+function isOpenAIGpt5Model(provider: string, modelName: string): boolean {
+  return provider === "openai" && /^gpt-5($|-)/i.test((modelName || "").trim());
+}
 
 export default function AIModelConfigsPage() {
   const [providers, setProviders] = useState<Array<{ slug: "openai" | "anthropic" | "google"; name: string }>>([]);
   const [credentials, setCredentials] = useState<AiCredential[]>([]);
   const [items, setItems] = useState<AiModelConfig[]>([]);
+  const [compatByModelConfigId, setCompatByModelConfigId] = useState<Record<string, AiModelConfigCompat>>({});
   const [purposes, setPurposes] = useState<AiPurpose[]>([]);
   const [error, setError] = useState<string | null>(null);
   const [form, setForm] = useState({
@@ -28,8 +33,20 @@ export default function AIModelConfigsPage() {
       ]);
       setProviders(providerData.providers.map((item) => ({ slug: item.slug, name: item.name })));
       setCredentials(credentialData.credentials || []);
-      setItems(modelData.model_configs || []);
+      const nextItems = modelData.model_configs || [];
+      setItems(nextItems);
       setPurposes(purposeData.purposes || []);
+      const compatPairs = await Promise.all(
+        nextItems.map(async (item) => {
+          try {
+            const compat = await getAiModelConfigCompat(item.id);
+            return [item.id, compat] as const;
+          } catch {
+            return [item.id, { provider: item.provider, model_name: item.model_name, effective_params: {}, warnings: [] } as AiModelConfigCompat] as const;
+          }
+        })
+      );
+      setCompatByModelConfigId(Object.fromEntries(compatPairs));
     } catch (err) {
       setError((err as Error).message);
     }
@@ -75,6 +92,7 @@ export default function AIModelConfigsPage() {
   };
 
   const providerCredentials = credentials.filter((item) => item.provider === form.provider);
+  const createFormTemperatureIgnored = isOpenAIGpt5Model(form.provider, form.model_name);
 
   return (
     <>
@@ -115,6 +133,9 @@ export default function AIModelConfigsPage() {
           <label>
             Temperature
             <input className="input" value={form.temperature} onChange={(event) => setForm({ ...form, temperature: event.target.value })} />
+            {createFormTemperatureIgnored && (
+              <span className="muted small">This model does not support temperature; it will be ignored during invocation.</span>
+            )}
           </label>
           <label>
             Max tokens
@@ -139,6 +160,9 @@ export default function AIModelConfigsPage() {
                     .filter((purpose) => purpose.model_config?.id === item.id)
                     .map((purpose) => purpose.slug)
                     .join(", ") || "none"}
+                  {compatByModelConfigId[item.id]?.warnings?.some((warning) => warning.param === "temperature") && (
+                    <> · temperature ignored for this model</>
+                  )}
                 </span>
               </div>
               <div className="inline-actions">

@@ -1141,7 +1141,16 @@ export type AiInvokeResponse = {
   provider: "openai" | "anthropic" | "google";
   model: string;
   usage?: Record<string, unknown> | null;
+  effective_params?: Record<string, unknown>;
+  warnings?: Array<{ param: string; reason: string; detail: string }>;
   agent_slug: string;
+};
+
+export type AiModelConfigCompat = {
+  provider: "openai" | "anthropic" | "google";
+  model_name: string;
+  effective_params: Record<string, unknown>;
+  warnings: Array<{ param: string; reason: string; detail: string }>;
 };
 
 export type ArtifactEventSummary = {
