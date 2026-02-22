@@ -342,9 +342,9 @@ export default function ArtifactsArticlesPage({
                   <span>Description</span>
                   <textarea className="input" rows={3} value={categoryForm.description} onChange={(event) => setCategoryForm({ ...categoryForm, description: event.target.value })} />
                 </label>
-                <label>
-                  Enabled
+                <label className="checkbox-inline">
                   <input type="checkbox" checked={categoryForm.enabled} onChange={(event) => setCategoryForm({ ...categoryForm, enabled: event.target.checked })} />
+                  <span>Enabled</span>
                 </label>
                 <button className="primary" onClick={createCategory}>Create category</button>
               </div>
@@ -383,8 +383,7 @@ export default function ArtifactsArticlesPage({
                       }
                     />
                   </label>
-                  <label>
-                    Enabled
+                  <label className="checkbox-inline">
                     <input
                       type="checkbox"
                       checked={selectedCategory.enabled}
@@ -392,6 +391,7 @@ export default function ArtifactsArticlesPage({
                         setCategories((prev) => prev.map((item) => (item.id === selectedCategory.id ? { ...item, enabled: event.target.checked } : item)))
                       }
                     />
+                    <span>Enabled</span>
                   </label>
                 </div>
                 <div className="inline-actions">
@@ -480,9 +480,9 @@ export default function ArtifactsArticlesPage({
                       Target value
                       <input className="input" value={bindingForm.target_value} onChange={(event) => setBindingForm({ ...bindingForm, target_value: event.target.value })} />
                     </label>
-                    <label>
-                      Enabled
+                    <label className="checkbox-inline">
                       <input type="checkbox" checked={bindingForm.enabled} onChange={(event) => setBindingForm({ ...bindingForm, enabled: event.target.checked })} />
+                      <span>Enabled</span>
                     </label>
                     <button className="primary" onClick={addBinding}>Add binding</button>
                   </div>

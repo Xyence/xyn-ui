@@ -1785,6 +1785,19 @@ button:disabled {
   height: 16px;
 }
 
+.checkbox-inline {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  font-weight: 600;
+}
+
+.checkbox-inline input[type="checkbox"] {
+  margin: 0;
+  width: 16px;
+  height: 16px;
+}
+
 .sr-only {
   border: 0;
   clip: rect(0, 0, 0, 0);
