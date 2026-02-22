@@ -14,6 +14,7 @@ import {
   updateArticleCategory,
 } from "../../api/xyn";
 import type { ArticleCategoryRecord, ArticleSummary, PublishBindingRecord } from "../../api/types";
+import { resolveCategoryActions } from "./articleCategoryActions";
 
 type CategoryForm = {
   slug: string;
@@ -120,6 +121,10 @@ export default function ArtifactsArticlesPage({
     () => categories.find((item) => item.slug === selectedCategorySlug) || null,
     [categories, selectedCategorySlug]
   );
+  const selectedCategoryActions = resolveCategoryActions({
+    enabled: Boolean(selectedCategory?.enabled),
+    referencedArticleCount: Number(selectedCategory?.referenced_article_count || selectedCategory?.references?.articles || 0),
+  });
 
   const createDraft = async () => {
     if (!title.trim()) return;
@@ -170,6 +175,8 @@ export default function ArtifactsArticlesPage({
   const removeCategory = async () => {
     if (!selectedCategory) return;
     try {
+      const confirmed = window.confirm("This category has never been used. Deleting it will permanently remove it.");
+      if (!confirmed) return;
       await deleteArticleCategory(selectedCategory.slug);
       setMessage("Category deleted.");
       setSelectedCategorySlug("");
@@ -314,7 +321,9 @@ export default function ArtifactsArticlesPage({
                   onClick={() => setSelectedCategorySlug(category.slug)}
                 >
                   <strong>{category.name}</strong>
-                  <span className="muted small">{category.slug} · {category.enabled ? "enabled" : "disabled"}</span>
+                  <span className="muted small">
+                    {category.slug} · {category.enabled ? "enabled" : "deprecated"} · refs {category.referenced_article_count ?? category.references?.articles ?? 0}
+                  </span>
                 </button>
               ))}
             </div>
@@ -387,8 +396,45 @@ export default function ArtifactsArticlesPage({
                 </div>
                 <div className="inline-actions">
                   <button className="primary" onClick={saveCategory}>Save category</button>
-                  <button className="danger" onClick={removeCategory}>Delete category</button>
+                  {!selectedCategoryActions.canDeletePermanently && selectedCategoryActions.showDeprecate && (
+                    <button
+                      className="danger"
+                      onClick={async () => {
+                        if (!selectedCategory) return;
+                        try {
+                          await updateArticleCategory(selectedCategory.slug, { enabled: false });
+                          setMessage("Category deprecated.");
+                          await loadCategories();
+                        } catch (err) {
+                          setError((err as Error).message);
+                        }
+                      }}
+                    >
+                      Deprecate
+                    </button>
+                  )}
+                  {selectedCategoryActions.showReenable && (
+                    <button
+                      className="ghost"
+                      onClick={async () => {
+                        if (!selectedCategory) return;
+                        try {
+                          await updateArticleCategory(selectedCategory.slug, { enabled: true });
+                          setMessage("Category re-enabled.");
+                          await loadCategories();
+                        } catch (err) {
+                          setError((err as Error).message);
+                        }
+                      }}
+                    >
+                      Re-enable
+                    </button>
+                  )}
+                  {selectedCategoryActions.canDeletePermanently && (
+                    <button className="danger" onClick={removeCategory}>Delete permanently</button>
+                  )}
                 </div>
+                {selectedCategoryActions.helperText && <p className="muted small">{selectedCategoryActions.helperText}</p>}
 
                 <div className="card-header" style={{ marginTop: 12 }}>
                   <h3>Bindings</h3>

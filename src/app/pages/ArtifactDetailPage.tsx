@@ -26,7 +26,7 @@ export default function ArtifactDetailPage({ workspaceId, workspaceRole }: { wor
   const [visibilityType, setVisibilityType] = useState<"public" | "authenticated" | "role_based" | "private">("private");
   const [allowedRolesText, setAllowedRolesText] = useState("");
   const [tagsText, setTagsText] = useState("");
-  const [categoryOptions, setCategoryOptions] = useState<Array<{ slug: string; name: string }>>([]);
+  const [categoryOptions, setCategoryOptions] = useState<Array<{ slug: string; name: string; enabled: boolean }>>([]);
   const [commentBody, setCommentBody] = useState("");
   const [assistAgents, setAssistAgents] = useState<Array<{ id: string; slug: string; name: string }>>([]);
   const [selectedAgent, setSelectedAgent] = useState("");
@@ -60,7 +60,9 @@ export default function ArtifactDetailPage({ workspaceId, workspaceRole }: { wor
       setVisibilityType(article.visibility_type || "private");
       setAllowedRolesText((article.allowed_roles || []).join(", "));
       setTagsText((article.tags || []).join(", "));
-      setCategoryOptions((categoriesRes.categories || []).map((entry) => ({ slug: entry.slug, name: entry.name })));
+      setCategoryOptions(
+        (categoriesRes.categories || []).map((entry) => ({ slug: entry.slug, name: entry.name, enabled: Boolean(entry.enabled) }))
+      );
     } catch (err) {
       setError((err as Error).message);
     }
@@ -211,6 +213,10 @@ export default function ArtifactDetailPage({ workspaceId, workspaceRole }: { wor
     }
   };
 
+  const selectedCategoryMeta = categoryOptions.find((entry) => entry.slug === category) || null;
+  const isDeprecatedCategory = Boolean(selectedCategoryMeta && !selectedCategoryMeta.enabled);
+  const selectableCategoryOptions = categoryOptions.filter((entry) => entry.enabled);
+
   return (
     <>
       <div className="page-header">
@@ -235,20 +241,27 @@ export default function ArtifactDetailPage({ workspaceId, workspaceRole }: { wor
         <div className="form-grid">
           <label>
             Category
-            <select value={category} onChange={(event) => setCategory(event.target.value)}>
-              {categoryOptions.length === 0 && (
-                <>
-                  <option value="web">web</option>
-                  <option value="guide">guide</option>
-                  <option value="core-concepts">core-concepts</option>
-                </>
-              )}
-              {categoryOptions.map((entry) => (
-                <option key={entry.slug} value={entry.slug}>
-                  {entry.name} ({entry.slug})
-                </option>
-              ))}
-            </select>
+            {isDeprecatedCategory ? (
+              <div className="stacked-field">
+                <input className="input" value={`${selectedCategoryMeta?.name || category} (${category})`} disabled />
+                <span className="muted small">Deprecated category (read-only)</span>
+              </div>
+            ) : (
+              <select value={category} onChange={(event) => setCategory(event.target.value)}>
+                {categoryOptions.length === 0 && (
+                  <>
+                    <option value="web">web</option>
+                    <option value="guide">guide</option>
+                    <option value="core-concepts">core-concepts</option>
+                  </>
+                )}
+                {selectableCategoryOptions.map((entry) => (
+                  <option key={entry.slug} value={entry.slug}>
+                    {entry.name} ({entry.slug})
+                  </option>
+                ))}
+              </select>
+            )}
           </label>
           <label>
             Visibility

@@ -1024,6 +1024,7 @@ export type ArticleCategoryRecord = {
   name: string;
   description?: string;
   enabled: boolean;
+  referenced_article_count?: number;
   created_at?: string;
   updated_at?: string;
   references?: {
