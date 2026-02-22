@@ -308,6 +308,17 @@ export async function createArticleRevision(
   return handle<{ revision: ArticleRevision; article: ArticleDetail }>(response);
 }
 
+export async function convertArticleHtmlToMarkdown(
+  articleId: string
+): Promise<{ revision: ArticleRevision; article: ArticleDetail; converted: boolean; reason?: string }> {
+  const apiBaseUrl = resolveApiBaseUrl();
+  const response = await apiFetch(`${apiBaseUrl}/xyn/api/articles/${articleId}/convert-html`, {
+    method: "POST",
+    credentials: "include",
+  });
+  return handle<{ revision: ArticleRevision; article: ArticleDetail; converted: boolean; reason?: string }>(response);
+}
+
 export async function transitionArticle(
   articleId: string,
   toStatus: "reviewed" | "ratified" | "published" | "deprecated"

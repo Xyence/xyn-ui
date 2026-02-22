@@ -8,6 +8,7 @@ import {
   listAiAgents,
   listArticleCategories,
   invokeAi,
+  convertArticleHtmlToMarkdown,
   createArticleRevision,
   getArticle,
   listArticleRevisions,
@@ -21,6 +22,7 @@ export default function ArtifactDetailPage({ workspaceId, workspaceRole }: { wor
   const [item, setItem] = useState<ArticleDetail | null>(null);
   const [revisions, setRevisions] = useState<ArticleRevision[]>([]);
   const [bodyMarkdown, setBodyMarkdown] = useState("");
+  const [legacyBodyHtml, setLegacyBodyHtml] = useState("");
   const [summary, setSummary] = useState("");
   const [category, setCategory] = useState<string>("web");
   const [visibilityType, setVisibilityType] = useState<"public" | "authenticated" | "role_based" | "private">("private");
@@ -46,15 +48,12 @@ export default function ArtifactDetailPage({ workspaceId, workspaceRole }: { wor
       ]);
       const article = articleRes.article;
       const latestRevision = (revisionsRes.revisions || [])[0];
-      const initialBody =
-        article.body_markdown ||
-        article.body_html ||
-        latestRevision?.body_markdown ||
-        latestRevision?.body_html ||
-        "";
+      const initialBody = article.body_markdown || latestRevision?.body_markdown || "";
+      const fallbackHtml = article.body_html || latestRevision?.body_html || "";
       setItem(article);
       setRevisions(revisionsRes.revisions || []);
       setBodyMarkdown(initialBody);
+      setLegacyBodyHtml(fallbackHtml);
       setSummary(article.summary || "");
       setCategory(article.category || "web");
       setVisibilityType(article.visibility_type || "private");
@@ -118,6 +117,23 @@ export default function ArtifactDetailPage({ workspaceId, workspaceRole }: { wor
       });
       await load();
       setMessage("Saved as new revision.");
+    } catch (err) {
+      setError((err as Error).message);
+    }
+  };
+
+  const convertLegacyHtml = async () => {
+    if (!artifactId) return;
+    try {
+      setError(null);
+      setMessage(null);
+      const result = await convertArticleHtmlToMarkdown(artifactId);
+      if (result.converted) {
+        setMessage("Converted legacy HTML body to markdown and created a new revision.");
+      } else {
+        setMessage(result.reason === "already_markdown" ? "Article already has markdown content." : "No conversion was needed.");
+      }
+      await load();
     } catch (err) {
       setError((err as Error).message);
     }
@@ -288,6 +304,16 @@ export default function ArtifactDetailPage({ workspaceId, workspaceRole }: { wor
             Body Markdown
             <textarea className="input" rows={16} value={bodyMarkdown} onChange={(event) => setBodyMarkdown(event.target.value)} />
           </label>
+          {!bodyMarkdown.trim() && legacyBodyHtml.trim() && (
+            <div className="muted small">
+              Legacy HTML content exists for this article. Convert it to markdown to edit cleanly.
+              <div style={{ marginTop: 8 }}>
+                <button className="ghost" type="button" onClick={convertLegacyHtml}>
+                  Convert HTML to Markdown
+                </button>
+              </div>
+            </div>
+          )}
         </div>
       </section>
       <section className="card">
