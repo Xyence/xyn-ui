@@ -40,9 +40,16 @@ export default function ArtifactDetailPage({ workspaceId, workspaceRole }: { wor
       setError(null);
       const [articleRes, revisionsRes] = await Promise.all([getArticle(artifactId), listArticleRevisions(artifactId)]);
       const article = articleRes.article;
+      const latestRevision = (revisionsRes.revisions || [])[0];
+      const initialBody =
+        article.body_markdown ||
+        article.body_html ||
+        latestRevision?.body_markdown ||
+        latestRevision?.body_html ||
+        "";
       setItem(article);
       setRevisions(revisionsRes.revisions || []);
-      setBodyMarkdown(article.body_markdown || "");
+      setBodyMarkdown(initialBody);
       setSummary(article.summary || "");
       setCategory(article.category || "web");
       setVisibilityType(article.visibility_type || "private");
