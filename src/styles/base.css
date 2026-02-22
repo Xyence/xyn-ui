@@ -422,6 +422,32 @@ button:disabled {
   align-items: center;
 }
 
+.compact-card {
+  min-height: auto;
+  padding-top: 10px;
+  padding-bottom: 10px;
+}
+
+.tab-toggle {
+  padding: 8px 16px;
+  border-radius: 999px;
+}
+
+.checkbox-row {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 0.9rem;
+  font-weight: 600;
+  align-self: end;
+}
+
+.checkbox-row input[type="checkbox"] {
+  margin: 0;
+  width: auto;
+  accent-color: var(--accent);
+}
+
 .inline-field {
   display: flex;
   align-items: center;

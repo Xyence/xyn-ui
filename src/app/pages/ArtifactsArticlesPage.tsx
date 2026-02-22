@@ -205,10 +205,14 @@ export default function ArtifactsArticlesPage({
       {error && <InlineMessage tone="error" title="Request failed" body={error} />}
       {message && <InlineMessage tone="info" title="Articles" body={message} />}
 
-      <section className="card">
+      <section className="card compact-card">
         <div className="inline-actions">
-          <button className={tab === "articles" ? "primary" : "ghost"} onClick={() => setTab("articles")}>Articles</button>
-          <button className={tab === "categories" ? "primary" : "ghost"} onClick={() => setTab("categories")}>Categories</button>
+          <button className={`${tab === "articles" ? "primary" : "ghost"} tab-toggle`} onClick={() => setTab("articles")}>
+            Articles
+          </button>
+          <button className={`${tab === "categories" ? "primary" : "ghost"} tab-toggle`} onClick={() => setTab("categories")}>
+            Categories
+          </button>
         </div>
       </section>
 
@@ -265,10 +269,10 @@ export default function ArtifactsArticlesPage({
                   ))}
                 </select>
               </label>
-              <label>
-                Include deprecated
+              <div className="checkbox-row">
+                <span>Include deprecated</span>
                 <input type="checkbox" checked={includeDeprecated} onChange={(event) => setIncludeDeprecated(event.target.checked)} />
-              </label>
+              </div>
             </div>
           </section>
           <section className="card">
