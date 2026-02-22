@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { Link } from "react-router-dom";
 import InlineMessage from "../../components/InlineMessage";
+import Tabs from "../components/ui/Tabs";
 import {
   createArticle,
   createArticleCategory,
@@ -205,16 +206,17 @@ export default function ArtifactsArticlesPage({
       {error && <InlineMessage tone="error" title="Request failed" body={error} />}
       {message && <InlineMessage tone="info" title="Articles" body={message} />}
 
-      <section className="card compact-card">
-        <div className="inline-actions">
-          <button className={`${tab === "articles" ? "primary" : "ghost"} tab-toggle`} onClick={() => setTab("articles")}>
-            Articles
-          </button>
-          <button className={`${tab === "categories" ? "primary" : "ghost"} tab-toggle`} onClick={() => setTab("categories")}>
-            Categories
-          </button>
-        </div>
-      </section>
+      <div className="page-tabs">
+        <Tabs
+          ariaLabel="Articles workspace tabs"
+          value={tab}
+          onChange={setTab}
+          options={[
+            { value: "articles", label: "Articles" },
+            { value: "categories", label: "Categories" },
+          ]}
+        />
+      </div>
 
       {tab === "articles" && (
         <>

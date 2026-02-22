@@ -422,15 +422,37 @@ button:disabled {
   align-items: center;
 }
 
-.compact-card {
-  min-height: auto;
-  padding-top: 10px;
-  padding-bottom: 10px;
+.page-tabs {
+  display: flex;
+  align-items: center;
+  margin-top: -8px;
+  margin-bottom: 2px;
 }
 
-.tab-toggle {
-  padding: 8px 16px;
+.xyn-tabs {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  border: 1px solid var(--border);
+  background: #f5f8ff;
   border-radius: 999px;
+  padding: 4px;
+}
+
+.xyn-tab {
+  border: 1px solid transparent;
+  background: transparent;
+  color: var(--ink);
+  border-radius: 999px;
+  padding: 6px 12px;
+  font-size: 0.95rem;
+  font-weight: 600;
+}
+
+.xyn-tab.active {
+  background: #fff;
+  border-color: #d3e3ff;
+  color: var(--accent);
 }
 
 .checkbox-row {
