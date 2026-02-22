@@ -35,9 +35,14 @@ export default function GuidesPage({ roles = [] }: GuidesPageProps) {
         setError(null);
         const response = await listArticles({ include_unpublished: true });
         if (!mounted) return;
-        const guides = (response.articles || []).filter((doc) =>
-          ["guide", "core-concepts", "tutorial"].includes(doc.category)
-        );
+        const guides = (response.articles || []).filter((doc) => {
+          if (doc.category !== "guide") return false;
+          if (doc.status === "deprecated") return false;
+          const slug = String(doc.slug || "").toLowerCase();
+          const title = String(doc.title || "").toLowerCase();
+          if (slug === "subscriber-notes" || title === "subscriber notes walkthrough") return false;
+          return true;
+        });
         setDocs(guides);
         const requestedId = query.get("id") || "";
         const preferred = guides.find((doc) => doc.slug === "core-concepts") || guides[0];
