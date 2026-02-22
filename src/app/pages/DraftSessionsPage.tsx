@@ -264,6 +264,25 @@ export default function DraftSessionsPage() {
   }, [refreshSessions]);
 
   useEffect(() => {
+    const onDraftCreated = () => {
+      refreshSessions().catch((err) => setError((err as Error).message));
+    };
+    window.addEventListener("xyn:draft-session-created", onDraftCreated as EventListener);
+    return () => {
+      window.removeEventListener("xyn:draft-session-created", onDraftCreated as EventListener);
+    };
+  }, [refreshSessions]);
+
+  useEffect(() => {
+    const timer = window.setInterval(() => {
+      refreshSessions().catch((err) => setError((err as Error).message));
+    }, 5000);
+    return () => {
+      window.clearInterval(timer);
+    };
+  }, [refreshSessions]);
+
+  useEffect(() => {
     if (showCreateModal && contextPacks.length > 0) {
       refreshRecommendedCreateContextPacks().catch((err) => setError((err as Error).message));
     }

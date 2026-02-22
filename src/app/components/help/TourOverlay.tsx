@@ -393,7 +393,7 @@ export default function TourOverlay({ userKey, launchSlug, launchToken, currentP
       if (action.type === "ensure_resource") {
         const existing = persisted.resource_ids?.[action.id_key];
         if (existing) {
-          setActionMessage("Resource already prepared for this tour run.");
+          setActionMessage(`Resource already prepared for this tour run (id: ${existing}).`);
           return;
         }
         if (action.create_via) {
@@ -411,9 +411,25 @@ export default function TourOverlay({ userKey, launchSlug, launchToken, currentP
             (typeof payload[action.id_key] === "string" ? (payload[action.id_key] as string) : null) ||
             (typeof payload.id === "string" ? (payload.id as string) : null) ||
             (typeof payload.session_id === "string" ? (payload.session_id as string) : null);
+          const createdName =
+            (typeof payload.title === "string" ? payload.title : null) ||
+            (typeof payload.name === "string" ? payload.name : null) ||
+            (typeof action.create_via.body_template?.title === "string" ? action.create_via.body_template.title : null) ||
+            (typeof action.create_via.body_template?.name === "string" ? action.create_via.body_template.name : null);
           if (createdId) {
             setContextValue(action.id_key, createdId);
-            setActionMessage(`${action.resource} ready.`);
+            if (createdName) {
+              setActionMessage(`${action.resource} ready: "${createdName}" (${createdId}).`);
+            } else {
+              setActionMessage(`${action.resource} ready (id: ${createdId}).`);
+            }
+            if (action.resource === "draft_session") {
+              window.dispatchEvent(
+                new CustomEvent("xyn:draft-session-created", {
+                  detail: { id: createdId, title: createdName || "" },
+                })
+              );
+            }
           } else {
             setActionMessage(`${action.resource} request completed. Continue in UI if needed.`);
           }
@@ -466,7 +482,7 @@ export default function TourOverlay({ userKey, launchSlug, launchToken, currentP
                 {action.type === "ensure_resource" && (
                   <>
                     <button className="ghost small" onClick={() => void runAction(action)}>
-                      {persisted.resource_ids?.[action.id_key] ? `${action.label} (done)` : action.label}
+                      {persisted.resource_ids?.[action.id_key] ? `${action.label} (done: ${persisted.resource_ids[action.id_key]})` : action.label}
                     </button>
                     {action.instructions && <span className="muted small">{action.instructions}</span>}
                   </>
