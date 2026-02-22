@@ -322,10 +322,10 @@ export default function ArtifactDetailPage({ workspaceId, workspaceRole }: { wor
         <div className="card-header">
           <h3>Comments</h3>
         </div>
-        <label>
-          Add comment
+        <div className="stacked-field">
+          <span>Add comment</span>
           <textarea className="input" rows={3} value={commentBody} onChange={(event) => setCommentBody(event.target.value)} />
-        </label>
+        </div>
         <button className="primary" onClick={addComment} disabled={!commentBody.trim()}>Reply</button>
         <div className="instance-list">
           {(item?.comments || []).map((comment) => (

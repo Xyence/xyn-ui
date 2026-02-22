@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useMemo, useState } from "react";
 import { Link } from "react-router-dom";
 import InlineMessage from "../../components/InlineMessage";
 import { createArticle, listArticles } from "../../api/xyn";
@@ -14,6 +14,10 @@ export default function ArtifactsArticlesPage({
   const [items, setItems] = useState<ArticleSummary[]>([]);
   const [title, setTitle] = useState("");
   const [category, setCategory] = useState<"web" | "guide" | "core-concepts" | "release-note" | "internal" | "tutorial">("web");
+  const [q, setQ] = useState("");
+  const [categoryFilter, setCategoryFilter] = useState("");
+  const [visibilityFilter, setVisibilityFilter] = useState("");
+  const [includeDeprecated, setIncludeDeprecated] = useState(false);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
@@ -34,6 +38,24 @@ export default function ArtifactsArticlesPage({
   useEffect(() => {
     load();
   }, [load]);
+
+  const filtered = useMemo(() => {
+    const search = q.trim().toLowerCase();
+    return items.filter((item) => {
+      if (!includeDeprecated && item.status === "deprecated") return false;
+      if (categoryFilter && item.category !== categoryFilter) return false;
+      if (visibilityFilter && item.visibility_type !== visibilityFilter) return false;
+      if (!search) return true;
+      const haystack = `${item.title} ${item.slug || ""} ${item.summary || ""} ${(item.tags || []).join(" ")}`.toLowerCase();
+      return haystack.includes(search);
+    });
+  }, [categoryFilter, includeDeprecated, items, q, visibilityFilter]);
+
+  const categoryOptions = useMemo(() => Array.from(new Set(items.map((item) => item.category).filter(Boolean))).sort(), [items]);
+  const visibilityOptions = useMemo(
+    () => Array.from(new Set(items.map((item) => item.visibility_type).filter(Boolean))).sort(),
+    [items]
+  );
 
   const createDraft = async () => {
     if (!title.trim()) return;
@@ -84,11 +106,45 @@ export default function ArtifactsArticlesPage({
         </section>
       )}
       <section className="card">
+        <div className="form-grid">
+          <label>
+            Search
+            <input className="input" value={q} onChange={(event) => setQ(event.target.value)} placeholder="Search title, slug, summary, tags" />
+          </label>
+          <label>
+            Category
+            <select value={categoryFilter} onChange={(event) => setCategoryFilter(event.target.value)}>
+              <option value="">All categories</option>
+              {categoryOptions.map((value) => (
+                <option key={value} value={value}>
+                  {value}
+                </option>
+              ))}
+            </select>
+          </label>
+          <label>
+            Visibility
+            <select value={visibilityFilter} onChange={(event) => setVisibilityFilter(event.target.value)}>
+              <option value="">All visibility</option>
+              {visibilityOptions.map((value) => (
+                <option key={value} value={value}>
+                  {value}
+                </option>
+              ))}
+            </select>
+          </label>
+          <label>
+            Include deprecated
+            <input type="checkbox" checked={includeDeprecated} onChange={(event) => setIncludeDeprecated(event.target.checked)} />
+          </label>
+        </div>
+      </section>
+      <section className="card">
         <div className="card-header">
           <h3>Articles</h3>
         </div>
         <div className="instance-list">
-          {items.map((item) => (
+          {filtered.map((item) => (
             <Link className="instance-row" key={item.id} to={`/app/artifacts/${item.id}`}>
               <div>
                 <strong>{item.title}</strong>
@@ -99,7 +155,7 @@ export default function ArtifactsArticlesPage({
               <div className="muted small">{item.status}</div>
             </Link>
           ))}
-          {items.length === 0 && <p className="muted">No articles yet.</p>}
+          {filtered.length === 0 && <p className="muted">No articles matched your filters.</p>}
         </div>
       </section>
     </>

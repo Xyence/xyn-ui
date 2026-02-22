@@ -42,6 +42,24 @@ export const NAV_GROUPS: NavGroup[] = [
     items: [{ id: "home", label: "Home", path: "/app/home", icon: "Compass", keywords: ["overview", "workspace"] }],
   },
   {
+    id: "shape",
+    label: "Shape",
+    icon: "WandSparkles",
+    items: [
+      { id: "drafts", label: "Draft Sessions", path: "/app/drafts", icon: "FilePenLine", keywords: ["generate", "revise"] },
+      { id: "context-packs", label: "Context Packs", path: "/app/context-packs", icon: "Library", keywords: ["context"] },
+    ],
+  },
+  {
+    id: "design",
+    label: "Design",
+    icon: "PencilRuler",
+    items: [
+      { id: "blueprints", label: "Blueprints", path: "/app/blueprints", icon: "LayoutTemplate", keywords: ["intent", "design"] },
+      { id: "modules", label: "Modules", path: "/app/modules", icon: "Blocks", keywords: ["catalog"] },
+    ],
+  },
+  {
     id: "artifacts",
     label: "Artifacts",
     icon: "BookOpen",
@@ -67,24 +85,6 @@ export const NAV_GROUPS: NavGroup[] = [
     label: "Settings",
     icon: "Settings",
     items: [{ id: "settings", label: "Settings", path: "/app/settings", icon: "Settings" }],
-  },
-  {
-    id: "design",
-    label: "Design",
-    icon: "PencilRuler",
-    items: [
-      { id: "blueprints", label: "Blueprints", path: "/app/blueprints", icon: "LayoutTemplate", keywords: ["intent", "design"] },
-      { id: "modules", label: "Modules", path: "/app/modules", icon: "Blocks", keywords: ["catalog"] },
-    ],
-  },
-  {
-    id: "shape",
-    label: "Shape",
-    icon: "WandSparkles",
-    items: [
-      { id: "drafts", label: "Draft Sessions", path: "/app/drafts", icon: "FilePenLine", keywords: ["generate", "revise"] },
-      { id: "context-packs", label: "Context Packs", path: "/app/context-packs", icon: "Library", keywords: ["context"] },
-    ],
   },
   {
     id: "package",
