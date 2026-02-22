@@ -20,14 +20,24 @@ const HELP_BY_ROUTE: Record<string, RouteHelp> = {
       { label: "View Guides", to: "/app/guides" },
     ],
   },
-  "app.artifacts": {
-    routeId: "app.artifacts",
-    title: "Artifacts",
-    whatYouDo: ["Browse governed artifacts", "Filter by type and lifecycle", "Open details and provenance"],
+  "app.artifacts.articles": {
+    routeId: "app.artifacts.articles",
+    title: "Artifacts / Articles",
+    whatYouDo: ["Create article drafts", "Manage article lifecycle and revisions", "Open article detail and AI assist"],
     atlasNode: "observe",
     nextSteps: [
+      { label: "All Artifacts", to: "/app/artifacts/all" },
       { label: "Workspace Activity", to: "/app/activity" },
-      { label: "Open Guides", to: "/app/guides" },
+    ],
+  },
+  "app.artifacts.all": {
+    routeId: "app.artifacts.all",
+    title: "Artifacts / All Artifacts",
+    whatYouDo: ["Search across artifact types", "Filter by status and type", "Open typed detail views"],
+    atlasNode: "observe",
+    nextSteps: [
+      { label: "Articles", to: "/app/artifacts/articles" },
+      { label: "Workspace Activity", to: "/app/activity" },
     ],
   },
   "app.activity": {
@@ -36,7 +46,7 @@ const HELP_BY_ROUTE: Record<string, RouteHelp> = {
     whatYouDo: ["Review immutable lifecycle events", "Audit moderation and promotion actions", "Trace event actors"],
     atlasNode: "observe",
     nextSteps: [
-      { label: "Artifacts", to: "/app/artifacts" },
+      { label: "Articles", to: "/app/artifacts/articles" },
       { label: "People & Roles", to: "/app/people-roles" },
     ],
   },
@@ -47,7 +57,7 @@ const HELP_BY_ROUTE: Record<string, RouteHelp> = {
     atlasNode: "run",
     nextSteps: [
       { label: "Workspace Settings", to: "/app/settings" },
-      { label: "Artifacts", to: "/app/artifacts" },
+      { label: "Articles", to: "/app/artifacts/articles" },
     ],
   },
   "app.settings": {
@@ -142,7 +152,10 @@ export function resolveRouteId(pathname: string): string {
   if (pathname.startsWith("/app/instances")) return "app.instances";
   if (pathname.startsWith("/app/runs")) return "app.runs";
   if (pathname.startsWith("/app/guides")) return "app.guides";
-  if (pathname.startsWith("/app/artifacts")) return "app.artifacts";
+  if (pathname.startsWith("/app/artifacts/all")) return "app.artifacts.all";
+  if (pathname.startsWith("/app/artifacts/articles")) return "app.artifacts.articles";
+  if (pathname.startsWith("/app/artifacts/")) return "app.artifacts.articles";
+  if (pathname === "/app/artifacts") return "app.artifacts.articles";
   if (pathname.startsWith("/app/activity")) return "app.activity";
   if (pathname.startsWith("/app/people-roles")) return "app.people-roles";
   if (pathname.startsWith("/app/settings")) return "app.settings";

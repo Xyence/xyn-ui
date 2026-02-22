@@ -35,7 +35,8 @@ import GuidesPage from "./pages/GuidesPage";
 import XynMapPage from "./pages/XynMapPage";
 import PlatformSettingsPage from "./pages/PlatformSettingsPage";
 import WorkspaceHomePage from "./pages/WorkspaceHomePage";
-import ArtifactsPage from "./pages/ArtifactsPage";
+import ArtifactsArticlesPage from "./pages/ArtifactsArticlesPage";
+import ArtifactsRegistryPage from "./pages/ArtifactsRegistryPage";
 import ArtifactDetailPage from "./pages/ArtifactDetailPage";
 import PeopleRolesPage from "./pages/PeopleRolesPage";
 import WorkspaceSettingsPage from "./pages/WorkspaceSettingsPage";
@@ -274,7 +275,12 @@ export default function AppShell() {
           <Routes>
             <Route path="/" element={<Navigate to="home" replace />} />
             <Route path="home" element={<WorkspaceHomePage workspaceName={activeWorkspace?.name || "Workspace"} />} />
-            <Route path="artifacts" element={<ArtifactsPage workspaceId={activeWorkspace?.id || ""} />} />
+            <Route path="artifacts" element={<Navigate to="/app/artifacts/articles" replace />} />
+            <Route
+              path="artifacts/articles"
+              element={<ArtifactsArticlesPage workspaceId={activeWorkspace?.id || ""} canCreate={isPlatformManager} />}
+            />
+            <Route path="artifacts/all" element={<ArtifactsRegistryPage workspaceId={activeWorkspace?.id || ""} />} />
             <Route
               path="artifacts/:artifactId"
               element={<ArtifactDetailPage workspaceId={activeWorkspace?.id || ""} workspaceRole={workspaceRole} />}

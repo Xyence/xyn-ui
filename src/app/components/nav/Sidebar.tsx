@@ -442,6 +442,7 @@ export default function Sidebar({ user, workspaces = [], activeWorkspaceId = "",
                       <NavLink
                         className={({ isActive }) => `app-nav-link nav-item-link ${isActive ? "active" : ""}`}
                         to={item.path}
+                        data-tour={item.id === "artifacts-articles" ? "nav-artifacts-articles" : item.id === "artifacts-all" ? "nav-artifacts-all" : undefined}
                       >
                         <span className="nav-icon" aria-hidden="true">
                           {renderIcon(item.icon)}
@@ -480,6 +481,7 @@ export default function Sidebar({ user, workspaces = [], activeWorkspaceId = "",
                                     `app-nav-link app-nav-link-sub nav-item-link ${isActive ? "active" : ""}`
                                   }
                                   to={item.path}
+                                  data-tour={item.id === "artifacts-articles" ? "nav-artifacts-articles" : item.id === "artifacts-all" ? "nav-artifacts-all" : undefined}
                                 >
                                   <span className="nav-icon" aria-hidden="true">
                                     {renderIcon(item.icon)}

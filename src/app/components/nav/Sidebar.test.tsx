@@ -20,10 +20,13 @@ describe("Sidebar", () => {
     window.localStorage.clear();
   });
 
-  it("renders groups and items from nav config", () => {
+  it("renders groups and items from nav config", async () => {
+    const user = userEvent.setup();
     renderSidebar("/app/home");
     expect(screen.getByRole("link", { name: /^Home$/i })).toBeInTheDocument();
-    expect(screen.getByRole("button", { name: /^Artifacts$/i })).toBeInTheDocument();
+    await user.click(screen.getByRole("button", { name: /^Artifacts$/i }));
+    expect(screen.getByRole("link", { name: /^Articles$/i })).toBeInTheDocument();
+    expect(screen.getByRole("link", { name: /^All Artifacts$/i })).toBeInTheDocument();
     expect(screen.getByRole("button", { name: /^People & Roles$/i })).toBeInTheDocument();
   });
 
@@ -47,7 +50,7 @@ describe("Sidebar", () => {
     const search = screen.getByRole("textbox", { name: "Search" });
     await user.type(search, "artifact");
 
-    expect(screen.getByRole("link", { name: /^Artifacts$/i })).toBeInTheDocument();
+    expect(screen.getByRole("link", { name: /^All Artifacts$/i })).toBeInTheDocument();
     expect(screen.queryByRole("link", { name: /^People & Roles$/i })).not.toBeInTheDocument();
   });
 

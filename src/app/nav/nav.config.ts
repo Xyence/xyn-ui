@@ -45,7 +45,10 @@ export const NAV_GROUPS: NavGroup[] = [
     id: "artifacts",
     label: "Artifacts",
     icon: "BookOpen",
-    items: [{ id: "artifacts", label: "Artifacts", path: "/app/artifacts", icon: "BookOpen", keywords: ["articles", "registry"] }],
+    items: [
+      { id: "artifacts-articles", label: "Articles", path: "/app/artifacts/articles", icon: "BookOpen", keywords: ["article", "editor"] },
+      { id: "artifacts-all", label: "All Artifacts", path: "/app/artifacts/all", icon: "Layers", keywords: ["registry", "types"] },
+    ],
   },
   {
     id: "activity",
