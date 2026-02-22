@@ -6,6 +6,7 @@ import {
   moderateWorkspaceComment,
   reactToWorkspaceArtifact,
   listAiAgents,
+  listArticleCategories,
   invokeAi,
   createArticleRevision,
   getArticle,
@@ -24,8 +25,8 @@ export default function ArtifactDetailPage({ workspaceId, workspaceRole }: { wor
   const [category, setCategory] = useState<string>("web");
   const [visibilityType, setVisibilityType] = useState<"public" | "authenticated" | "role_based" | "private">("private");
   const [allowedRolesText, setAllowedRolesText] = useState("");
-  const [routeBindingsText, setRouteBindingsText] = useState("");
   const [tagsText, setTagsText] = useState("");
+  const [categoryOptions, setCategoryOptions] = useState<Array<{ slug: string; name: string }>>([]);
   const [commentBody, setCommentBody] = useState("");
   const [assistAgents, setAssistAgents] = useState<Array<{ id: string; slug: string; name: string }>>([]);
   const [selectedAgent, setSelectedAgent] = useState("");
@@ -38,7 +39,11 @@ export default function ArtifactDetailPage({ workspaceId, workspaceRole }: { wor
     if (!artifactId || !workspaceId) return;
     try {
       setError(null);
-      const [articleRes, revisionsRes] = await Promise.all([getArticle(artifactId), listArticleRevisions(artifactId)]);
+      const [articleRes, revisionsRes, categoriesRes] = await Promise.all([
+        getArticle(artifactId),
+        listArticleRevisions(artifactId),
+        listArticleCategories(),
+      ]);
       const article = articleRes.article;
       const latestRevision = (revisionsRes.revisions || [])[0];
       const initialBody =
@@ -54,8 +59,8 @@ export default function ArtifactDetailPage({ workspaceId, workspaceRole }: { wor
       setCategory(article.category || "web");
       setVisibilityType(article.visibility_type || "private");
       setAllowedRolesText((article.allowed_roles || []).join(", "));
-      setRouteBindingsText((article.route_bindings || []).join(", "));
       setTagsText((article.tags || []).join(", "));
+      setCategoryOptions((categoriesRes.categories || []).map((entry) => ({ slug: entry.slug, name: entry.name })));
     } catch (err) {
       setError((err as Error).message);
     }
@@ -101,7 +106,6 @@ export default function ArtifactDetailPage({ workspaceId, workspaceRole }: { wor
         category,
         visibility_type: visibilityType,
         allowed_roles: parseCsv(allowedRolesText),
-        route_bindings: parseCsv(routeBindingsText),
         tags: parseCsv(tagsText),
       });
       await createArticleRevision(artifactId, {
@@ -232,12 +236,18 @@ export default function ArtifactDetailPage({ workspaceId, workspaceRole }: { wor
           <label>
             Category
             <select value={category} onChange={(event) => setCategory(event.target.value)}>
-              <option value="web">web</option>
-              <option value="guide">guide</option>
-              <option value="core-concepts">core-concepts</option>
-              <option value="release-note">release-note</option>
-              <option value="internal">internal</option>
-              <option value="tutorial">tutorial</option>
+              {categoryOptions.length === 0 && (
+                <>
+                  <option value="web">web</option>
+                  <option value="guide">guide</option>
+                  <option value="core-concepts">core-concepts</option>
+                </>
+              )}
+              {categoryOptions.map((entry) => (
+                <option key={entry.slug} value={entry.slug}>
+                  {entry.name} ({entry.slug})
+                </option>
+              ))}
             </select>
           </label>
           <label>
@@ -254,10 +264,6 @@ export default function ArtifactDetailPage({ workspaceId, workspaceRole }: { wor
             <input className="input" value={allowedRolesText} onChange={(event) => setAllowedRolesText(event.target.value)} />
           </label>
           <label>
-            Route bindings (comma-separated)
-            <input className="input" value={routeBindingsText} onChange={(event) => setRouteBindingsText(event.target.value)} />
-          </label>
-          <label>
             Tags (comma-separated)
             <input className="input" value={tagsText} onChange={(event) => setTagsText(event.target.value)} />
           </label>
@@ -269,6 +275,24 @@ export default function ArtifactDetailPage({ workspaceId, workspaceRole }: { wor
             Body Markdown
             <textarea className="input" rows={16} value={bodyMarkdown} onChange={(event) => setBodyMarkdown(event.target.value)} />
           </label>
+        </div>
+      </section>
+      <section className="card">
+        <div className="card-header">
+          <h3>Published to</h3>
+        </div>
+        <div className="instance-list">
+          {(item?.published_to || []).map((entry) => (
+            <div className="instance-row" key={`${entry.source}-${entry.target_type}-${entry.target_value}`}>
+              <div>
+                <strong>{entry.label}</strong>
+                <span className="muted small">
+                  {entry.target_type} · {entry.target_value} · {entry.source === "category" ? "Inherited (Category)" : "Article-specific"}
+                </span>
+              </div>
+            </div>
+          ))}
+          {(item?.published_to || []).length === 0 && <p className="muted">No publish bindings resolved.</p>}
         </div>
       </section>
       <section className="card">

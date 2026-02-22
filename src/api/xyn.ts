@@ -85,6 +85,8 @@ import type {
   ArticleSummary,
   ArticleDetail,
   ArticleRevision,
+  ArticleCategoryRecord,
+  PublishBindingRecord,
   ArtifactEventSummary,
   WorkspaceMembershipSummary,
   DocPage,
@@ -318,6 +320,148 @@ export async function transitionArticle(
     body: JSON.stringify({ to_status: toStatus }),
   });
   return handle<{ article: ArticleDetail }>(response);
+}
+
+export async function listArticleCategories(): Promise<{ categories: ArticleCategoryRecord[] }> {
+  const apiBaseUrl = resolveApiBaseUrl();
+  const response = await apiFetch(`${apiBaseUrl}/xyn/api/articles/categories`, {
+    credentials: "include",
+  });
+  return handle<{ categories: ArticleCategoryRecord[] }>(response);
+}
+
+export async function createArticleCategory(payload: {
+  slug: string;
+  name: string;
+  description?: string;
+  enabled?: boolean;
+}): Promise<{ category: ArticleCategoryRecord }> {
+  const apiBaseUrl = resolveApiBaseUrl();
+  const response = await apiFetch(`${apiBaseUrl}/xyn/api/articles/categories`, {
+    method: "POST",
+    headers: buildHeaders(),
+    credentials: "include",
+    body: JSON.stringify(payload),
+  });
+  return handle<{ category: ArticleCategoryRecord }>(response);
+}
+
+export async function updateArticleCategory(
+  slug: string,
+  payload: { name?: string; description?: string; enabled?: boolean }
+): Promise<{ category: ArticleCategoryRecord }> {
+  const apiBaseUrl = resolveApiBaseUrl();
+  const response = await apiFetch(`${apiBaseUrl}/xyn/api/articles/categories/${slug}`, {
+    method: "PATCH",
+    headers: buildHeaders(),
+    credentials: "include",
+    body: JSON.stringify(payload),
+  });
+  return handle<{ category: ArticleCategoryRecord }>(response);
+}
+
+export async function deleteArticleCategory(slug: string): Promise<{ ok: boolean }> {
+  const apiBaseUrl = resolveApiBaseUrl();
+  const response = await apiFetch(`${apiBaseUrl}/xyn/api/articles/categories/${slug}`, {
+    method: "DELETE",
+    credentials: "include",
+  });
+  return handle<{ ok: boolean }>(response);
+}
+
+export async function listCategoryBindings(slug: string): Promise<{ bindings: PublishBindingRecord[] }> {
+  const apiBaseUrl = resolveApiBaseUrl();
+  const response = await apiFetch(`${apiBaseUrl}/xyn/api/articles/categories/${slug}/bindings`, {
+    credentials: "include",
+  });
+  return handle<{ bindings: PublishBindingRecord[] }>(response);
+}
+
+export async function createCategoryBinding(
+  slug: string,
+  payload: { label: string; target_type: string; target_value: string; enabled?: boolean }
+): Promise<{ binding: PublishBindingRecord }> {
+  const apiBaseUrl = resolveApiBaseUrl();
+  const response = await apiFetch(`${apiBaseUrl}/xyn/api/articles/categories/${slug}/bindings`, {
+    method: "POST",
+    headers: buildHeaders(),
+    credentials: "include",
+    body: JSON.stringify(payload),
+  });
+  return handle<{ binding: PublishBindingRecord }>(response);
+}
+
+export async function updateCategoryBinding(
+  slug: string,
+  bindingId: string,
+  payload: { label?: string; target_type?: string; target_value?: string; enabled?: boolean }
+): Promise<{ binding: PublishBindingRecord }> {
+  const apiBaseUrl = resolveApiBaseUrl();
+  const response = await apiFetch(`${apiBaseUrl}/xyn/api/articles/categories/${slug}/bindings/${bindingId}`, {
+    method: "PATCH",
+    headers: buildHeaders(),
+    credentials: "include",
+    body: JSON.stringify(payload),
+  });
+  return handle<{ binding: PublishBindingRecord }>(response);
+}
+
+export async function deleteCategoryBinding(slug: string, bindingId: string): Promise<{ ok: boolean }> {
+  const apiBaseUrl = resolveApiBaseUrl();
+  const response = await apiFetch(`${apiBaseUrl}/xyn/api/articles/categories/${slug}/bindings/${bindingId}`, {
+    method: "DELETE",
+    credentials: "include",
+  });
+  return handle<{ ok: boolean }>(response);
+}
+
+export async function listArticleBindings(articleId: string): Promise<{
+  bindings: PublishBindingRecord[];
+  inherited_bindings: PublishBindingRecord[];
+}> {
+  const apiBaseUrl = resolveApiBaseUrl();
+  const response = await apiFetch(`${apiBaseUrl}/xyn/api/articles/${articleId}/bindings`, {
+    credentials: "include",
+  });
+  return handle<{ bindings: PublishBindingRecord[]; inherited_bindings: PublishBindingRecord[] }>(response);
+}
+
+export async function createArticleBinding(
+  articleId: string,
+  payload: { label: string; target_type: string; target_value: string; enabled?: boolean }
+): Promise<{ binding: PublishBindingRecord }> {
+  const apiBaseUrl = resolveApiBaseUrl();
+  const response = await apiFetch(`${apiBaseUrl}/xyn/api/articles/${articleId}/bindings`, {
+    method: "POST",
+    headers: buildHeaders(),
+    credentials: "include",
+    body: JSON.stringify(payload),
+  });
+  return handle<{ binding: PublishBindingRecord }>(response);
+}
+
+export async function updateArticleBinding(
+  articleId: string,
+  bindingId: string,
+  payload: { label?: string; target_type?: string; target_value?: string; enabled?: boolean }
+): Promise<{ binding: PublishBindingRecord }> {
+  const apiBaseUrl = resolveApiBaseUrl();
+  const response = await apiFetch(`${apiBaseUrl}/xyn/api/articles/${articleId}/bindings/${bindingId}`, {
+    method: "PATCH",
+    headers: buildHeaders(),
+    credentials: "include",
+    body: JSON.stringify(payload),
+  });
+  return handle<{ binding: PublishBindingRecord }>(response);
+}
+
+export async function deleteArticleBinding(articleId: string, bindingId: string): Promise<{ ok: boolean }> {
+  const apiBaseUrl = resolveApiBaseUrl();
+  const response = await apiFetch(`${apiBaseUrl}/xyn/api/articles/${articleId}/bindings/${bindingId}`, {
+    method: "DELETE",
+    credentials: "include",
+  });
+  return handle<{ ok: boolean }>(response);
 }
 
 export async function publishWorkspaceArtifact(workspaceId: string, artifactId: string): Promise<{ id: string; status: string }> {

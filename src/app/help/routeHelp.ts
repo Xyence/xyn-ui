@@ -78,7 +78,7 @@ const HELP_BY_ROUTE: Record<string, RouteHelp> = {
     nextSteps: [
       { label: "Drafts", to: "/app/drafts" },
       { label: "Release Plans", to: "/app/release-plans" },
-      { label: "Run Tour", to: "/app/guides?tour=deploy-subscriber-notes" },
+      { label: "Run Tour", to: "/app/tours" },
     ],
   },
   "app.drafts": {
@@ -138,7 +138,17 @@ const HELP_BY_ROUTE: Record<string, RouteHelp> = {
     whatYouDo: ["Read route-bound docs", "Use core concept references", "Start onboarding tours"],
     atlasNode: "design",
     nextSteps: [
-      { label: "Start tour", to: "/app/guides?tour=deploy-subscriber-notes" },
+      { label: "Start tour", to: "/app/tours" },
+      { label: "Blueprints", to: "/app/blueprints" },
+    ],
+  },
+  "app.tours": {
+    routeId: "app.tours",
+    title: "Tours",
+    whatYouDo: ["Start guided workflows", "Follow deterministic onboarding steps", "Resume or restart tours"],
+    atlasNode: "design",
+    nextSteps: [
+      { label: "Guides", to: "/app/guides" },
       { label: "Blueprints", to: "/app/blueprints" },
     ],
   },
@@ -152,6 +162,7 @@ export function resolveRouteId(pathname: string): string {
   if (pathname.startsWith("/app/instances")) return "app.instances";
   if (pathname.startsWith("/app/runs")) return "app.runs";
   if (pathname.startsWith("/app/guides")) return "app.guides";
+  if (pathname.startsWith("/app/tours")) return "app.tours";
   if (pathname.startsWith("/app/artifacts/all")) return "app.artifacts.all";
   if (pathname.startsWith("/app/artifacts/articles")) return "app.artifacts.articles";
   if (pathname.startsWith("/app/artifacts/")) return "app.artifacts.articles";

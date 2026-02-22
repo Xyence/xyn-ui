@@ -114,6 +114,7 @@ export const NAV_GROUPS: NavGroup[] = [
     icon: "Radar",
     items: [
       { id: "guides", label: "Guides", path: "/app/guides", icon: "BookText", keywords: ["docs", "help"] },
+      { id: "tours", label: "Tours", path: "/app/tours", icon: "Route", keywords: ["onboarding", "walkthrough"] },
       { id: "map", label: "Map", path: "/app/map", icon: "Map", keywords: ["overview"] },
     ],
   },

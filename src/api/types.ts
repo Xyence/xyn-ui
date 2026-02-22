@@ -965,11 +965,25 @@ export type ArticleSummary = {
   summary?: string;
   cover_image_url?: string;
   canonical_url?: string;
+  category_id?: string | null;
+  category_name?: string;
 };
 
 export type ArticleDetail = ArticleSummary & {
   body_markdown: string;
   body_html?: string;
+  category_ref?: {
+    id: string | null;
+    slug: string;
+    name: string;
+    enabled: boolean;
+  };
+  published_to?: Array<{
+    label: string;
+    target_type: "xyn_ui_route" | "public_web_path" | "external_url";
+    target_value: string;
+    source: "category" | "article";
+  }>;
   provenance_json?: Record<string, unknown>;
   license_json?: Record<string, unknown>;
   reactions?: {
@@ -1002,6 +1016,30 @@ export type ArticleRevision = {
   created_by_email?: string | null;
   created_at?: string;
   provenance_json?: Record<string, unknown>;
+};
+
+export type ArticleCategoryRecord = {
+  id: string;
+  slug: string;
+  name: string;
+  description?: string;
+  enabled: boolean;
+  created_at?: string;
+  updated_at?: string;
+  references?: {
+    articles: number;
+  };
+};
+
+export type PublishBindingRecord = {
+  id: string;
+  label: string;
+  target_type: "xyn_ui_route" | "public_web_path" | "external_url";
+  target_value: string;
+  enabled: boolean;
+  source: "category" | "article";
+  created_at?: string;
+  updated_at?: string;
 };
 
 export type DocPage = {

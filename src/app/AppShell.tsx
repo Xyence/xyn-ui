@@ -32,6 +32,7 @@ import PlatformBrandingPage from "./pages/PlatformBrandingPage";
 import MyTenantsPage from "./pages/MyTenantsPage";
 import ControlPlanePage from "./pages/ControlPlanePage";
 import GuidesPage from "./pages/GuidesPage";
+import ToursPage from "./pages/ToursPage";
 import XynMapPage from "./pages/XynMapPage";
 import PlatformSettingsPage from "./pages/PlatformSettingsPage";
 import WorkspaceHomePage from "./pages/WorkspaceHomePage";
@@ -292,6 +293,7 @@ export default function AppShell() {
             />
             <Route path="devices" element={<DevicesPage />} />
             <Route path="guides" element={<GuidesPage roles={roles} />} />
+            <Route path="tours" element={<ToursPage />} />
             <Route path="map" element={<XynMapPage />} />
             <Route path="blueprints" element={<BlueprintsPage />} />
             <Route path="drafts" element={<DraftSessionsPage />} />

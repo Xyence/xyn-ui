@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useState } from "react";
-import { ChevronRight } from "lucide-react";
-import { useLocation, useNavigate } from "react-router-dom";
+import { Link } from "react-router-dom";
+import { useLocation } from "react-router-dom";
 import InlineMessage from "../../components/InlineMessage";
 import { getArticle, listArticles, transitionArticle, updateArticle, createArticleRevision } from "../../api/xyn";
 import type { ArticleDetail, ArticleSummary } from "../../api/types";
@@ -16,7 +16,6 @@ type GuidesPageProps = {
 };
 
 export default function GuidesPage({ roles = [] }: GuidesPageProps) {
-  const navigate = useNavigate();
   const query = useQuery();
   const [docs, setDocs] = useState<ArticleSummary[]>([]);
   const [selectedId, setSelectedId] = useState<string>(query.get("id") || "");
@@ -58,13 +57,6 @@ export default function GuidesPage({ roles = [] }: GuidesPageProps) {
       mounted = false;
     };
   }, [query]);
-
-  useEffect(() => {
-    const tour = query.get("tour");
-    if (!tour) return;
-    window.dispatchEvent(new CustomEvent("xyn:start-tour", { detail: { slug: tour } }));
-    navigate("/app/guides", { replace: true });
-  }, [navigate, query]);
 
   useEffect(() => {
     let mounted = true;
@@ -130,22 +122,12 @@ export default function GuidesPage({ roles = [] }: GuidesPageProps) {
             )}
           </div>
           <div className="guides-section">
-            <div className="guides-subheader">Tours</div>
-            <button
-              className="instance-row guides-tour-row"
-              onClick={() => {
-                window.dispatchEvent(new CustomEvent("xyn:start-tour", { detail: { slug: "deploy-subscriber-notes" } }));
-                setMessage("Tour started.");
-              }}
-            >
+            <Link className="instance-row guides-tour-row" to="/app/tours">
               <div>
-                <strong>Deploy Subscriber Notes</strong>
-                <span className="muted small">Guided end-to-end onboarding flow</span>
+                <strong>Looking for tours?</strong>
+                <span className="muted small">Go to Tours to start guided walkthroughs.</span>
               </div>
-              <span className="guides-tour-arrow" aria-hidden="true">
-                <ChevronRight size={16} />
-              </span>
-            </button>
+            </Link>
           </div>
         </section>
 
