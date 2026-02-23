@@ -70,6 +70,7 @@ export default function ArtifactDetailPage({
   const [selectedAgent, setSelectedAgent] = useState("");
   const [assistInstruction, setAssistInstruction] = useState("");
   const [assistBusy, setAssistBusy] = useState(false);
+  const [summaryBusy, setSummaryBusy] = useState(false);
   const [busyActionId, setBusyActionId] = useState<WorkflowActionId | null>(null);
   const [confirmingAction, setConfirmingAction] = useState<WorkflowAction | null>(null);
   const [restoreRevisionId, setRestoreRevisionId] = useState<string | null>(null);
@@ -353,6 +354,71 @@ export default function ArtifactDetailPage({
       setError((err as Error).message);
     } finally {
       setAssistBusy(false);
+    }
+  };
+
+  const summarizeWithAi = async () => {
+    if (!artifactId) return;
+    if (!selectedAgent) {
+      setError("No documentation agent selected. Configure one in Platform -> AI -> Agents.");
+      return;
+    }
+
+    const opId = `${artifactId}:summarize:${Date.now()}`;
+    startOperation({
+      id: opId,
+      type: "ai",
+      label: "Summarize article",
+      entityType: "article",
+      entityId: artifactId,
+    });
+
+    try {
+      setError(null);
+      setSummaryBusy(true);
+      localStorage.setItem("xyn.articleAiAgentSlug", selectedAgent);
+      const prompt = [
+        "Create a concise summary of this article in 1-2 sentences.",
+        "Return plain text only. Do not include bullets, markdown, headings, or quotation marks.",
+        "If an existing summary is provided, improve and replace it.",
+        `Title: ${item?.title || ""}`,
+        `Existing summary: ${summary || "(none)"}`,
+        "Article markdown:",
+        bodyMarkdown || "(empty)",
+      ].join("\n\n");
+      const result = await invokeAi({
+        agent_slug: selectedAgent,
+        messages: [{ role: "user", content: prompt }],
+        metadata: { feature: "articles_ai_assist", artifact_id: artifactId, workspace_id: workspaceId, mode: "summarize" },
+      });
+      const nextSummary = String(result.content || "")
+        .replace(/\s+/g, " ")
+        .trim();
+      if (!nextSummary) throw new Error("AI returned empty content.");
+      setSummary(nextSummary);
+      finishOperation({
+        id: opId,
+        status: "succeeded",
+        summary: "Summary updated",
+      });
+      push({
+        level: "success",
+        title: "Summary updated",
+        message: "AI generated a new summary.",
+        status: "succeeded",
+        action: "article.ai.summarize",
+        entityType: "unknown",
+        entityId: artifactId,
+      });
+    } catch (err) {
+      finishOperation({
+        id: opId,
+        status: "failed",
+        summary: (err as Error).message,
+      });
+      setError((err as Error).message);
+    } finally {
+      setSummaryBusy(false);
     }
   };
 
@@ -874,6 +940,17 @@ export default function ArtifactDetailPage({
           value={summary}
           onChange={(event) => setSummary(event.target.value)}
         />
+        <div className="summary-ai-action-row">
+          <button
+            className="ghost sm subtle-action"
+            type="button"
+            onClick={() => void summarizeWithAi()}
+            disabled={summaryBusy || assistBusy || !selectedAgent || !bodyMarkdown.trim()}
+            title={selectedAgent ? "Generate and replace summary using the selected documentation agent." : "Select a documentation agent in AI Assist first."}
+          >
+            {summaryBusy ? "Summarizing…" : "AI Summarize"}
+          </button>
+        </div>
       </div>
       <div className="inline-actions">
         <button className="primary" type="button" onClick={() => void save()}>

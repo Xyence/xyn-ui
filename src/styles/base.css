@@ -1520,6 +1520,19 @@ button.sm {
   min-height: 112px;
 }
 
+.summary-ai-action-row {
+  margin-top: 8px;
+}
+
+.subtle-action {
+  opacity: 0.86;
+}
+
+.subtle-action:hover:not(:disabled),
+.subtle-action:focus-visible {
+  opacity: 1;
+}
+
 .editor-header-actions {
   margin-left: auto;
   min-width: 0;
