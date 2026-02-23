@@ -467,38 +467,40 @@ export default function ArtifactDetailPage({
               </div>
             </div>
             <div className="inline-actions revision-actions">
-              <button
-                className="ghost sm"
-                type="button"
-                onClick={() => {
-                  setSelectedRevisionId(rev.id);
-                  setRevisionMode("view");
-                }}
-              >
-                View
-              </button>
-              <button
-                className="ghost sm"
-                type="button"
-                onClick={() => {
-                  setSelectedRevisionId(rev.id);
-                  setCompareRevisionId("current");
-                  setRevisionMode("diff");
-                }}
-              >
-                Diff vs current
-              </button>
-              <button
-                className="ghost sm"
-                type="button"
-                onClick={() => {
-                  setSelectedRevisionId(rev.id);
-                  setRevisionMode("diff");
-                }}
-              >
-                Compare…
-              </button>
-              <button className="danger sm" type="button" onClick={() => setRestoreRevisionId(rev.id)}>
+              <div className="revision-actions-main">
+                <button
+                  className="ghost sm"
+                  type="button"
+                  onClick={() => {
+                    setSelectedRevisionId(rev.id);
+                    setRevisionMode("view");
+                  }}
+                >
+                  View
+                </button>
+                <button
+                  className="ghost sm"
+                  type="button"
+                  onClick={() => {
+                    setSelectedRevisionId(rev.id);
+                    setCompareRevisionId("current");
+                    setRevisionMode("diff");
+                  }}
+                >
+                  Diff current
+                </button>
+                <button
+                  className="ghost sm"
+                  type="button"
+                  onClick={() => {
+                    setSelectedRevisionId(rev.id);
+                    setRevisionMode("diff");
+                  }}
+                >
+                  Compare
+                </button>
+              </div>
+              <button className="danger sm revision-restore-button" type="button" onClick={() => setRestoreRevisionId(rev.id)}>
                 Restore
               </button>
             </div>

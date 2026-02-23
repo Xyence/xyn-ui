@@ -1235,9 +1235,9 @@ button.sm {
 
 .editor-tab-label {
   min-width: 0;
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
+  white-space: normal;
+  line-height: 1.15;
+  text-wrap: balance;
 }
 
 .editor-panel-tabs .ghost.active {
@@ -1253,12 +1253,15 @@ button.sm {
 .revision-list {
   gap: 8px;
   max-height: 360px;
-  overflow: auto;
+  overflow-y: auto;
+  overflow-x: hidden;
   padding-right: 2px;
 }
 
 .revision-row {
-  align-items: flex-start;
+  display: grid;
+  grid-template-columns: minmax(0, 1fr);
+  align-items: start;
   padding: 8px 10px;
   border-radius: 10px;
   gap: 8px;
@@ -1277,9 +1280,26 @@ button.sm {
 }
 
 .revision-actions {
-  justify-content: flex-end;
   gap: 6px;
-  flex: 0 0 auto;
+  width: 100%;
+}
+
+.revision-actions-main {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 6px;
+}
+
+.revision-actions-main .sm {
+  min-height: 28px;
+  font-size: 0.78rem;
+}
+
+.revision-restore-button {
+  min-height: 28px;
+  font-size: 0.78rem;
+  align-self: flex-start;
 }
 
 .editor-body {
