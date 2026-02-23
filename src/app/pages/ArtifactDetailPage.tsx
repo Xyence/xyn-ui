@@ -61,7 +61,7 @@ export default function ArtifactDetailPage({
   const [busyActionId, setBusyActionId] = useState<WorkflowActionId | null>(null);
   const [confirmingAction, setConfirmingAction] = useState<WorkflowAction | null>(null);
   const [restoreRevisionId, setRestoreRevisionId] = useState<string | null>(null);
-  const [activityTab, setActivityTab] = useState<ActivityTab>("revisions");
+  const [activityTab, setActivityTab] = useState<ActivityTab>("ai");
   const [revisionMode, setRevisionMode] = useState<RevisionMode>("list");
   const [selectedRevisionId, setSelectedRevisionId] = useState<string>("");
   const [compareRevisionId, setCompareRevisionId] = useState<string>("current");
@@ -551,7 +551,7 @@ export default function ArtifactDetailPage({
   );
 
   const aiPanel = (
-    <div className="stack">
+    <div className="stack activity-ai-panel">
       <div className="card-header">
         <h3>AI Assist</h3>
       </div>

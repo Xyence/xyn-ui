@@ -1179,7 +1179,8 @@ button.sm {
 .editor-centric-activity {
   min-height: 540px;
   max-height: calc(100vh - 215px);
-  overflow: auto;
+  overflow-y: auto;
+  overflow-x: hidden;
 }
 
 .editor-centric-main {
@@ -1306,6 +1307,27 @@ button.sm {
   display: grid;
   grid-template-columns: 1fr;
   gap: 10px;
+}
+
+.activity-ai-panel {
+  min-width: 0;
+}
+
+.activity-ai-panel label {
+  display: grid;
+  gap: 6px;
+  font-weight: 600;
+  font-size: 0.9rem;
+  min-width: 0;
+}
+
+.activity-ai-panel label > select,
+.activity-ai-panel label > textarea,
+.activity-ai-panel label > .input {
+  width: 100%;
+  max-width: 100%;
+  min-width: 0;
+  box-sizing: border-box;
 }
 
 .editor-body.split {
