@@ -454,19 +454,21 @@ export default function ArtifactDetailPage({
       <div className="card-header">
         <h3>Revision History</h3>
       </div>
-      <div className="instance-list">
+      <div className="instance-list revision-list">
         {revisions.map((rev) => (
-          <div className={`instance-row ${selectedRevision?.id === rev.id ? "active" : ""}`} key={rev.id}>
-            <div>
-              <strong>r{rev.revision_number}</strong>
-              <span className="muted small">
-                {rev.created_at || "—"}
-                {rev.created_by_email ? ` · ${rev.created_by_email}` : ""}
-              </span>
+          <div className={`instance-row revision-row ${selectedRevision?.id === rev.id ? "active" : ""}`} key={rev.id}>
+            <div className="revision-meta">
+              <div className="revision-meta-top">
+                <strong>r{rev.revision_number}</strong>
+                <span className="muted small">
+                  {rev.created_at || "—"}
+                  {rev.created_by_email ? ` · ${rev.created_by_email}` : ""}
+                </span>
+              </div>
             </div>
-            <div className="inline-actions">
+            <div className="inline-actions revision-actions">
               <button
-                className="ghost"
+                className="ghost sm"
                 type="button"
                 onClick={() => {
                   setSelectedRevisionId(rev.id);
@@ -476,7 +478,7 @@ export default function ArtifactDetailPage({
                 View
               </button>
               <button
-                className="ghost"
+                className="ghost sm"
                 type="button"
                 onClick={() => {
                   setSelectedRevisionId(rev.id);
@@ -487,7 +489,7 @@ export default function ArtifactDetailPage({
                 Diff vs current
               </button>
               <button
-                className="ghost"
+                className="ghost sm"
                 type="button"
                 onClick={() => {
                   setSelectedRevisionId(rev.id);
@@ -496,7 +498,7 @@ export default function ArtifactDetailPage({
               >
                 Compare…
               </button>
-              <button className="danger" type="button" onClick={() => setRestoreRevisionId(rev.id)}>
+              <button className="danger sm" type="button" onClick={() => setRestoreRevisionId(rev.id)}>
                 Restore
               </button>
             </div>
@@ -612,7 +614,7 @@ export default function ArtifactDetailPage({
   const discussionPanel = (
     <div className="stack">
       <div className="card-header">
-        <h3>Reactions and Comments</h3>
+        <h3>Reactions & Comments</h3>
       </div>
       <p className="muted">
         endorse: {item?.reactions?.endorse || 0} | oppose: {item?.reactions?.oppose || 0} | neutral: {item?.reactions?.neutral || 0}
@@ -650,14 +652,29 @@ export default function ArtifactDetailPage({
   const activityPanel = (
     <div className="stack">
       <div className="editor-panel-tabs">
-        <button type="button" className={`ghost ${activityTab === "revisions" ? "active" : ""}`} onClick={() => setActivityTab("revisions")}>
-          Revisions
+        <button
+          type="button"
+          title="Revisions"
+          className={`ghost editor-tab-button ${activityTab === "revisions" ? "active" : ""}`}
+          onClick={() => setActivityTab("revisions")}
+        >
+          <span className="editor-tab-label">Revisions</span>
         </button>
-        <button type="button" className={`ghost ${activityTab === "ai" ? "active" : ""}`} onClick={() => setActivityTab("ai")}>
-          AI Assist
+        <button
+          type="button"
+          title="AI Assist"
+          className={`ghost editor-tab-button ${activityTab === "ai" ? "active" : ""}`}
+          onClick={() => setActivityTab("ai")}
+        >
+          <span className="editor-tab-label">AI Assist</span>
         </button>
-        <button type="button" className={`ghost ${activityTab === "discussion" ? "active" : ""}`} onClick={() => setActivityTab("discussion")}>
-          Reactions/Comments
+        <button
+          type="button"
+          title="Reactions & Comments"
+          className={`ghost editor-tab-button ${activityTab === "discussion" ? "active" : ""}`}
+          onClick={() => setActivityTab("discussion")}
+        >
+          <span className="editor-tab-label">Reactions</span>
         </button>
       </div>
       {activityTab === "revisions" && revisionPanel}
@@ -671,15 +688,17 @@ export default function ArtifactDetailPage({
       <div className="card-header">
         <h3>Inspector</h3>
       </div>
-      <label>
-        Category
+      <div className="field-group">
+        <label className="field-label" htmlFor="article-category">
+          Category
+        </label>
         {isDeprecatedCategory ? (
           <div className="stacked-field">
-            <input className="input" value={`${selectedCategoryMeta?.name || category} (${category})`} disabled />
+            <input id="article-category" className="input" value={`${selectedCategoryMeta?.name || category} (${category})`} disabled />
             <span className="muted small">Deprecated category (read-only)</span>
           </div>
         ) : (
-          <select value={category} onChange={(event) => setCategory(event.target.value)}>
+          <select id="article-category" value={category} onChange={(event) => setCategory(event.target.value)}>
             {categoryOptions.length === 0 && (
               <>
                 <option value="web">web</option>
@@ -694,30 +713,44 @@ export default function ArtifactDetailPage({
             ))}
           </select>
         )}
-      </label>
-      <label>
-        Visibility
-        <select value={visibilityType} onChange={(event) => setVisibilityType(event.target.value as typeof visibilityType)}>
+      </div>
+      <div className="field-group">
+        <label className="field-label" htmlFor="article-visibility">
+          Visibility
+        </label>
+        <select id="article-visibility" value={visibilityType} onChange={(event) => setVisibilityType(event.target.value as typeof visibilityType)}>
           <option value="public">public</option>
           <option value="authenticated">authenticated</option>
           <option value="role_based">role_based</option>
           <option value="private">private</option>
         </select>
-      </label>
+      </div>
       {visibilityType === "role_based" && (
-        <label>
-          Allowed roles (comma-separated)
-          <input className="input" value={allowedRolesText} onChange={(event) => setAllowedRolesText(event.target.value)} />
-        </label>
+        <div className="field-group">
+          <label className="field-label" htmlFor="article-allowed-roles">
+            Allowed roles (comma-separated)
+          </label>
+          <input id="article-allowed-roles" className="input" value={allowedRolesText} onChange={(event) => setAllowedRolesText(event.target.value)} />
+        </div>
       )}
-      <label>
-        Tags (comma-separated)
-        <input className="input" value={tagsText} onChange={(event) => setTagsText(event.target.value)} />
-      </label>
-      <label>
-        Summary
-        <textarea className="input" rows={4} value={summary} onChange={(event) => setSummary(event.target.value)} />
-      </label>
+      <div className="field-group">
+        <label className="field-label" htmlFor="article-tags">
+          Tags (comma-separated)
+        </label>
+        <input id="article-tags" className="input" value={tagsText} onChange={(event) => setTagsText(event.target.value)} />
+      </div>
+      <div className="field-group">
+        <label className="field-label" htmlFor="article-summary">
+          Summary
+        </label>
+        <textarea
+          id="article-summary"
+          className="input field-textarea"
+          rows={4}
+          value={summary}
+          onChange={(event) => setSummary(event.target.value)}
+        />
+      </div>
       <div className="inline-actions">
         <button className="primary" type="button" onClick={() => void save()}>
           Save revision
@@ -773,8 +806,8 @@ export default function ArtifactDetailPage({
     <div className="stack">
       <div className="card-header">
         <h3>Body Markdown</h3>
-        <div className="inline-actions">
-          <span className="muted small">
+        <div className="inline-actions editor-header-actions">
+          <span className="muted small editor-drift-text">
             Drift from {baselineLabel}: +{drift.summary.added} / -{drift.summary.removed}
           </span>
           <label className="checkbox-row">
