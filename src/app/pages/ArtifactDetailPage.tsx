@@ -343,7 +343,9 @@ export default function ArtifactDetailPage({
       const base = `${origin}${value.startsWith("/") ? value : `/${value}`}`;
       return appendSlug(base);
     }
-    return `${origin}${value.startsWith("/") ? value : `/${value}`}`;
+    const routeBase = `${origin}${value.startsWith("/") ? value : `/${value}`}`;
+    if (value.startsWith("/app/")) return routeBase;
+    return appendSlug(routeBase);
   };
 
   return (
