@@ -54,17 +54,20 @@ export async function fetchPublicSite(): Promise<PublicSiteResponse> {
   return handle<PublicSiteResponse>(response);
 }
 
-export async function fetchPublicArticles(page = 1): Promise<PublicArticlesResponse> {
+export async function fetchPublicArticles(page = 1, surfacePath = "/articles"): Promise<PublicArticlesResponse> {
   const apiBaseUrl = resolveApiBaseUrl();
   const url = new URL(`${apiBaseUrl}/xyn/api/public/articles`);
   url.searchParams.set("page", String(page));
+  url.searchParams.set("surface_path", surfacePath);
   const response = await fetch(url.toString());
   return handle<PublicArticlesResponse>(response);
 }
 
-export async function fetchPublicArticle(slug: string): Promise<PublicArticleDetail> {
+export async function fetchPublicArticle(slug: string, surfacePath = "/articles"): Promise<PublicArticleDetail> {
   const apiBaseUrl = resolveApiBaseUrl();
-  const response = await fetch(`${apiBaseUrl}/xyn/api/public/articles/${slug}`);
+  const url = new URL(`${apiBaseUrl}/xyn/api/public/articles/${slug}`);
+  url.searchParams.set("surface_path", surfacePath);
+  const response = await fetch(url.toString());
   return handle<PublicArticleDetail>(response);
 }
 

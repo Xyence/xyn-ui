@@ -72,6 +72,7 @@ export type PublicArticleDetail = {
   published_at?: string;
   updated_at?: string;
   body_html?: string;
+  body_markdown?: string;
   body_md?: string;
   excerpt?: string;
 };

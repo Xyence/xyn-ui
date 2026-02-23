@@ -1,10 +1,11 @@
 import { useEffect, useState } from "react";
 import { Link, useParams } from "react-router-dom";
 import { fetchPublicArticle } from "../../api/public";
+import { renderMarkdown } from "../markdown";
 import type { PublicArticleDetail } from "../types";
 
 export default function ArticleDetail() {
-  const { slug } = useParams();
+  const { slug, category } = useParams();
   const [article, setArticle] = useState<PublicArticleDetail | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -13,7 +14,8 @@ export default function ArticleDetail() {
     if (!slug) return;
     let active = true;
     setLoading(true);
-    fetchPublicArticle(slug)
+    const surfacePath = category ? `/${category}` : "/articles";
+    fetchPublicArticle(slug, surfacePath)
       .then((data) => {
         if (!active) return;
         setArticle(data);
@@ -30,7 +32,7 @@ export default function ArticleDetail() {
     return () => {
       active = false;
     };
-  }, [slug]);
+  }, [slug, category]);
 
   if (loading) {
     return <p className="muted">Loading article...</p>;
@@ -48,9 +50,11 @@ export default function ArticleDetail() {
     <div className="public-article">
       <h1 className="page-title">{article.title}</h1>
       {article.summary && <p className="article-summary muted">{article.summary}</p>}
-      {article.body_html && (
+      {article.body_html ? (
         <div className="article-body" dangerouslySetInnerHTML={{ __html: article.body_html }} />
-      )}
+      ) : article.body_markdown || article.body_md ? (
+        <div className="article-body" dangerouslySetInnerHTML={{ __html: renderMarkdown(article.body_markdown || article.body_md) }} />
+      ) : null}
       <Link className="ghost" to="/articles">
         ← Back to articles
       </Link>
