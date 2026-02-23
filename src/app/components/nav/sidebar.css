@@ -1,13 +1,13 @@
 :root {
   --sidebar-w-expanded: 272px;
   --sidebar-w-collapsed: 72px;
-  --sidebar-bg: #ffffff;
-  --sidebar-border: #e5e7eb;
-  --sidebar-hover: #f3f4f6;
-  --sidebar-active-bg: #eef2ff;
-  --sidebar-active-accent: #2563eb;
-  --sidebar-text: #334155;
-  --sidebar-muted: #64748b;
+  --sidebar-bg: var(--card);
+  --sidebar-border: var(--border);
+  --sidebar-hover: var(--surface-soft);
+  --sidebar-active-bg: var(--accent-soft);
+  --sidebar-active-accent: var(--ink);
+  --sidebar-text: var(--ink);
+  --sidebar-muted: var(--muted);
 }
 
 html.xyn-nav-expanded .app-body {
@@ -134,7 +134,7 @@ html.xyn-nav-collapsed .app-body {
   z-index: 1200;
   opacity: 0;
   pointer-events: none;
-  background: #fff;
+  background: var(--card-elevated);
   border: 1px solid var(--sidebar-border);
   border-radius: 10px;
   box-shadow: 0 16px 28px rgba(15, 76, 129, 0.16);
@@ -172,11 +172,11 @@ html.xyn-nav-collapsed .app-body {
 .nav-group {
   border: 1px solid var(--sidebar-border);
   border-radius: 10px;
-  background: #fcfdff;
+  background: var(--surface-soft);
 }
 
 .nav-group.active-scope {
-  border-color: #c9d7ff;
+  border-color: var(--border-strong);
 }
 
 .nav-group-toggle,
@@ -222,9 +222,9 @@ html.xyn-nav-collapsed .app-body {
 }
 
 .nav-subgroup {
-  border: 1px solid #edf1f7;
+  border: 1px solid var(--sidebar-border);
   border-radius: 8px;
-  background: #fff;
+  background: var(--card);
 }
 
 .nav-subgroup-label {
@@ -258,8 +258,8 @@ html.xyn-nav-collapsed .app-body {
 .app-nav-link.active {
   background: var(--sidebar-active-bg);
   color: var(--sidebar-active-accent);
-  border-color: transparent;
-  box-shadow: inset 2px 0 0 var(--sidebar-active-accent);
+  border-color: var(--border-strong);
+  box-shadow: inset 2px 0 0 var(--accent);
 }
 
 .nav-icon {
@@ -310,12 +310,12 @@ html.xyn-nav-collapsed .app-body {
   width: 22px;
   height: 2px;
   border-radius: 999px;
-  background: #ccd7e6;
+  background: var(--sidebar-border);
   margin: 0 auto 6px;
 }
 
 .nav-sidebar.is-collapsed .nav-subgroup-toggle .nav-icon {
-  color: #70859f;
+  color: var(--sidebar-muted);
   transform: scale(0.92);
 }
 
