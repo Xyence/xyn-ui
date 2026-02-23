@@ -1,6 +1,5 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useParams } from "react-router-dom";
-import InlineMessage from "../../components/InlineMessage";
 import { renderMarkdown } from "../../public/markdown";
 import {
   commentOnWorkspaceArtifact,
@@ -667,45 +666,6 @@ export default function ArtifactDetailPage({
         ))}
         {revisions.length === 0 && <p className="muted">No revisions yet.</p>}
       </div>
-      {selectedRevision && revisionMode === "view" && (
-        <section className="diff-panel">
-          <div className="card-header">
-            <h4>Viewing r{selectedRevision.revision_number}</h4>
-          </div>
-          <textarea className="input" rows={8} value={selectedRevision.body_markdown || ""} readOnly />
-          <div className="markdown-body" dangerouslySetInnerHTML={{ __html: renderMarkdown(selectedRevision.body_markdown || "") }} />
-        </section>
-      )}
-      {selectedRevision && revisionMode === "diff" && (
-        <section className="diff-panel">
-          <div className="inline-actions">
-            <span className="muted small">Compare r{selectedRevision.revision_number} against</span>
-            <select value={compareRevisionId} onChange={(event) => setCompareRevisionId(event.target.value)}>
-              <option value="current">Current editor</option>
-              {revisions
-                .filter((entry) => entry.id !== selectedRevision.id)
-                .map((entry) => (
-                  <option key={entry.id} value={entry.id}>
-                    r{entry.revision_number}
-                  </option>
-                ))}
-            </select>
-          </div>
-          {selectedRevisionDiff && (
-            <p className="muted small">
-              +{selectedRevisionDiff.summary.added} / -{selectedRevisionDiff.summary.removed} lines changed
-            </p>
-          )}
-          <div className="line-diff">
-            {(selectedRevisionDiff?.ops || []).map((op, idx) => (
-              <pre key={`${idx}-${op.type}`} className={`line-diff-row ${op.type}`}>
-                <span>{op.type === "add" ? "+" : op.type === "remove" ? "-" : " "}</span>
-                {op.text}
-              </pre>
-            ))}
-          </div>
-        </section>
-      )}
     </div>
   );
 
@@ -960,10 +920,11 @@ export default function ArtifactDetailPage({
           <p className="muted">Governed article workflow controls</p>
         </div>
       </div>
-      {error && <InlineMessage tone="error" title="Request failed" body={error} />}
       <ArtifactWorkflowActions workflow={workflow} busyActionId={busyActionId} onRunAction={handleAction} />
     </div>
   );
+
+  const showRevisionInEditor = activityTab === "revisions" && selectedRevision && revisionMode !== "list";
 
   const mainSection = (
     <div className="stack">
@@ -989,7 +950,55 @@ export default function ArtifactDetailPage({
           </label>
         </div>
       </div>
-      {editorMode === "review" && pendingAssist && (
+      {showRevisionInEditor && selectedRevision && revisionMode === "view" && (
+        <section className="diff-panel article-review-panel revision-editor-panel">
+          <div className="card-header">
+            <h4>Viewing r{selectedRevision.revision_number}</h4>
+            <button className="ghost sm" type="button" onClick={() => setRevisionMode("list")}>
+              Close
+            </button>
+          </div>
+          <textarea className="input revision-readonly-textarea" rows={8} value={selectedRevision.body_markdown || ""} readOnly />
+          <div className="editor-preview markdown-body" dangerouslySetInnerHTML={{ __html: renderMarkdown(selectedRevision.body_markdown || "") }} />
+        </section>
+      )}
+      {showRevisionInEditor && selectedRevision && revisionMode === "diff" && (
+        <section className="diff-panel article-review-panel revision-editor-panel">
+          <div className="card-header">
+            <h4>Diff r{selectedRevision.revision_number}</h4>
+            <button className="ghost sm" type="button" onClick={() => setRevisionMode("list")}>
+              Close
+            </button>
+          </div>
+          <div className="inline-actions">
+            <span className="muted small">Compare against</span>
+            <select value={compareRevisionId} onChange={(event) => setCompareRevisionId(event.target.value)}>
+              <option value="current">Current editor</option>
+              {revisions
+                .filter((entry) => entry.id !== selectedRevision.id)
+                .map((entry) => (
+                  <option key={entry.id} value={entry.id}>
+                    r{entry.revision_number}
+                  </option>
+                ))}
+            </select>
+          </div>
+          {selectedRevisionDiff && (
+            <p className="muted small">
+              +{selectedRevisionDiff.summary.added} / -{selectedRevisionDiff.summary.removed} lines changed
+            </p>
+          )}
+          <div className="line-diff article-review-diff">
+            {(selectedRevisionDiff?.ops || []).map((op, idx) => (
+              <pre key={`${idx}-${op.type}`} className={`line-diff-row ${op.type}`}>
+                <span>{op.type === "add" ? "+" : op.type === "remove" ? "-" : " "}</span>
+                {op.text}
+              </pre>
+            ))}
+          </div>
+        </section>
+      )}
+      {editorMode === "review" && pendingAssist && !showRevisionInEditor && (
         <section className="diff-panel article-review-panel">
           <div className="card-header">
             <h4>Suggested edits</h4>

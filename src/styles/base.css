@@ -1401,6 +1401,15 @@ button.sm {
   overflow: auto;
 }
 
+.revision-editor-panel {
+  max-height: 520px;
+}
+
+.revision-readonly-textarea {
+  min-height: 140px;
+  max-height: 220px;
+}
+
 .editor-body.split {
   grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
 }
