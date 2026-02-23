@@ -13,7 +13,7 @@ export default function ArticlesIndex({ surfacePathOverride }: ArticlesIndexProp
   const [articles, setArticles] = useState<PublicArticleSummary[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
-  const menuItems = useMenuItems();
+  const { items: menuItems } = useMenuItems();
   const surfacePath = surfacePathOverride || (category ? `/${category}` : "/articles");
 
   const menuLabel = useMemo(() => {

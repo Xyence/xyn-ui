@@ -3,7 +3,12 @@ import { Link, Outlet, useLocation } from "react-router-dom";
 import { checkAuthenticated, fetchPublicMenu, fetchPublicSite } from "../api/public";
 import type { MenuItem } from "./types";
 
-const MenuContext = createContext<MenuItem[]>([]);
+type MenuContextValue = {
+  items: MenuItem[];
+  loaded: boolean;
+};
+
+const MenuContext = createContext<MenuContextValue>({ items: [], loaded: false });
 
 export function useMenuItems() {
   return useContext(MenuContext);
@@ -11,6 +16,7 @@ export function useMenuItems() {
 
 export default function PublicShell() {
   const [menuItems, setMenuItems] = useState<MenuItem[]>([]);
+  const [menuLoaded, setMenuLoaded] = useState(false);
   const [authenticated, setAuthenticated] = useState(false);
   const [siteName, setSiteName] = useState("");
   const location = useLocation();
@@ -18,7 +24,8 @@ export default function PublicShell() {
   useEffect(() => {
     fetchPublicMenu()
       .then((data) => setMenuItems(data.items ?? []))
-      .catch(() => setMenuItems([]));
+      .catch(() => setMenuItems([]))
+      .finally(() => setMenuLoaded(true));
   }, []);
 
   useEffect(() => {
@@ -38,7 +45,7 @@ export default function PublicShell() {
   }, [authenticated, menuItems]);
 
   return (
-    <MenuContext.Provider value={menuItems}>
+    <MenuContext.Provider value={{ items: menuItems, loaded: menuLoaded }}>
       <div className="public-shell">
         <header className="public-header">
           <div className="public-nav">

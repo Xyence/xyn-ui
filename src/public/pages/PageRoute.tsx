@@ -8,7 +8,7 @@ import type { Page, WebSection } from "../types";
 
 export default function PageRoute() {
   const location = useLocation();
-  const menuItems = useMenuItems();
+  const { items: menuItems, loaded: menuLoaded } = useMenuItems();
   const [page, setPage] = useState<Page | null>(null);
   const [sections, setSections] = useState<WebSection[]>([]);
   const [loading, setLoading] = useState(true);
@@ -27,6 +27,9 @@ export default function PageRoute() {
   }, [location.pathname, match]);
 
   useEffect(() => {
+    if (!menuLoaded) {
+      return;
+    }
     if (match?.kind === "articles_index") {
       setLoading(false);
       setError(null);
@@ -56,9 +59,13 @@ export default function PageRoute() {
     return () => {
       active = false;
     };
-  }, [slug, match?.kind]);
+  }, [slug, match?.kind, menuLoaded]);
 
   if (match?.kind === "articles_index") return <ArticlesIndex surfacePathOverride={location.pathname} />;
+
+  if (!menuLoaded) {
+    return <p className="muted">Loading...</p>;
+  }
 
   if (loading) {
     return <p className="muted">Loading...</p>;
