@@ -55,7 +55,7 @@ export default function ArticleDetail() {
       ) : article.body_markdown || article.body_md ? (
         <div className="article-body" dangerouslySetInnerHTML={{ __html: renderMarkdown(article.body_markdown || article.body_md) }} />
       ) : null}
-      <Link className="ghost" to="/articles">
+      <Link className="ghost" to={category ? `/${category}` : "/articles"}>
         ← Back to articles
       </Link>
     </div>
