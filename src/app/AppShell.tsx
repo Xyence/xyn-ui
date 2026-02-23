@@ -284,7 +284,13 @@ export default function AppShell() {
             <Route path="artifacts/all" element={<ArtifactsRegistryPage workspaceId={activeWorkspace?.id || ""} />} />
             <Route
               path="artifacts/:artifactId"
-              element={<ArtifactDetailPage workspaceId={activeWorkspace?.id || ""} workspaceRole={workspaceRole} />}
+              element={
+                <ArtifactDetailPage
+                  workspaceId={activeWorkspace?.id || ""}
+                  workspaceRole={workspaceRole}
+                  canManageArticleLifecycle={isPlatformManager}
+                />
+              }
             />
             <Route path="activity" element={<ActivityPage workspaceId={activeWorkspace?.id || ""} />} />
             <Route

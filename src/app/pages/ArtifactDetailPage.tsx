@@ -1,6 +1,7 @@
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useParams } from "react-router-dom";
 import InlineMessage from "../../components/InlineMessage";
+import ArtifactWorkflowActions from "../components/workflow/ArtifactWorkflowActions";
 import {
   commentOnWorkspaceArtifact,
   moderateWorkspaceComment,
@@ -16,9 +17,19 @@ import {
   updateArticle,
 } from "../../api/xyn";
 import type { ArticleDetail, ArticleRevision } from "../../api/types";
+import { resolveArtifactWorkflowActions, type WorkflowAction, type WorkflowActionId } from "../workflows/artifactWorkflow";
 
-export default function ArtifactDetailPage({ workspaceId, workspaceRole }: { workspaceId: string; workspaceRole: string }) {
+export default function ArtifactDetailPage({
+  workspaceId,
+  workspaceRole,
+  canManageArticleLifecycle,
+}: {
+  workspaceId: string;
+  workspaceRole: string;
+  canManageArticleLifecycle: boolean;
+}) {
   const { artifactId = "" } = useParams();
+  const revisionsRef = useRef<HTMLElement | null>(null);
   const [item, setItem] = useState<ArticleDetail | null>(null);
   const [revisions, setRevisions] = useState<ArticleRevision[]>([]);
   const [bodyMarkdown, setBodyMarkdown] = useState("");
@@ -34,6 +45,8 @@ export default function ArtifactDetailPage({ workspaceId, workspaceRole }: { wor
   const [selectedAgent, setSelectedAgent] = useState("");
   const [assistInstruction, setAssistInstruction] = useState("");
   const [assistBusy, setAssistBusy] = useState(false);
+  const [busyActionId, setBusyActionId] = useState<WorkflowActionId | null>(null);
+  const [confirmingAction, setConfirmingAction] = useState<WorkflowAction | null>(null);
   const [message, setMessage] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
 
@@ -232,27 +245,95 @@ export default function ArtifactDetailPage({ workspaceId, workspaceRole }: { wor
   const selectedCategoryMeta = categoryOptions.find((entry) => entry.slug === category) || null;
   const isDeprecatedCategory = Boolean(selectedCategoryMeta && !selectedCategoryMeta.enabled);
   const selectableCategoryOptions = categoryOptions.filter((entry) => entry.enabled);
+  const canSaveRevision = workspaceRole !== "reader";
+  const canReact = workspaceRole !== "reader";
+  const workflow = useMemo(
+    () =>
+      resolveArtifactWorkflowActions({
+        artifactType: "article",
+        article: {
+          status: item?.status || "draft",
+          visibility_type: visibilityType,
+          allowed_roles: parseCsv(allowedRolesText),
+          published_to: item?.published_to || [],
+          summary,
+          title: item?.title || "",
+        },
+        validation: {
+          hasBodyMarkdown: Boolean(bodyMarkdown.trim()),
+          hasSummary: Boolean(summary.trim()),
+        },
+        capabilities: {
+          canManageLifecycle: canManageArticleLifecycle,
+          canSaveRevision,
+          canReact,
+          canViewRevisions: true,
+        },
+      }),
+    [allowedRolesText, bodyMarkdown, canManageArticleLifecycle, canReact, canSaveRevision, item?.published_to, item?.status, item?.title, summary, visibilityType]
+  );
+
+  const executeAction = async (action: WorkflowAction) => {
+    try {
+      setBusyActionId(action.id);
+      setError(null);
+      setMessage(null);
+      switch (action.id) {
+        case "save_revision":
+          await save();
+          break;
+        case "mark_reviewed":
+          await transition("reviewed");
+          break;
+        case "mark_ratified":
+          await transition("ratified");
+          break;
+        case "publish":
+          await transition("published");
+          break;
+        case "deprecate":
+          await transition("deprecated");
+          break;
+        case "endorse":
+          await react("endorse");
+          break;
+        case "oppose":
+          await react("oppose");
+          break;
+        case "neutral":
+          await react("neutral");
+          break;
+        case "view_revisions":
+          revisionsRef.current?.scrollIntoView({ behavior: "smooth", block: "start" });
+          break;
+        default:
+          break;
+      }
+    } finally {
+      setBusyActionId(null);
+    }
+  };
+
+  const handleAction = async (action: WorkflowAction) => {
+    if (!action.enabled) return;
+    if (action.confirmation) {
+      setConfirmingAction(action);
+      return;
+    }
+    await executeAction(action);
+  };
 
   return (
     <>
       <div className="page-header">
         <div>
           <h2>{item?.title || "Artifact"}</h2>
-          <p className="muted">Status: {item?.status || "—"}</p>
-        </div>
-        <div className="inline-actions">
-          <button className="ghost" onClick={() => react("endorse")}>Endorse</button>
-          <button className="ghost" onClick={() => react("oppose")}>Oppose</button>
-          <button className="ghost" onClick={() => react("neutral")}>Neutral</button>
-          <button className="primary" onClick={save}>Save revision</button>
-          <button className="ghost" onClick={() => transition("reviewed")}>Mark reviewed</button>
-          <button className="ghost" onClick={() => transition("ratified")}>Mark ratified</button>
-          <button className="primary" onClick={() => transition("published")}>Publish</button>
-          <button className="danger" onClick={() => transition("deprecated")}>Deprecate</button>
+          <p className="muted">Governed article workflow controls</p>
         </div>
       </div>
       {error && <InlineMessage tone="error" title="Request failed" body={error} />}
       {message && <InlineMessage tone="info" title="Update" body={message} />}
+      <ArtifactWorkflowActions workflow={workflow} busyActionId={busyActionId} onRunAction={handleAction} />
       <section className="card">
         <div className="form-grid">
           <label>
@@ -336,7 +417,7 @@ export default function ArtifactDetailPage({ workspaceId, workspaceRole }: { wor
           {(item?.published_to || []).length === 0 && <p className="muted">No publish bindings resolved.</p>}
         </div>
       </section>
-      <section className="card">
+      <section className="card" ref={revisionsRef}>
         <div className="card-header">
           <h3>Revision History</h3>
         </div>
@@ -416,6 +497,39 @@ export default function ArtifactDetailPage({ workspaceId, workspaceRole }: { wor
           ))}
         </div>
       </section>
+      {confirmingAction?.confirmation && (
+        <div className="modal-backdrop" onClick={() => setConfirmingAction(null)}>
+          <section className="modal" onClick={(event) => event.stopPropagation()}>
+            <h3>{confirmingAction.confirmation.title}</h3>
+            <p className="muted" style={{ marginTop: 8 }}>{confirmingAction.confirmation.body}</p>
+            {confirmingAction.id === "publish" && (
+              <p className="muted small" style={{ marginTop: 8 }}>
+                This action will make the article live on its configured publish targets.
+              </p>
+            )}
+            {confirmingAction.id === "deprecate" && (
+              <p className="muted small" style={{ marginTop: 8 }}>
+                Deprecated articles are retained for history and audit but removed from active workflows.
+              </p>
+            )}
+            <div className="inline-actions" style={{ marginTop: 12 }}>
+              <button className="ghost" onClick={() => setConfirmingAction(null)}>
+                Cancel
+              </button>
+              <button
+                className={confirmingAction.intent === "danger" ? "danger" : "primary"}
+                onClick={async () => {
+                  const next = confirmingAction;
+                  setConfirmingAction(null);
+                  await executeAction(next);
+                }}
+              >
+                {confirmingAction.confirmation.confirmLabel}
+              </button>
+            </div>
+          </section>
+        </div>
+      )}
     </>
   );
 }
