@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { useCallback, useEffect, useMemo, useState } from "react";
 import { useParams } from "react-router-dom";
 import { renderMarkdown } from "../../public/markdown";
 import {
@@ -17,6 +17,7 @@ import {
 } from "../../api/xyn";
 import type { ArticleDetail, ArticleRevision } from "../../api/types";
 import ArtifactWorkflowActions from "../components/workflow/ArtifactWorkflowActions";
+import MarkdownWysiwygEditor from "../components/editor/MarkdownWysiwygEditor";
 import EditorCentricLayout from "../layouts/EditorCentricLayout";
 import { resolveArtifactWorkflowActions, type WorkflowAction, type WorkflowActionId } from "../workflows/artifactWorkflow";
 import { computeLineDiff } from "../utils/textDiff";
@@ -38,8 +39,6 @@ type PendingAssist = {
 };
 
 type EditorSelection = {
-  start: number;
-  end: number;
   selectedText: string;
   contextBefore: string;
   contextAfter: string;
@@ -84,8 +83,8 @@ export default function ArtifactDetailPage({
   const [editorMode, setEditorMode] = useState<EditorMode>("edit");
   const [pendingAssist, setPendingAssist] = useState<PendingAssist | null>(null);
   const [editorSelection, setEditorSelection] = useState<EditorSelection | null>(null);
+  const [editorFocusSignal, setEditorFocusSignal] = useState(0);
   const [error, setError] = useState<string | null>(null);
-  const editorRef = useRef<HTMLTextAreaElement | null>(null);
   const { push } = useNotifications();
   const { startOperation, finishOperation } = useOperations();
 
@@ -95,23 +94,23 @@ export default function ArtifactDetailPage({
       .map((entry) => entry.trim())
       .filter(Boolean);
 
-  const handleEditorSelect = useCallback((target: HTMLTextAreaElement) => {
-    const start = target.selectionStart || 0;
-    const end = target.selectionEnd || 0;
-    if (end <= start) {
-      setEditorSelection(null);
-      return;
+  const handleEditorSelectionChange = useCallback((selection: EditorSelection | null) => {
+    setEditorSelection(selection);
+  }, []);
+
+  const applyRewriteSelection = useCallback((source: string, selectedText: string, rewrittenText: string): string => {
+    if (!selectedText.trim()) return source;
+    const directIndex = source.indexOf(selectedText);
+    if (directIndex >= 0) {
+      return `${source.slice(0, directIndex)}${rewrittenText}${source.slice(directIndex + selectedText.length)}`;
     }
-    const selectedText = bodyMarkdown.slice(start, end);
-    const contextRadius = 600;
-    setEditorSelection({
-      start,
-      end,
-      selectedText,
-      contextBefore: bodyMarkdown.slice(Math.max(0, start - contextRadius), start),
-      contextAfter: bodyMarkdown.slice(end, Math.min(bodyMarkdown.length, end + contextRadius)),
-    });
-  }, [bodyMarkdown]);
+    const escaped = selectedText.trim().replace(/[.*+?^${}()|[\]\\]/g, "\\$&").replace(/\s+/g, "\\s+");
+    const fuzzyMatch = source.match(new RegExp(escaped));
+    if (fuzzyMatch && fuzzyMatch.index !== undefined) {
+      return `${source.slice(0, fuzzyMatch.index)}${rewrittenText}${source.slice(fuzzyMatch.index + fuzzyMatch[0].length)}`;
+    }
+    throw new Error("Could not map the selected text into markdown. Try selecting a slightly larger span.");
+  }, []);
 
   const load = useCallback(async () => {
     if (!artifactId || !workspaceId) return;
@@ -162,7 +161,7 @@ export default function ArtifactDetailPage({
       if (!pendingAssist) return;
       setEditorMode("review");
       setActivityTab("ai");
-      editorRef.current?.focus();
+      setEditorFocusSignal((current) => current + 1);
     };
     window.addEventListener("xyn:notification-action", onToastAction as EventListener);
     return () => window.removeEventListener("xyn:notification-action", onToastAction as EventListener);
@@ -308,7 +307,7 @@ export default function ArtifactDetailPage({
       if (!rawBody) throw new Error("AI returned empty content.");
       const nextBody =
         mode === "rewrite_selection" && editorSelection
-          ? `${bodyMarkdown.slice(0, editorSelection.start)}${rawBody}${bodyMarkdown.slice(editorSelection.end)}`
+          ? applyRewriteSelection(bodyMarkdown, editorSelection.selectedText, rawBody)
           : rawBody;
       setPendingAssist({
         mode,
@@ -1109,16 +1108,13 @@ export default function ArtifactDetailPage({
         </section>
       )}
       <div className={`editor-body ${showPreview ? "split" : ""}`}>
-        <textarea
-          ref={editorRef}
-          className="input editor-textarea"
-          rows={24}
+        <MarkdownWysiwygEditor
           value={bodyMarkdown}
-          onChange={(event) => setBodyMarkdown(event.target.value)}
-          onSelect={(event) => handleEditorSelect(event.currentTarget)}
-          onKeyUp={(event) => handleEditorSelect(event.currentTarget)}
-          onMouseUp={(event) => handleEditorSelect(event.currentTarget)}
-          aria-label="Article editor markdown"
+          onChange={setBodyMarkdown}
+          onSelectionChange={handleEditorSelectionChange}
+          ariaLabel="Article editor"
+          placeholder="Write the article content..."
+          focusSignal={editorFocusSignal}
         />
         {showPreview && <div className="editor-preview markdown-body" dangerouslySetInnerHTML={{ __html: renderMarkdown(bodyMarkdown) }} />}
       </div>

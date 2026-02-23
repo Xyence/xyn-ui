@@ -1414,8 +1414,81 @@ button.sm {
   grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
 }
 
-.editor-textarea {
+.article-wysiwyg {
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  background: #fff;
   min-height: 520px;
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+}
+
+.article-wysiwyg-toolbar {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  align-items: center;
+  padding: 10px 10px 8px;
+  border-bottom: 1px solid var(--border);
+  background: #f8fbff;
+  border-top-left-radius: 10px;
+  border-top-right-radius: 10px;
+}
+
+.editor-tool-button.active {
+  background: #e3eeff;
+  color: var(--accent);
+  border-color: #bfd5ff;
+}
+
+.article-wysiwyg-content {
+  min-height: 460px;
+  flex: 1 1 auto;
+  padding: 14px;
+  line-height: 1.6;
+  outline: none;
+  overflow: auto;
+}
+
+.article-wysiwyg-content p.is-editor-empty:first-child::before {
+  color: var(--muted);
+  content: attr(data-placeholder);
+  float: left;
+  height: 0;
+  pointer-events: none;
+}
+
+.article-wysiwyg-content h1,
+.article-wysiwyg-content h2,
+.article-wysiwyg-content h3 {
+  margin: 1em 0 0.45em;
+  line-height: 1.25;
+}
+
+.article-wysiwyg-content ul,
+.article-wysiwyg-content ol {
+  padding-left: 1.2em;
+}
+
+.article-wysiwyg-content blockquote {
+  border-left: 3px solid #d6e3f8;
+  margin: 0.8em 0;
+  padding-left: 0.8em;
+  color: #3f5066;
+}
+
+.article-wysiwyg-content pre {
+  background: #f5f8fc;
+  border-radius: 8px;
+  padding: 0.7em 0.8em;
+  overflow-x: auto;
+}
+
+.article-wysiwyg-content code {
+  background: #f5f8fc;
+  border-radius: 4px;
+  padding: 0.1em 0.25em;
 }
 
 .editor-preview {
