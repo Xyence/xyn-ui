@@ -50,6 +50,7 @@ import NotificationBell from "./components/notifications/NotificationBell";
 import ToastHost from "./components/notifications/ToastHost";
 import AgentActivityDrawer from "./components/activity/AgentActivityDrawer";
 import { useNotifications } from "./state/notificationsStore";
+import { useOperations } from "./state/operationRegistry";
 import HelpDrawer from "./components/help/HelpDrawer";
 import TourOverlay from "./components/help/TourOverlay";
 import { resolveRouteId } from "./help/routeHelp";
@@ -73,6 +74,7 @@ export default function AppShell() {
   const [tourLaunchToken, setTourLaunchToken] = useState(0);
   const [agentActivityOpen, setAgentActivityOpen] = useState(false);
   const { push } = useNotifications();
+  const { runningAiCount } = useOperations();
 
   useEffect(() => {
     let mounted = true;
@@ -268,11 +270,15 @@ export default function AppShell() {
               <NotificationBell />
               <button
                 type="button"
-                className="ghost notification-bell"
-                aria-label="Agent activity"
+                className={`ghost notification-bell agent-indicator ${runningAiCount > 0 ? "thinking" : ""}`}
+                aria-label={runningAiCount > 0 ? `Agent activity, ${runningAiCount} AI operation in progress` : "Agent activity"}
                 onClick={() => setAgentActivityOpen((prev) => !prev)}
               >
                 <Bot size={16} />
+                {runningAiCount > 0 && <span className="agent-indicator-dot" aria-hidden="true" />}
+                <span className="sr-only" aria-live="polite">
+                  {runningAiCount > 0 ? "AI operation in progress" : "No AI operations in progress"}
+                </span>
               </button>
               <UserMenu
                 user={authUser || {}}
@@ -280,6 +286,7 @@ export default function AppShell() {
                 onAgentActivity={() => setAgentActivityOpen(true)}
                 onSignOut={signOut}
               />
+              {runningAiCount > 0 && <span className="agent-thinking-label">Thinking…</span>}
             </>
           ) : (
             <button className="ghost" onClick={startLogin}>

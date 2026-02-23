@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useParams } from "react-router-dom";
 import InlineMessage from "../../components/InlineMessage";
 import { renderMarkdown } from "../../public/markdown";
@@ -21,16 +21,29 @@ import ArtifactWorkflowActions from "../components/workflow/ArtifactWorkflowActi
 import EditorCentricLayout from "../layouts/EditorCentricLayout";
 import { resolveArtifactWorkflowActions, type WorkflowAction, type WorkflowActionId } from "../workflows/artifactWorkflow";
 import { computeLineDiff } from "../utils/textDiff";
+import { useNotifications } from "../state/notificationsStore";
+import { useOperations } from "../state/operationRegistry";
+import { canRewriteSelection, resolveAssistPrimaryAction } from "./articleAssistLogic";
 
 type ActivityTab = "revisions" | "ai" | "discussion";
 type RevisionMode = "list" | "view" | "diff";
+type EditorMode = "edit" | "review";
+const REVIEW_TOAST_ACTION = "article.ai.review";
 
 type PendingAssist = {
-  mode: "draft" | "rewrite" | "edits";
+  mode: "generate_draft" | "propose_edits" | "rewrite_selection";
   body: string;
   provider?: string;
   model?: string;
   agent_slug?: string;
+};
+
+type EditorSelection = {
+  start: number;
+  end: number;
+  selectedText: string;
+  contextBefore: string;
+  contextAfter: string;
 };
 
 export default function ArtifactDetailPage({
@@ -68,15 +81,37 @@ export default function ArtifactDetailPage({
   const [baselineBody, setBaselineBody] = useState("");
   const [baselineLabel, setBaselineLabel] = useState("latest saved revision");
   const [showPreview, setShowPreview] = useState(false);
+  const [editorMode, setEditorMode] = useState<EditorMode>("edit");
   const [pendingAssist, setPendingAssist] = useState<PendingAssist | null>(null);
-  const [message, setMessage] = useState<string | null>(null);
+  const [editorSelection, setEditorSelection] = useState<EditorSelection | null>(null);
   const [error, setError] = useState<string | null>(null);
+  const editorRef = useRef<HTMLTextAreaElement | null>(null);
+  const { push } = useNotifications();
+  const { startOperation, finishOperation } = useOperations();
 
   const parseCsv = (value: string): string[] =>
     value
       .split(",")
       .map((entry) => entry.trim())
       .filter(Boolean);
+
+  const handleEditorSelect = useCallback((target: HTMLTextAreaElement) => {
+    const start = target.selectionStart || 0;
+    const end = target.selectionEnd || 0;
+    if (end <= start) {
+      setEditorSelection(null);
+      return;
+    }
+    const selectedText = bodyMarkdown.slice(start, end);
+    const contextRadius = 600;
+    setEditorSelection({
+      start,
+      end,
+      selectedText,
+      contextBefore: bodyMarkdown.slice(Math.max(0, start - contextRadius), start),
+      contextAfter: bodyMarkdown.slice(end, Math.min(bodyMarkdown.length, end + contextRadius)),
+    });
+  }, [bodyMarkdown]);
 
   const load = useCallback(async () => {
     if (!artifactId || !workspaceId) return;
@@ -107,6 +142,7 @@ export default function ArtifactDetailPage({
       setBaselineBody(initialBody);
       setBaselineLabel(latestRevision ? `r${latestRevision.revision_number}` : "latest saved revision");
       setPendingAssist(null);
+      setEditorMode("edit");
       if (latestRevision?.id) {
         setSelectedRevisionId(latestRevision.id);
       }
@@ -118,6 +154,19 @@ export default function ArtifactDetailPage({
   useEffect(() => {
     void load();
   }, [load]);
+
+  useEffect(() => {
+    const onToastAction = (event: Event) => {
+      const detail = (event as CustomEvent<{ action?: string }>).detail || {};
+      if (detail.action !== REVIEW_TOAST_ACTION) return;
+      if (!pendingAssist) return;
+      setEditorMode("review");
+      setActivityTab("ai");
+      editorRef.current?.focus();
+    };
+    window.addEventListener("xyn:notification-action", onToastAction as EventListener);
+    return () => window.removeEventListener("xyn:notification-action", onToastAction as EventListener);
+  }, [pendingAssist]);
 
   useEffect(() => {
     let mounted = true;
@@ -144,7 +193,6 @@ export default function ArtifactDetailPage({
   const save = async () => {
     if (!artifactId) return;
     try {
-      setMessage(null);
       setError(null);
       await updateArticle(artifactId, {
         category,
@@ -159,7 +207,15 @@ export default function ArtifactDetailPage({
         source: "manual",
       });
       await load();
-      setMessage("Saved as new revision.");
+      push({
+        level: "success",
+        title: "Revision saved",
+        message: "Saved as new revision.",
+        status: "succeeded",
+        action: "article.save",
+        entityType: "unknown",
+        entityId: artifactId,
+      });
     } catch (err) {
       setError((err as Error).message);
     }
@@ -169,12 +225,27 @@ export default function ArtifactDetailPage({
     if (!artifactId) return;
     try {
       setError(null);
-      setMessage(null);
       const result = await convertArticleHtmlToMarkdown(artifactId);
       if (result.converted) {
-        setMessage("Converted legacy HTML body to markdown and created a new revision.");
+        push({
+          level: "success",
+          title: "Converted to markdown",
+          message: "Created a new revision from legacy HTML.",
+          status: "succeeded",
+          action: "article.convert_html",
+          entityType: "unknown",
+          entityId: artifactId,
+        });
       } else {
-        setMessage(result.reason === "already_markdown" ? "Article already has markdown content." : "No conversion was needed.");
+        push({
+          level: "info",
+          title: "No conversion needed",
+          message: result.reason === "already_markdown" ? "Article already has markdown content." : "No conversion was needed.",
+          status: "succeeded",
+          action: "article.convert_html",
+          entityType: "unknown",
+          entityId: artifactId,
+        });
       }
       await load();
     } catch (err) {
@@ -182,30 +253,63 @@ export default function ArtifactDetailPage({
     }
   };
 
-  const runAssist = async (mode: "draft" | "rewrite" | "edits") => {
+  const runAssist = async (mode: "generate_draft" | "propose_edits" | "rewrite_selection") => {
     if (!artifactId) return;
     if (!selectedAgent) {
       setError("No documentation agent selected. Configure one in Platform -> AI -> Agents.");
       return;
     }
+    if (mode === "rewrite_selection" && !editorSelection) return;
+    const opId = `${artifactId}:${mode}:${Date.now()}`;
+    startOperation({
+      id: opId,
+      type: "ai",
+      label: mode === "generate_draft" ? "Generate draft" : mode === "propose_edits" ? "Propose edits" : "Rewrite selection",
+      entityType: "article",
+      entityId: artifactId,
+    });
     try {
       setError(null);
-      setMessage(null);
       setAssistBusy(true);
+      push({
+        level: "info",
+        title: "AI thinking",
+        message: "Generating proposal…",
+        status: "queued",
+        action: "article.ai",
+        entityType: "unknown",
+        entityId: artifactId,
+        dedupeKey: `article-ai:${artifactId}:${mode}`,
+      });
       localStorage.setItem("xyn.articleAiAgentSlug", selectedAgent);
       const prompt =
-        mode === "draft"
+        mode === "generate_draft"
           ? `Draft article content from this idea. Return markdown only. Idea:\n${assistInstruction || summary || item?.title || ""}`
-          : mode === "rewrite"
-            ? `Rewrite this article for clarity. Keep meaning and output markdown only.\n\n${bodyMarkdown}`
-            : `Suggest edits and provide an improved markdown version.\n\n${bodyMarkdown}`;
+          : mode === "rewrite_selection" && editorSelection
+            ? [
+                "Rewrite only the selected region and preserve all intent.",
+                "Return only the rewritten selected text. Do not include markdown fences or commentary.",
+                `Instruction: ${assistInstruction || "Improve clarity and flow."}`,
+                "Selected text:",
+                editorSelection.selectedText,
+                "Context before:",
+                editorSelection.contextBefore,
+                "Context after:",
+                editorSelection.contextAfter,
+              ].join("\n\n")
+            : `Suggest edits and provide an improved markdown version.\n\nInstruction: ${assistInstruction || "Improve clarity and readability."}\n\n${bodyMarkdown}`;
+      const modeForApi = mode === "generate_draft" ? "draft" : mode === "rewrite_selection" ? "rewrite" : "edits";
       const result = await invokeAi({
         agent_slug: selectedAgent,
         messages: [{ role: "user", content: prompt }],
-        metadata: { feature: "articles_ai_assist", artifact_id: artifactId, workspace_id: workspaceId, mode },
+        metadata: { feature: "articles_ai_assist", artifact_id: artifactId, workspace_id: workspaceId, mode: modeForApi },
       });
-      const nextBody = String(result.content || "").trim();
-      if (!nextBody) throw new Error("AI returned empty content.");
+      const rawBody = String(result.content || "").trim();
+      if (!rawBody) throw new Error("AI returned empty content.");
+      const nextBody =
+        mode === "rewrite_selection" && editorSelection
+          ? `${bodyMarkdown.slice(0, editorSelection.start)}${rawBody}${bodyMarkdown.slice(editorSelection.end)}`
+          : rawBody;
       setPendingAssist({
         mode,
         body: nextBody,
@@ -213,9 +317,40 @@ export default function ArtifactDetailPage({
         model: result.model,
         agent_slug: result.agent_slug,
       });
+      setEditorMode("review");
       setActivityTab("ai");
-      setMessage("AI draft ready. Review diff and accept or reject.");
+      finishOperation({
+        id: opId,
+        status: "succeeded",
+        summary: "AI suggestion ready",
+      });
+      push({
+        level: "success",
+        title: "AI suggestion ready",
+        message: "Review changes in Article Editor.",
+        status: "succeeded",
+        action: "article.ai",
+        entityType: "unknown",
+        entityId: artifactId,
+        ctaLabel: "Review changes",
+        ctaAction: REVIEW_TOAST_ACTION,
+        dedupeKey: `article-ai:${artifactId}:${mode}`,
+      });
     } catch (err) {
+      finishOperation({
+        id: opId,
+        status: "failed",
+        summary: (err as Error).message,
+      });
+      push({
+        level: "error",
+        title: "AI assist failed",
+        message: (err as Error).message,
+        status: "failed",
+        action: "article.ai",
+        entityType: "unknown",
+        entityId: artifactId,
+      });
       setError((err as Error).message);
     } finally {
       setAssistBusy(false);
@@ -236,13 +371,27 @@ export default function ArtifactDetailPage({
           provider: pendingAssist.provider,
           model_name: pendingAssist.model,
           invoked_at: new Date().toISOString(),
-          mode: pendingAssist.mode,
+          mode:
+            pendingAssist.mode === "generate_draft"
+              ? "draft"
+              : pendingAssist.mode === "rewrite_selection"
+                ? "rewrite"
+                : "edits",
         },
       });
       setBodyMarkdown(pendingAssist.body);
       setPendingAssist(null);
+      setEditorMode("edit");
       await load();
-      setMessage("AI changes accepted and saved as a new revision.");
+      push({
+        level: "success",
+        title: "AI changes applied",
+        message: "Saved as a new revision.",
+        status: "succeeded",
+        action: "article.ai.apply",
+        entityType: "unknown",
+        entityId: artifactId,
+      });
     } catch (err) {
       setError((err as Error).message);
     }
@@ -308,7 +457,15 @@ export default function ArtifactDetailPage({
       });
       setRestoreRevisionId(null);
       await load();
-      setMessage(`Restored r${revision.revision_number} as a new revision.`);
+      push({
+        level: "success",
+        title: "Revision restored",
+        message: `Restored r${revision.revision_number} as a new revision.`,
+        status: "succeeded",
+        action: "article.restore",
+        entityType: "unknown",
+        entityId: artifactId,
+      });
     } catch (err) {
       setError((err as Error).message);
     }
@@ -375,12 +532,14 @@ export default function ArtifactDetailPage({
   }, [bodyMarkdown, pendingAssist]);
 
   const drift = useMemo(() => computeLineDiff(baselineBody, bodyMarkdown), [baselineBody, bodyMarkdown]);
+  const hasBodyContent = Boolean(bodyMarkdown.trim() || revisions.length > 0);
+  const primaryAssistAction = resolveAssistPrimaryAction(hasBodyContent);
+  const selectionLength = editorSelection?.selectedText.length || 0;
 
   const executeAction = async (action: WorkflowAction) => {
     try {
       setBusyActionId(action.id);
       setError(null);
-      setMessage(null);
       switch (action.id) {
         case "save_revision":
           await save();
@@ -568,46 +727,49 @@ export default function ArtifactDetailPage({
       </label>
       <label>
         Idea / instruction
-        <textarea className="input" rows={4} value={assistInstruction} onChange={(event) => setAssistInstruction(event.target.value)} />
+        <textarea
+          className="input"
+          rows={4}
+          value={assistInstruction}
+          placeholder="What should the assistant do? e.g., tighten intro, add examples, change tone..."
+          onChange={(event) => setAssistInstruction(event.target.value)}
+        />
       </label>
-      <div className="inline-actions">
-        <button className="ghost" type="button" onClick={() => void runAssist("draft")} disabled={assistBusy || !selectedAgent}>
-          Draft from idea
+      {selectionLength > 0 && <p className="muted small selection-chip">Selection: {selectionLength} chars</p>}
+      <div className="inline-actions ai-assist-actions">
+        <button
+          className="primary sm"
+          type="button"
+          onClick={() => void runAssist(primaryAssistAction)}
+          disabled={assistBusy || !selectedAgent}
+        >
+          {assistBusy ? "Thinking…" : primaryAssistAction === "generate_draft" ? "Generate draft" : "Propose edits"}
         </button>
-        <button className="ghost" type="button" onClick={() => void runAssist("rewrite")} disabled={assistBusy || !selectedAgent}>
-          Rewrite section
-        </button>
-        <button className="ghost" type="button" onClick={() => void runAssist("edits")} disabled={assistBusy || !selectedAgent}>
-          Suggest edits
+        {primaryAssistAction !== "propose_edits" && (
+          <button className="ghost sm" type="button" onClick={() => void runAssist("propose_edits")} disabled={assistBusy || !selectedAgent}>
+            Propose edits
+          </button>
+        )}
+        <button
+          className="ghost sm"
+          type="button"
+          title={canRewriteSelection(selectionLength) ? "Rewrite selected text" : "Select text in the article to enable"}
+          onClick={() => void runAssist("rewrite_selection")}
+          disabled={assistBusy || !selectedAgent || !canRewriteSelection(selectionLength)}
+        >
+          Rewrite selection
         </button>
       </div>
+      <p className="muted small">AI proposals never overwrite your article until you apply changes.</p>
       {pendingAssist && (
         <section className="diff-panel">
-          <h4>AI proposal ({pendingAssist.mode})</h4>
+          <h4>Latest proposal: ready</h4>
           <p className="muted small">
             {pendingAssist.agent_slug} · {pendingAssist.provider} {pendingAssist.model}
           </p>
-          {pendingAssistDiff && (
-            <p className="muted small">
-              +{pendingAssistDiff.summary.added} / -{pendingAssistDiff.summary.removed} lines changed
-            </p>
-          )}
-          <div className="line-diff">
-            {(pendingAssistDiff?.ops || []).map((op, idx) => (
-              <pre key={`${idx}-${op.type}`} className={`line-diff-row ${op.type}`}>
-                <span>{op.type === "add" ? "+" : op.type === "remove" ? "-" : " "}</span>
-                {op.text}
-              </pre>
-            ))}
-          </div>
-          <div className="inline-actions">
-            <button className="primary" type="button" onClick={() => void acceptAssist()}>
-              Accept and save revision
-            </button>
-            <button className="ghost" type="button" onClick={() => setPendingAssist(null)}>
-              Reject
-            </button>
-          </div>
+          <button className="ghost sm" type="button" onClick={() => setEditorMode("review")}>
+            Review in editor
+          </button>
         </section>
       )}
     </div>
@@ -799,7 +961,6 @@ export default function ArtifactDetailPage({
         </div>
       </div>
       {error && <InlineMessage tone="error" title="Request failed" body={error} />}
-      {message && <InlineMessage tone="info" title="Update" body={message} />}
       <ArtifactWorkflowActions workflow={workflow} busyActionId={busyActionId} onRunAction={handleAction} />
     </div>
   );
@@ -807,19 +968,72 @@ export default function ArtifactDetailPage({
   const mainSection = (
     <div className="stack">
       <div className="card-header">
-        <h3>Body Markdown</h3>
+        <h3>Article Editor</h3>
         <div className="inline-actions editor-header-actions">
           <span className="muted small editor-drift-text">
             Drift from {baselineLabel}: +{drift.summary.added} / -{drift.summary.removed}
           </span>
+          {pendingAssist && (
+            <button className={`ghost sm ${editorMode === "review" ? "active" : ""}`} type="button" onClick={() => setEditorMode("review")}>
+              Review proposal
+            </button>
+          )}
+          {pendingAssist && editorMode === "review" && (
+            <button className="ghost sm" type="button" onClick={() => setEditorMode("edit")}>
+              Back to edit
+            </button>
+          )}
           <label className="checkbox-row">
             <input type="checkbox" checked={showPreview} onChange={(event) => setShowPreview(event.target.checked)} />
             Preview
           </label>
         </div>
       </div>
+      {editorMode === "review" && pendingAssist && (
+        <section className="diff-panel article-review-panel">
+          <div className="card-header">
+            <h4>Suggested edits</h4>
+            <span className="muted small">
+              +{pendingAssistDiff?.summary.added || 0} / -{pendingAssistDiff?.summary.removed || 0} lines
+            </span>
+          </div>
+          <div className="line-diff article-review-diff">
+            {(pendingAssistDiff?.ops || []).map((op, idx) => (
+              <pre key={`${idx}-${op.type}`} className={`line-diff-row ${op.type}`}>
+                <span>{op.type === "add" ? "+" : op.type === "remove" ? "-" : " "}</span>
+                {op.text}
+              </pre>
+            ))}
+          </div>
+          <div className="inline-actions">
+            <button className="primary" type="button" onClick={() => void acceptAssist()}>
+              Apply changes
+            </button>
+            <button
+              className="ghost"
+              type="button"
+              onClick={() => {
+                setPendingAssist(null);
+                setEditorMode("edit");
+              }}
+            >
+              Discard
+            </button>
+          </div>
+        </section>
+      )}
       <div className={`editor-body ${showPreview ? "split" : ""}`}>
-        <textarea className="input editor-textarea" rows={24} value={bodyMarkdown} onChange={(event) => setBodyMarkdown(event.target.value)} />
+        <textarea
+          ref={editorRef}
+          className="input editor-textarea"
+          rows={24}
+          value={bodyMarkdown}
+          onChange={(event) => setBodyMarkdown(event.target.value)}
+          onSelect={(event) => handleEditorSelect(event.currentTarget)}
+          onKeyUp={(event) => handleEditorSelect(event.currentTarget)}
+          onMouseUp={(event) => handleEditorSelect(event.currentTarget)}
+          aria-label="Article editor markdown"
+        />
         {showPreview && <div className="editor-preview markdown-body" dangerouslySetInnerHTML={{ __html: renderMarkdown(bodyMarkdown) }} />}
       </div>
     </div>

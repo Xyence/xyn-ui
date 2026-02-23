@@ -84,6 +84,35 @@ export default function ToastHost() {
       <div className="global-toast-body">
         <strong>{active.title}</strong>
         {active.message && <span>{active.message}</span>}
+        {(active.ctaLabel || active.href) && (
+          <div className="global-toast-cta-row">
+            {active.ctaAction && active.ctaLabel && (
+              <button
+                type="button"
+                className="ghost small toast-cta-button"
+                onClick={() => {
+                  window.dispatchEvent(
+                    new CustomEvent("xyn:notification-action", {
+                      detail: {
+                        id: active.id,
+                        action: active.ctaAction,
+                      },
+                    })
+                  );
+                  markRead(active.id);
+                  setActive(null);
+                }}
+              >
+                {active.ctaLabel}
+              </button>
+            )}
+            {!active.ctaAction && active.href && active.ctaLabel && (
+              <a className="ghost small toast-cta-button" href={active.href}>
+                {active.ctaLabel}
+              </a>
+            )}
+          </div>
+        )}
       </div>
       <button
         type="button"

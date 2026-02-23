@@ -35,6 +35,8 @@ export type NotificationItem = {
   action?: string;
   status?: NotificationStatus;
   href?: string;
+  ctaLabel?: string;
+  ctaAction?: string;
   dedupeKey?: string;
   unread: boolean;
   version: number;
@@ -86,6 +88,8 @@ export function makeNotification(input: NotificationInput): NotificationItem {
     action: input.action,
     status: input.status,
     href: input.href,
+    ctaLabel: input.ctaLabel,
+    ctaAction: input.ctaAction,
     dedupeKey: input.dedupeKey,
     unread: input.unread ?? true,
     version: input.version ?? 1,

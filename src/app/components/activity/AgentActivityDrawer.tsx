@@ -2,6 +2,7 @@ import { useEffect, useMemo, useState } from "react";
 import { Bot, RefreshCw, X } from "lucide-react";
 import { listAiActivity } from "../../../api/xyn";
 import type { AiActivityEntry } from "../../../api/types";
+import { useOperations } from "../../state/operationRegistry";
 
 type Props = {
   open: boolean;
@@ -26,6 +27,7 @@ export default function AgentActivityDrawer({ open, onClose, workspaceId, artifa
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [artifactOnly, setArtifactOnly] = useState(Boolean(artifactId));
+  const { operations } = useOperations();
 
   useEffect(() => {
     setArtifactOnly(Boolean(artifactId));
@@ -57,6 +59,7 @@ export default function AgentActivityDrawer({ open, onClose, workspaceId, artifa
   }, [open, workspaceId, artifactId, artifactOnly]);
 
   const badgeCount = useMemo(() => items.filter((item) => item.status === "running").length, [items]);
+  const runningOps = useMemo(() => operations.filter((entry) => entry.status === "running"), [operations]);
 
   return (
     <>
@@ -83,6 +86,18 @@ export default function AgentActivityDrawer({ open, onClose, workspaceId, artifa
           </button>
         </div>
         <div className="notification-list">
+          {runningOps.length > 0 && (
+            <section className="notification-item running-ops-card" aria-label="Currently running operations">
+              <div className="notification-text">
+                <strong>Currently running</strong>
+                {runningOps.map((entry) => (
+                  <span key={entry.id} className="muted small">
+                    {entry.type.toUpperCase()} · {entry.label}
+                  </span>
+                ))}
+              </div>
+            </section>
+          )}
           {loading && <p className="muted">Loading activity…</p>}
           {error && <p className="muted">{error}</p>}
           {!loading && !error && items.length === 0 && <p className="muted">No agent activity yet.</p>}
