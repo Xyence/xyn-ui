@@ -1,7 +1,8 @@
 import { useEffect, useMemo, useState } from "react";
-import { Navigate, useLocation } from "react-router-dom";
+import { useLocation } from "react-router-dom";
 import { fetchPublicPage, fetchPublicPageSections } from "../../api/public";
 import { useMenuItems } from "../PublicShell";
+import ArticlesIndex from "./ArticlesIndex";
 import SectionRenderer from "../SectionRenderer";
 import type { Page, WebSection } from "../types";
 
@@ -26,6 +27,11 @@ export default function PageRoute() {
   }, [location.pathname, match]);
 
   useEffect(() => {
+    if (match?.kind === "articles_index") {
+      setLoading(false);
+      setError(null);
+      return;
+    }
     if (!slug || slug === "home") {
       setLoading(false);
       return;
@@ -50,7 +56,9 @@ export default function PageRoute() {
     return () => {
       active = false;
     };
-  }, [slug]);
+  }, [slug, match?.kind]);
+
+  if (match?.kind === "articles_index") return <ArticlesIndex surfacePathOverride={location.pathname} />;
 
   if (loading) {
     return <p className="muted">Loading...</p>;
@@ -58,10 +66,6 @@ export default function PageRoute() {
 
   if (error) {
     return <p className="muted">{error}</p>;
-  }
-
-  if (match?.kind === "articles_index") {
-    return <Navigate to="/articles" replace />;
   }
 
   if (!sections.length) {

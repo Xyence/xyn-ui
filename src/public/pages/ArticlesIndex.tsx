@@ -1,17 +1,20 @@
 import { useEffect, useMemo, useState } from "react";
-import { Link } from "react-router-dom";
-import { useParams } from "react-router-dom";
+import { Link, useParams } from "react-router-dom";
 import { fetchPublicArticles } from "../../api/public";
 import { useMenuItems } from "../PublicShell";
 import type { PublicArticleSummary } from "../types";
 
-export default function ArticlesIndex() {
+type ArticlesIndexProps = {
+  surfacePathOverride?: string;
+};
+
+export default function ArticlesIndex({ surfacePathOverride }: ArticlesIndexProps) {
   const { category } = useParams();
   const [articles, setArticles] = useState<PublicArticleSummary[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const menuItems = useMenuItems();
-  const surfacePath = category ? `/${category}` : "/articles";
+  const surfacePath = surfacePathOverride || (category ? `/${category}` : "/articles");
 
   const menuLabel = useMemo(() => {
     const label = menuItems.find((item) => item.path === surfacePath)?.label;
