@@ -1252,11 +1252,18 @@ button.sm {
 }
 
 .revision-list {
+  flex: 1 1 auto;
+  min-height: 0;
   gap: 8px;
-  max-height: 360px;
+  max-height: none;
   overflow-y: auto;
   overflow-x: hidden;
   padding-right: 2px;
+}
+
+.revision-panel {
+  flex: 1 1 auto;
+  min-height: 0;
 }
 
 .revision-row {

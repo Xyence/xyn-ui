@@ -450,7 +450,7 @@ export default function ArtifactDetailPage({
   };
 
   const revisionPanel = (
-    <div className="stack">
+    <div className="stack revision-panel">
       <div className="card-header">
         <h3>Revision History</h3>
       </div>
