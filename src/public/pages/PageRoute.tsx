@@ -26,8 +26,20 @@ export default function PageRoute() {
     return trimmed || "home";
   }, [location.pathname, match]);
 
+  const isCategorySurfaceRoute = useMemo(() => {
+    if (match?.kind) return false;
+    const normalized = location.pathname.replace(/^\/+|\/+$/g, "");
+    if (!normalized) return false;
+    return normalized.split("/").length === 1;
+  }, [location.pathname, match?.kind]);
+
   useEffect(() => {
     if (!menuLoaded) {
+      return;
+    }
+    if (isCategorySurfaceRoute) {
+      setLoading(false);
+      setError(null);
       return;
     }
     if (match?.kind === "articles_index") {
@@ -59,9 +71,10 @@ export default function PageRoute() {
     return () => {
       active = false;
     };
-  }, [slug, match?.kind, menuLoaded]);
+  }, [slug, match?.kind, menuLoaded, isCategorySurfaceRoute]);
 
   if (match?.kind === "articles_index") return <ArticlesIndex surfacePathOverride={location.pathname} />;
+  if (isCategorySurfaceRoute) return <ArticlesIndex surfacePathOverride={location.pathname} />;
 
   if (!menuLoaded) {
     return <p className="muted">Loading...</p>;
