@@ -245,6 +245,7 @@ export default function ArtifactDetailPage({
   const selectedCategoryMeta = categoryOptions.find((entry) => entry.slug === category) || null;
   const isDeprecatedCategory = Boolean(selectedCategoryMeta && !selectedCategoryMeta.enabled);
   const selectableCategoryOptions = categoryOptions.filter((entry) => entry.enabled);
+  const origin = typeof window !== "undefined" ? window.location.origin : "";
   const canSaveRevision = workspaceRole !== "reader";
   const canReact = workspaceRole !== "reader";
   const workflow = useMemo(
@@ -321,6 +322,22 @@ export default function ArtifactDetailPage({
       return;
     }
     await executeAction(action);
+  };
+
+  const resolvePublishedUrl = (entry: NonNullable<ArticleDetail["published_to"]>[number]) => {
+    if (!item) return "";
+    const value = String(entry.target_value || "").trim();
+    if (!value) return "";
+    if (entry.target_type === "external_url") return value;
+    if (!origin) return value;
+    if (entry.target_type === "public_web_path") {
+      const base = value.replace(/\/+$/, "");
+      if (base === "/articles" && item.slug) {
+        return `${origin}${base}/${encodeURIComponent(item.slug)}`;
+      }
+      return `${origin}${base}`;
+    }
+    return `${origin}${value.startsWith("/") ? value : `/${value}`}`;
   };
 
   return (
@@ -404,16 +421,30 @@ export default function ArtifactDetailPage({
           <h3>Published to</h3>
         </div>
         <div className="instance-list">
-          {(item?.published_to || []).map((entry) => (
-            <div className="instance-row" key={`${entry.source}-${entry.target_type}-${entry.target_value}`}>
-              <div>
-                <strong>{entry.label}</strong>
-                <span className="muted small">
-                  {entry.target_type} · {entry.target_value} · {entry.source === "category" ? "Inherited (Category)" : "Article-specific"}
-                </span>
+          {(item?.published_to || []).map((entry) => {
+            const url = resolvePublishedUrl(entry);
+            return (
+              <div className="instance-row" key={`${entry.source}-${entry.target_type}-${entry.target_value}`}>
+                <div>
+                  <strong>{entry.label}</strong>
+                  <span className="muted small">
+                    {entry.target_type} · {entry.target_value} · {entry.source === "category" ? "Inherited (Category)" : "Article-specific"}
+                  </span>
+                  {url && (
+                    <a
+                      className="muted small"
+                      href={url}
+                      target="_blank"
+                      rel="noreferrer noopener"
+                      style={{ display: "block", marginTop: 4 }}
+                    >
+                      {url}
+                    </a>
+                  )}
+                </div>
               </div>
-            </div>
-          ))}
+            );
+          })}
           {(item?.published_to || []).length === 0 && <p className="muted">No publish bindings resolved.</p>}
         </div>
       </section>
