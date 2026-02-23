@@ -1262,6 +1262,22 @@ export type ArtifactEventSummary = {
   created_at?: string;
 };
 
+export type AiActivityEntry = {
+  id: string;
+  event_type: string;
+  status: "running" | "succeeded" | "failed";
+  summary?: string;
+  created_at?: string;
+  actor_id?: string | null;
+  agent_slug?: string;
+  provider?: "openai" | "anthropic" | "google" | string;
+  model_name?: string;
+  artifact_id?: string;
+  artifact_type?: string;
+  artifact_title?: string;
+  source?: "audit_log" | "artifact_event";
+};
+
 export type WorkspaceMembershipSummary = {
   id: string;
   workspace_id: string;

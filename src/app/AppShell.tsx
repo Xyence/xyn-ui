@@ -1,5 +1,6 @@
 import { useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
 import { Navigate, Route, Routes, useLocation, useNavigate } from "react-router-dom";
+import { Bot } from "lucide-react";
 import { getMe, getMyProfile, getTenantBranding, listWorkspaces } from "../api/xyn";
 import { NAV_GROUPS, NavUserContext } from "./nav/nav.config";
 import { getBreadcrumbs, visibleNav } from "./nav/nav.utils";
@@ -47,6 +48,7 @@ import ReportOverlay from "./components/ReportOverlay";
 import UserMenu from "./components/common/UserMenu";
 import NotificationBell from "./components/notifications/NotificationBell";
 import ToastHost from "./components/notifications/ToastHost";
+import AgentActivityDrawer from "./components/activity/AgentActivityDrawer";
 import { useNotifications } from "./state/notificationsStore";
 import HelpDrawer from "./components/help/HelpDrawer";
 import TourOverlay from "./components/help/TourOverlay";
@@ -69,6 +71,7 @@ export default function AppShell() {
   const [helpOpen, setHelpOpen] = useState(false);
   const [tourSlug, setTourSlug] = useState<string | null>(null);
   const [tourLaunchToken, setTourLaunchToken] = useState(0);
+  const [agentActivityOpen, setAgentActivityOpen] = useState(false);
   const { push } = useNotifications();
 
   useEffect(() => {
@@ -164,6 +167,11 @@ export default function AppShell() {
     return getBreadcrumbs(location.pathname, allowed);
   }, [location.pathname, navUser]);
   const routeId = useMemo(() => resolveRouteId(location.pathname), [location.pathname]);
+  const artifactRouteId = useMemo(() => {
+    const match = location.pathname.match(/^\/app\/artifacts\/([^/]+)/);
+    const candidate = match?.[1] || "";
+    return /^[0-9a-f-]{36}$/i.test(candidate) ? candidate : "";
+  }, [location.pathname]);
 
   useGlobalHotkeys((event) => {
     const target = event.target as HTMLElement | null;
@@ -176,9 +184,16 @@ export default function AppShell() {
     }
     const metaOrCtrl = event.metaKey || event.ctrlKey;
     if (!metaOrCtrl || !event.shiftKey) return;
-    if (event.key.toLowerCase() !== "b") return;
-    event.preventDefault();
-    setReportOpen(true);
+    const hotkey = event.key.toLowerCase();
+    if (hotkey === "a") {
+      event.preventDefault();
+      setAgentActivityOpen((prev) => !prev);
+      return;
+    }
+    if (hotkey === "b") {
+      event.preventDefault();
+      setReportOpen(true);
+    }
   });
 
   useEffect(() => {
@@ -251,7 +266,20 @@ export default function AppShell() {
           {authed ? (
             <>
               <NotificationBell />
-              <UserMenu user={authUser || {}} onReport={() => setReportOpen(true)} onSignOut={signOut} />
+              <button
+                type="button"
+                className="ghost notification-bell"
+                aria-label="Agent activity"
+                onClick={() => setAgentActivityOpen((prev) => !prev)}
+              >
+                <Bot size={16} />
+              </button>
+              <UserMenu
+                user={authUser || {}}
+                onReport={() => setReportOpen(true)}
+                onAgentActivity={() => setAgentActivityOpen(true)}
+                onSignOut={signOut}
+              />
             </>
           ) : (
             <button className="ghost" onClick={startLogin}>
@@ -369,6 +397,12 @@ export default function AppShell() {
             dedupeKey: `report:${reportId}`,
           })
         }
+      />
+      <AgentActivityDrawer
+        open={agentActivityOpen}
+        onClose={() => setAgentActivityOpen(false)}
+        workspaceId={activeWorkspace?.id || ""}
+        artifactId={artifactRouteId || undefined}
       />
       <ToastHost />
     </div>

@@ -88,6 +88,7 @@ import type {
   ArticleCategoryRecord,
   PublishBindingRecord,
   ArtifactEventSummary,
+  AiActivityEntry,
   WorkspaceMembershipSummary,
   DocPage,
   TourDefinition,
@@ -542,6 +543,20 @@ export async function listWorkspaceActivity(workspaceId: string): Promise<{ even
   const apiBaseUrl = resolveApiBaseUrl();
   const response = await apiFetch(`${apiBaseUrl}/xyn/api/workspaces/${workspaceId}/activity`, { credentials: "include" });
   return handle<{ events: ArtifactEventSummary[] }>(response);
+}
+
+export async function listAiActivity(params?: {
+  workspaceId?: string;
+  artifactId?: string;
+  limit?: number;
+}): Promise<{ items: AiActivityEntry[] }> {
+  const apiBaseUrl = resolveApiBaseUrl();
+  const url = new URL(`${apiBaseUrl}/xyn/api/ai/activity`);
+  if (params?.workspaceId) url.searchParams.set("workspace_id", params.workspaceId);
+  if (params?.artifactId) url.searchParams.set("artifact_id", params.artifactId);
+  if (params?.limit) url.searchParams.set("limit", String(params.limit));
+  const response = await apiFetch(url.toString(), { credentials: "include" });
+  return handle<{ items: AiActivityEntry[] }>(response);
 }
 
 export async function listWorkspaceMemberships(workspaceId: string): Promise<{ memberships: WorkspaceMembershipSummary[] }> {

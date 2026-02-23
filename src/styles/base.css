@@ -51,6 +51,9 @@ input {
 }
 
 .app-header {
+  position: sticky;
+  top: 10px;
+  z-index: 1100;
   display: flex;
   flex-direction: row;
   justify-content: space-between;
@@ -160,6 +163,7 @@ input {
   grid-template-columns: 240px minmax(0, 1fr);
   gap: 20px;
   align-items: start;
+  min-height: 0;
 }
 
 .app-sidebar {
@@ -171,7 +175,7 @@ input {
   flex-direction: column;
   gap: 8px;
   position: sticky;
-  top: 20px;
+  top: 108px;
 }
 
 .app-nav-link {
@@ -203,6 +207,7 @@ input {
   display: flex;
   flex-direction: column;
   gap: 20px;
+  min-height: 0;
 }
 
 .page-header {
@@ -1125,6 +1130,119 @@ button:disabled {
   margin-bottom: 8px;
 }
 
+.editor-centric-layout {
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+}
+
+.editor-centric-top {
+  position: sticky;
+  top: 102px;
+  z-index: 10;
+}
+
+.editor-centric-grid {
+  display: grid;
+  gap: 12px;
+  grid-template-columns: minmax(280px, 1fr) minmax(0, 2.2fr) minmax(300px, 1.1fr);
+  align-items: start;
+}
+
+.editor-centric-main,
+.editor-centric-inspector,
+.editor-centric-activity {
+  min-height: 560px;
+  max-height: calc(100vh - 220px);
+  overflow: auto;
+}
+
+.editor-centric-main {
+  padding: 14px 16px;
+}
+
+.editor-centric-inspector,
+.editor-centric-activity {
+  padding: 14px 14px;
+}
+
+.editor-panel-tabs {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 6px;
+}
+
+.editor-panel-tabs .ghost.active {
+  border: 1px solid #d3e3ff;
+  background: #eef4ff;
+  color: var(--accent);
+}
+
+.editor-body {
+  display: grid;
+  grid-template-columns: 1fr;
+  gap: 10px;
+}
+
+.editor-body.split {
+  grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
+}
+
+.editor-textarea {
+  min-height: 520px;
+}
+
+.editor-preview {
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  padding: 12px;
+  background: #fff;
+  overflow: auto;
+  min-height: 520px;
+}
+
+.diff-panel {
+  border: 1px solid var(--border);
+  border-radius: 12px;
+  background: #fbfdff;
+  padding: 10px;
+  display: grid;
+  gap: 8px;
+}
+
+.line-diff {
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  background: #fff;
+  max-height: 280px;
+  overflow: auto;
+}
+
+.line-diff-row {
+  margin: 0;
+  padding: 4px 8px;
+  display: grid;
+  grid-template-columns: 14px minmax(0, 1fr);
+  gap: 8px;
+  font-family: "Source Code Pro", "SFMono-Regular", Menlo, monospace;
+  font-size: 0.78rem;
+  border-bottom: 1px solid #f2f5fb;
+  white-space: pre-wrap;
+}
+
+.line-diff-row.add {
+  background: #edfbf3;
+}
+
+.line-diff-row.remove {
+  background: #fff2f2;
+}
+
+.agent-activity-drawer .notification-actions {
+  align-items: center;
+  justify-content: space-between;
+}
+
 @media (min-width: 900px) {
   .layout {
     grid-template-columns: repeat(2, minmax(0, 1fr));
@@ -1197,6 +1315,55 @@ button:disabled {
   border-radius: 10px;
   padding: 8px 10px;
   background: #ffffff;
+}
+
+@media (max-width: 1400px) {
+  .editor-centric-grid {
+    grid-template-columns: minmax(260px, 0.9fr) minmax(0, 1.6fr);
+  }
+
+  .editor-centric-inspector {
+    grid-column: 1 / -1;
+    max-height: none;
+  }
+}
+
+@media (max-width: 960px) {
+  .app-shell {
+    padding: 12px;
+    gap: 12px;
+  }
+
+  .app-header {
+    top: 6px;
+  }
+
+  .app-body {
+    grid-template-columns: 1fr;
+  }
+
+  .app-sidebar {
+    position: static;
+  }
+
+  .editor-centric-top {
+    position: static;
+  }
+
+  .editor-centric-grid {
+    grid-template-columns: 1fr;
+  }
+
+  .editor-centric-main,
+  .editor-centric-inspector,
+  .editor-centric-activity {
+    max-height: none;
+    min-height: auto;
+  }
+
+  .editor-body.split {
+    grid-template-columns: 1fr;
+  }
 }
 
 .draft-context-status.fresh {

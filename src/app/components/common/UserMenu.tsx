@@ -10,6 +10,7 @@ type UserClaims = Record<string, unknown>;
 type Props = {
   user: UserClaims;
   onReport: () => void;
+  onAgentActivity: () => void;
   onSignOut: () => void;
 };
 
@@ -54,7 +55,7 @@ function resolveProfile(user: UserClaims) {
   };
 }
 
-export default function UserMenu({ user, onReport, onSignOut }: Props) {
+export default function UserMenu({ user, onReport, onAgentActivity, onSignOut }: Props) {
   const [open, setOpen] = useState(false);
   const [profileOpen, setProfileOpen] = useState(false);
   const profile = useMemo(() => resolveProfile(user), [user]);
@@ -94,6 +95,14 @@ export default function UserMenu({ user, onReport, onSignOut }: Props) {
               Account / Preferences (coming soon)
             </button>
             <div className="xyn-menu-divider" />
+            <MenuItem
+              onSelect={() => {
+                setOpen(false);
+                onAgentActivity();
+              }}
+            >
+              Agent activity (Ctrl/Cmd+Shift+A)
+            </MenuItem>
             <MenuItem
               onSelect={() => {
                 setOpen(false);
