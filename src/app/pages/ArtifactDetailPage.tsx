@@ -106,7 +106,7 @@ export default function ArtifactDetailPage({ workspaceId, workspaceRole }: { wor
       await updateArticle(artifactId, {
         category,
         visibility_type: visibilityType,
-        allowed_roles: parseCsv(allowedRolesText),
+        allowed_roles: visibilityType === "role_based" ? parseCsv(allowedRolesText) : [],
         tags: parseCsv(tagsText),
       });
       await createArticleRevision(artifactId, {
@@ -288,10 +288,12 @@ export default function ArtifactDetailPage({ workspaceId, workspaceRole }: { wor
               <option value="private">private</option>
             </select>
           </label>
-          <label>
-            Allowed roles (comma-separated)
-            <input className="input" value={allowedRolesText} onChange={(event) => setAllowedRolesText(event.target.value)} />
-          </label>
+          {visibilityType === "role_based" && (
+            <label>
+              Allowed roles (comma-separated)
+              <input className="input" value={allowedRolesText} onChange={(event) => setAllowedRolesText(event.target.value)} />
+            </label>
+          )}
           <label>
             Tags (comma-separated)
             <input className="input" value={tagsText} onChange={(event) => setTagsText(event.target.value)} />
