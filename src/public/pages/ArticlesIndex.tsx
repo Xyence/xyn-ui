@@ -62,25 +62,18 @@ export default function ArticlesIndex({ surfacePathOverride }: ArticlesIndexProp
   }
 
   return (
-    <div className="public-articles-surface">
+    <div className="public-articles">
       <h1 className="page-title">{menuLabel}</h1>
-      <div className="public-article-list-shell">
-        <div className="public-article-list-header muted small">
-          <span>Title</span>
-          <span>Summary</span>
-          <span>Action</span>
-        </div>
-        <div className="public-article-list">
+      <div className="article-list">
         {articles.map((article) => (
-          <article key={article.slug} className="public-article-row">
+          <article key={article.slug} className="article-card">
             <h2>{article.title}</h2>
-            <p className="muted">{article.summary || "No summary."}</p>
-            <Link className="ghost sm" to={category ? `/${category}/${article.slug}` : `/articles/${article.slug}`}>
-              Read article
+            {article.summary && <p className="muted">{article.summary}</p>}
+            <Link className="ghost" to={category ? `/${category}/${article.slug}` : `/articles/${article.slug}`}>
+              Read article →
             </Link>
           </article>
         ))}
-        </div>
       </div>
     </div>
   );
