@@ -27,6 +27,11 @@ export default function ArticlesIndex({ surfacePathOverride }: ArticlesIndexProp
       .join(" ");
   }, [menuItems, surfacePath, category]);
 
+  const articleBasePath = useMemo(() => {
+    const trimmed = surfacePath.replace(/\/+$/, "");
+    return trimmed || "/articles";
+  }, [surfacePath]);
+
   useEffect(() => {
     let active = true;
     setLoading(true);
@@ -69,7 +74,7 @@ export default function ArticlesIndex({ surfacePathOverride }: ArticlesIndexProp
           <article key={article.slug} className="article-card">
             <h2>{article.title}</h2>
             {article.summary && <p className="muted">{article.summary}</p>}
-            <Link className="ghost" to={category ? `/${category}/${article.slug}` : `/articles/${article.slug}`}>
+            <Link className="ghost" to={`${articleBasePath}/${article.slug}`}>
               Read article →
             </Link>
           </article>
