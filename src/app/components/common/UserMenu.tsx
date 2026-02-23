@@ -4,6 +4,7 @@ import { Menu, MenuItem } from "../ui/Menu";
 import Popover from "../ui/Popover";
 import Avatar from "./Avatar";
 import ProfileModal from "../profile/ProfileModal";
+import { useTheme, type Theme } from "../../../theme/ThemeProvider";
 
 type UserClaims = Record<string, unknown>;
 
@@ -59,6 +60,13 @@ export default function UserMenu({ user, onReport, onAgentActivity, onSignOut }:
   const [open, setOpen] = useState(false);
   const [profileOpen, setProfileOpen] = useState(false);
   const profile = useMemo(() => resolveProfile(user), [user]);
+  const { theme, setTheme } = useTheme();
+
+  const themeOptions: Array<{ value: Theme; label: string }> = [
+    { value: "light", label: "Light" },
+    { value: "dim", label: "Dim" },
+    { value: "dark", label: "Dark" },
+  ];
 
   return (
     <>
@@ -94,6 +102,24 @@ export default function UserMenu({ user, onReport, onAgentActivity, onSignOut }:
             <button type="button" className="xyn-menu-item disabled" disabled>
               Account / Preferences (coming soon)
             </button>
+            <div className="xyn-menu-theme">
+              <div className="xyn-menu-theme-label">Theme</div>
+              <div className="xyn-theme-segmented" role="radiogroup" aria-label="Theme">
+                {themeOptions.map((option) => (
+                  <button
+                    key={option.value}
+                    type="button"
+                    role="radio"
+                    aria-checked={theme === option.value}
+                    className={`xyn-theme-option ${theme === option.value ? "selected" : ""}`}
+                    onClick={() => setTheme(option.value)}
+                  >
+                    {option.label}
+                  </button>
+                ))}
+              </div>
+              <p className="xyn-menu-theme-help">Light: bright. Dim: slate/navy (recommended). Dark: near-black.</p>
+            </div>
             <div className="xyn-menu-divider" />
             <MenuItem
               onSelect={() => {
