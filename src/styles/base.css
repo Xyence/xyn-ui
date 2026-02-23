@@ -2048,6 +2048,7 @@ button.sm {
   padding: 40px 24px 60px;
   display: flex;
   flex-direction: column;
+  align-items: stretch;
   gap: 32px;
 }
 
@@ -2191,9 +2192,10 @@ button.sm {
 }
 
 .public-articles {
-  width: 100%;
-  max-width: 960px;
+  align-self: stretch;
+  width: min(960px, 100%);
   min-width: min(720px, 100%);
+  margin-inline: auto;
 }
 
 .article-detail {
