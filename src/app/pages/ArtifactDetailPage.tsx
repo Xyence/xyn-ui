@@ -328,14 +328,20 @@ export default function ArtifactDetailPage({
     if (!item) return "";
     const value = String(entry.target_value || "").trim();
     if (!value) return "";
-    if (entry.target_type === "external_url") return value;
+    const slug = encodeURIComponent(String(item.slug || "").trim());
+    const appendSlug = (base: string) => {
+      if (!slug) return base;
+      const normalized = base.replace(/\/+$/, "");
+      if (normalized.endsWith(`/${slug}`)) return normalized;
+      return `${normalized}/${slug}`;
+    };
+    if (entry.target_type === "external_url") {
+      return appendSlug(value);
+    }
     if (!origin) return value;
     if (entry.target_type === "public_web_path") {
-      const base = value.replace(/\/+$/, "");
-      if (base === "/articles" && item.slug) {
-        return `${origin}${base}/${encodeURIComponent(item.slug)}`;
-      }
-      return `${origin}${base}`;
+      const base = `${origin}${value.startsWith("/") ? value : `/${value}`}`;
+      return appendSlug(base);
     }
     return `${origin}${value.startsWith("/") ? value : `/${value}`}`;
   };
