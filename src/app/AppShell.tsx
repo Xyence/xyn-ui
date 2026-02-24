@@ -11,11 +11,10 @@ import InstancesPage from "./pages/InstancesPage";
 import ModulesPage from "./pages/ModulesPage";
 import RegistriesPage from "./pages/RegistriesPage";
 import EnvironmentsPage from "./pages/EnvironmentsPage";
-import IdentityProvidersPage from "./pages/IdentityProvidersPage";
-import OidcAppClientsPage from "./pages/OidcAppClientsPage";
 import SecretConfigurationPage from "./pages/SecretConfigurationPage";
 import AIConfigPage from "./pages/AIConfigPage";
 import IdentityConfigurationPage from "./pages/IdentityConfigurationPage";
+import AccessControlPage from "./pages/AccessControlPage";
 import ReleasePlansPage from "./pages/ReleasePlansPage";
 import ReleasesPage from "./pages/ReleasesPage";
 import RunsPage from "./pages/RunsPage";
@@ -23,11 +22,7 @@ import ActivityPage from "./pages/ActivityPage";
 import DevTasksPage from "./pages/DevTasksPage";
 import ContextPacksPage from "./pages/ContextPacksPage";
 import PlatformTenantsPage from "./pages/PlatformTenantsPage";
-import PlatformTenantContactsPage from "./pages/PlatformTenantContactsPage";
-import PlatformUsersPage from "./pages/PlatformUsersPage";
-import PlatformRolesPage from "./pages/PlatformRolesPage";
 import PlatformBrandingPage from "./pages/PlatformBrandingPage";
-import MyTenantsPage from "./pages/MyTenantsPage";
 import ControlPlanePage from "./pages/ControlPlanePage";
 import GuidesPage from "./pages/GuidesPage";
 import ToursPage from "./pages/ToursPage";
@@ -71,6 +66,32 @@ function RedirectLegacyIdentityRoute({ tab }: { tab: "identity-providers" | "oid
   const currentParams = new URLSearchParams(location.search);
   currentParams.set("tab", tab);
   return <Navigate to={{ pathname: "/app/platform/identity-configuration", search: `?${currentParams.toString()}` }} replace />;
+}
+
+function RedirectLegacyTenantsRoute({ view }: { view: "all" | "my" }) {
+  const location = useLocation();
+  const currentParams = new URLSearchParams(location.search);
+  if (view === "my") currentParams.set("view", "my");
+  else currentParams.delete("view");
+  return <Navigate to={{ pathname: "/app/platform/tenants", search: `?${currentParams.toString()}` }} replace />;
+}
+
+function RedirectLegacyAccessControlRoute({ tab }: { tab: "roles" | "users" }) {
+  const location = useLocation();
+  const currentParams = new URLSearchParams(location.search);
+  currentParams.set("tab", tab);
+  return <Navigate to={{ pathname: "/app/platform/access-control", search: `?${currentParams.toString()}` }} replace />;
+}
+
+function RedirectLegacyTenantContactsDetailRoute() {
+  const { pathname, search } = useLocation();
+  const match = pathname.match(/\/app\/platform\/tenant-contacts\/([^/?#]+)/);
+  const tenantId = match?.[1] || "";
+  const currentParams = new URLSearchParams(search);
+  currentParams.set("tab", "contacts");
+  const searchString = currentParams.toString();
+  const destination = tenantId ? `/app/platform/tenants/${tenantId}` : "/app/platform/tenants";
+  return <Navigate to={{ pathname: destination, search: searchString ? `?${searchString}` : "" }} replace />;
 }
 
 export default function AppShell() {
@@ -366,12 +387,15 @@ export default function AppShell() {
             <Route path="environments" element={<EnvironmentsPage />} />
             <Route path="registries" element={<RegistriesPage />} />
             <Route path="context-packs" element={<ContextPacksPage />} />
-            <Route path="my-tenants" element={<MyTenantsPage />} />
+            <Route path="my-tenants" element={<RedirectLegacyTenantsRoute view="my" />} />
             <Route path="control-plane" element={<ControlPlanePage />} />
             <Route path="platform/tenants" element={<PlatformTenantsPage />} />
-            <Route path="platform/tenant-contacts" element={<PlatformTenantContactsPage />} />
-            <Route path="platform/users" element={<PlatformUsersPage />} />
-            <Route path="platform/roles" element={<PlatformRolesPage />} />
+            <Route path="platform/tenants/:tenantId" element={<PlatformTenantsPage />} />
+            <Route path="platform/tenant-contacts" element={<RedirectLegacyTenantsRoute view="all" />} />
+            <Route path="platform/tenant-contacts/:tenantId" element={<RedirectLegacyTenantContactsDetailRoute />} />
+            <Route path="platform/access-control" element={<AccessControlPage />} />
+            <Route path="platform/users" element={<RedirectLegacyAccessControlRoute tab="users" />} />
+            <Route path="platform/roles" element={<RedirectLegacyAccessControlRoute tab="roles" />} />
             <Route path="platform/branding" element={<PlatformBrandingPage />} />
             <Route path="platform/settings" element={<PlatformSettingsPage />} />
             <Route path="platform/identity-configuration" element={<IdentityConfigurationPage />} />

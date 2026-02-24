@@ -70,6 +70,7 @@ export default function PeopleRolesPage({ workspaceId, canAdmin }: { workspaceId
         <div>
           <h2>People & Roles</h2>
           <p className="muted">Workspace role assignments and termination authority.</p>
+          <p className="muted small">Workspace-scoped</p>
         </div>
       </div>
       {error && <InlineMessage tone="error" title="Request failed" body={error} />}

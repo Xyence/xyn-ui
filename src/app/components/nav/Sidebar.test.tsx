@@ -27,12 +27,12 @@ describe("Sidebar", () => {
     await user.click(screen.getByRole("button", { name: /^Artifacts$/i }));
     expect(screen.getByRole("link", { name: /^Articles$/i })).toBeInTheDocument();
     expect(screen.getByRole("link", { name: /^All Artifacts$/i })).toBeInTheDocument();
-    expect(screen.getByRole("button", { name: /^People & Roles$/i })).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: /^Workspace Access$/i })).toBeInTheDocument();
   });
 
   it("auto-expands active route group/subgroup", () => {
     renderSidebar("/app/people-roles", ["admin"]);
-    expect(screen.getByRole("link", { name: /People & Roles/i })).toBeInTheDocument();
+    expect(screen.getByRole("link", { name: /Workspace Access/i })).toBeInTheDocument();
   });
 
   it("persists collapsed mode to localStorage", async () => {
@@ -51,7 +51,7 @@ describe("Sidebar", () => {
     await user.type(search, "artifact");
 
     expect(screen.getByRole("link", { name: /^All Artifacts$/i })).toBeInTheDocument();
-    expect(screen.queryByRole("link", { name: /^People & Roles$/i })).not.toBeInTheDocument();
+    expect(screen.queryByRole("link", { name: /^Workspace Access$/i })).not.toBeInTheDocument();
   });
 
   it("renders without role-gated sections", async () => {
