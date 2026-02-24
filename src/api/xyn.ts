@@ -141,6 +141,19 @@ function htmlAuthErrorMessage(response: Response, body: string): string {
 async function handle<T>(response: Response): Promise<T> {
   const contentType = response.headers.get("content-type") || "";
   if (!response.ok) {
+    if (contentType.includes("application/json")) {
+      try {
+        const payload = (await response.json()) as Record<string, unknown>;
+        const code = String(payload.code || "");
+        const message = String(payload.message || payload.error || "");
+        if (code === "PREVIEW_READ_ONLY") {
+          window.dispatchEvent(new CustomEvent("xyn:preview-read-only"));
+        }
+        throw new Error(code ? `${code}${message ? `: ${message}` : ""}` : message || `Request failed (${response.status})`);
+      } catch (err) {
+        if (err instanceof Error) throw err;
+      }
+    }
     const message = await response.text();
     if (message.includes("<!DOCTYPE") || message.includes("<html")) {
       throw new Error(htmlAuthErrorMessage(response, message));
@@ -171,6 +184,16 @@ export async function getWhoAmI(): Promise<{ authenticated: boolean; username?: 
 export async function getMe(): Promise<{
   user: Record<string, string | null>;
   roles: string[];
+  actor_roles?: string[];
+  preview?: {
+    enabled: boolean;
+    roles: string[];
+    read_only: boolean;
+    started_at?: number | null;
+    expires_at?: number | null;
+    actor_roles?: string[];
+    effective_roles?: string[];
+  };
   workspaces?: Array<{ id: string; slug: string; name: string; role: string; termination_authority?: boolean }>;
 }> {
   const apiBaseUrl = resolveApiBaseUrl();
@@ -178,8 +201,56 @@ export async function getMe(): Promise<{
   return handle<{
     user: Record<string, string | null>;
     roles: string[];
+    actor_roles?: string[];
+    preview?: {
+      enabled: boolean;
+      roles: string[];
+      read_only: boolean;
+      started_at?: number | null;
+      expires_at?: number | null;
+      actor_roles?: string[];
+      effective_roles?: string[];
+    };
     workspaces?: Array<{ id: string; slug: string; name: string; role: string; termination_authority?: boolean }>;
   }>(response);
+}
+
+export type PreviewStatus = {
+  enabled: boolean;
+  roles: string[];
+  read_only: boolean;
+  started_at?: number | null;
+  expires_at?: number | null;
+  actor_roles?: string[];
+  effective_roles?: string[];
+};
+
+export async function getPreviewStatus(): Promise<{ preview: PreviewStatus }> {
+  const apiBaseUrl = resolveApiBaseUrl();
+  const response = await apiFetch(`${apiBaseUrl}/xyn/api/preview/status`, { credentials: "include" });
+  return handle<{ preview: PreviewStatus }>(response);
+}
+
+export async function enablePreview(payload: { roles: string[]; readOnly: boolean }): Promise<{ preview: PreviewStatus }> {
+  const apiBaseUrl = resolveApiBaseUrl();
+  const response = await apiFetch(`${apiBaseUrl}/xyn/api/preview/enable`, {
+    method: "POST",
+    headers: buildHeaders(),
+    credentials: "include",
+    body: JSON.stringify(payload),
+  });
+  return handle<{ preview: PreviewStatus }>(response);
+}
+
+export async function disablePreview(): Promise<{ preview: PreviewStatus }> {
+  const apiBaseUrl = resolveApiBaseUrl();
+  const response = await apiFetch(`${apiBaseUrl}/xyn/api/preview/disable`, {
+    method: "POST",
+    headers: buildHeaders(),
+    credentials: "include",
+    body: JSON.stringify({}),
+  });
+  return handle<{ preview: PreviewStatus }>(response);
 }
 
 export async function listWorkspaces(): Promise<WorkspaceListResponse> {

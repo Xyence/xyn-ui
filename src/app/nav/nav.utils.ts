@@ -73,9 +73,27 @@ function hasAny(haystack: string[], needles: string[]): boolean {
   return needles.some((needle) => set.has(needle));
 }
 
+function expandRoles(roles: string[]): string[] {
+  const expanded = new Set(roles || []);
+  if (expanded.has("platform_owner")) {
+    expanded.add("platform_admin");
+    expanded.add("platform_architect");
+    expanded.add("platform_operator");
+    expanded.add("app_user");
+  }
+  if (expanded.has("platform_admin")) {
+    expanded.add("platform_architect");
+    expanded.add("platform_operator");
+  }
+  if (expanded.has("platform_architect")) {
+    expanded.add("platform_operator");
+  }
+  return Array.from(expanded);
+}
+
 export function canViewNavItem(user: NavUserContext, node: NavVisibility): boolean {
   // TODO: connect requiredPermissions once the auth payload provides permission claims.
-  const roles = user.roles || [];
+  const roles = expandRoles(user.roles || []);
   const permissions = user.permissions || [];
   const requiredRoles = node.requiredRoles || [];
   const requiredPermissions = node.requiredPermissions || [];

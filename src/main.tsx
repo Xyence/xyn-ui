@@ -4,6 +4,7 @@ import { BrowserRouter } from "react-router-dom";
 import App from "./App";
 import { NotificationsProvider } from "./app/state/notificationsStore";
 import { OperationsProvider } from "./app/state/operationRegistry";
+import { PreviewProvider } from "./app/state/previewStore";
 import { ThemeProvider } from "./theme/ThemeProvider";
 import "./styles/base.css";
 
@@ -20,11 +21,13 @@ ReactDOM.createRoot(document.getElementById("root")!).render(
   <React.StrictMode>
     <ThemeProvider>
       <OperationsProvider>
-        <NotificationsProvider>
-          <BrowserRouter>
-            <App />
-          </BrowserRouter>
-        </NotificationsProvider>
+        <PreviewProvider>
+          <NotificationsProvider>
+            <BrowserRouter>
+              <App />
+            </BrowserRouter>
+          </NotificationsProvider>
+        </PreviewProvider>
       </OperationsProvider>
     </ThemeProvider>
   </React.StrictMode>

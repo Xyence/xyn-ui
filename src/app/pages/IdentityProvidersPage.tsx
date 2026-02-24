@@ -22,7 +22,7 @@ type GroupRoleMapping = {
   xyn_role_id: string;
 };
 
-const ROLE_OPTIONS = ["platform_admin", "platform_architect", "platform_operator", "app_user"];
+const ROLE_OPTIONS = ["platform_owner", "platform_admin", "platform_architect", "platform_operator", "app_user"];
 
 const emptyForm: ProviderForm = {
   id: "",

@@ -892,6 +892,82 @@ button.sm {
   margin-left: -4px;
 }
 
+.preview-control {
+  position: relative;
+}
+
+.preview-control .preview-active {
+  border-color: var(--accent);
+  background: var(--accent-soft);
+}
+
+.preview-popover {
+  position: absolute;
+  top: calc(100% + 8px);
+  right: 0;
+  width: 280px;
+  border: 1px solid var(--border);
+  border-radius: 12px;
+  background: var(--card-elevated, var(--card));
+  box-shadow: var(--shadow);
+  padding: 12px;
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  z-index: 1300;
+}
+
+.preview-popover h4 {
+  margin: 0;
+  font-size: 1rem;
+}
+
+.preview-popover label {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  font-size: 0.9rem;
+  font-weight: 600;
+}
+
+.preview-readonly-row {
+  flex-direction: row !important;
+  align-items: center;
+  font-weight: 600;
+}
+
+.preview-banner {
+  border: 1px solid var(--border-strong);
+  background: var(--authority-soft, var(--accent-soft));
+  border-radius: 12px;
+  padding: 10px 12px;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+}
+
+.preview-banner-slot {
+  min-height: 52px;
+}
+
+.preview-chip {
+  margin-left: 8px;
+  display: inline-flex;
+  align-items: center;
+  border-radius: 999px;
+  padding: 2px 8px;
+  border: 1px solid var(--border);
+  background: var(--card);
+  font-size: 0.78rem;
+  font-weight: 700;
+}
+
+.preview-readonly .app-content button.primary,
+.preview-readonly .app-content button.danger {
+  opacity: 0.6;
+}
+
 .notification-badge {
   position: absolute;
   top: -6px;

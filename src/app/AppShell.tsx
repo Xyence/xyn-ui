@@ -43,9 +43,12 @@ import ToastHost from "./components/notifications/ToastHost";
 import AgentActivityDrawer from "./components/activity/AgentActivityDrawer";
 import { useNotifications } from "./state/notificationsStore";
 import { useOperations } from "./state/operationRegistry";
+import { usePreview } from "./state/previewStore";
 import HelpDrawer from "./components/help/HelpDrawer";
 import TourOverlay from "./components/help/TourOverlay";
 import { resolveRouteId } from "./help/routeHelp";
+import HeaderPreviewControl from "./components/preview/HeaderPreviewControl";
+import PreviewBanner from "./components/preview/PreviewBanner";
 
 function RedirectLegacyAiRoute({ tab }: { tab: "credentials" | "model-configs" | "agents" | "purposes" }) {
   const location = useLocation();
@@ -100,6 +103,7 @@ export default function AppShell() {
   const contentRef = useRef<HTMLElement | null>(null);
   const [authed, setAuthed] = useState(false);
   const [roles, setRoles] = useState<string[]>([]);
+  const [actorRoles, setActorRoles] = useState<string[]>([]);
   const [authUser, setAuthUser] = useState<Record<string, unknown> | null>(null);
   const [userContext, setUserContext] = useState<{ id?: string; email?: string }>({});
   const [authLoaded, setAuthLoaded] = useState(false);
@@ -114,6 +118,7 @@ export default function AppShell() {
   const [agentActivityOpen, setAgentActivityOpen] = useState(false);
   const { push } = useNotifications();
   const { runningAiCount } = useOperations();
+  const { preview, disablePreviewMode } = usePreview();
 
   useEffect(() => {
     let mounted = true;
@@ -124,6 +129,7 @@ export default function AppShell() {
         setAuthed(Boolean(me?.user));
         setAuthUser((me?.user as Record<string, unknown>) || null);
         setRoles(me?.roles ?? []);
+        setActorRoles(me?.actor_roles ?? me?.roles ?? []);
         setUserContext({
           id: (me?.user?.subject as string | null) || (me?.user?.sub as string | null) || "",
           email: (me?.user?.email as string | null) || "",
@@ -166,6 +172,7 @@ export default function AppShell() {
         setAuthed(false);
         setAuthUser(null);
         setRoles([]);
+        setActorRoles([]);
       } finally {
         if (mounted) {
           setAuthLoaded(true);
@@ -192,11 +199,20 @@ export default function AppShell() {
       setAuthUser(null);
     });
 
-  const isPlatformAdmin = roles.includes("platform_admin");
-  const isPlatformArchitect = roles.includes("platform_architect");
+  const effectiveRoles = useMemo(() => {
+    if (preview.enabled) {
+      if (preview.effective_roles && preview.effective_roles.length > 0) return preview.effective_roles;
+      if (preview.roles && preview.roles.length > 0) return preview.roles;
+    }
+    return roles;
+  }, [preview.enabled, preview.effective_roles, preview.roles, roles]);
+  const isPreviewReadOnly = Boolean(preview.enabled && preview.read_only);
+
+  const isPlatformAdmin = effectiveRoles.includes("platform_admin") || effectiveRoles.includes("platform_owner");
+  const isPlatformArchitect = effectiveRoles.includes("platform_architect");
   const isPlatformManager = isPlatformAdmin || isPlatformArchitect;
 
-  const navUser: NavUserContext = useMemo(() => ({ roles, permissions: [] }), [roles]);
+  const navUser: NavUserContext = useMemo(() => ({ roles: effectiveRoles, permissions: [] }), [effectiveRoles]);
   const activeWorkspace = useMemo(
     () => workspaces.find((workspace) => workspace.id === activeWorkspaceId) || workspaces[0] || null,
     [workspaces, activeWorkspaceId]
@@ -247,6 +263,18 @@ export default function AppShell() {
     window.addEventListener("xyn:start-tour", onStartTour as EventListener);
     return () => window.removeEventListener("xyn:start-tour", onStartTour as EventListener);
   }, []);
+
+  useEffect(() => {
+    const onReadOnly = () => {
+      push({
+        level: "warning",
+        title: "Preview mode is read-only",
+        message: "Exit preview to perform this action.",
+      });
+    };
+    window.addEventListener("xyn:preview-read-only", onReadOnly as EventListener);
+    return () => window.removeEventListener("xyn:preview-read-only", onReadOnly as EventListener);
+  }, [push]);
 
   useLayoutEffect(() => {
     window.scrollTo({ top: 0, left: 0, behavior: "auto" });
@@ -307,6 +335,11 @@ export default function AppShell() {
           {authed ? (
             <>
               <NotificationBell />
+              <HeaderPreviewControl
+                actorRoles={actorRoles}
+                actorLabel={String(authUser?.email || authUser?.display_name || authUser?.subject || "current user")}
+                onMessage={({ level, title, message }) => push({ level, title, message })}
+              />
               <button
                 type="button"
                 className={`ghost notification-bell agent-indicator ${runningAiCount > 0 ? "thinking" : ""}`}
@@ -334,7 +367,7 @@ export default function AppShell() {
           )}
         </div>
       </header>
-      <div className="app-body">
+      <div className={`app-body ${isPreviewReadOnly ? "preview-readonly" : ""}`}>
         <Sidebar
           user={navUser}
           workspaces={workspaces.map((workspace) => ({ id: workspace.id, name: workspace.name }))}
@@ -342,6 +375,15 @@ export default function AppShell() {
           onWorkspaceChange={setActiveWorkspaceId}
         />
         <main className="app-content" ref={contentRef}>
+          <div className="preview-banner-slot">
+            <PreviewBanner
+              actorLabel={String(authUser?.email || authUser?.display_name || authUser?.subject || "current user")}
+              onExit={async () => {
+                await disablePreviewMode();
+                push({ level: "success", title: "Preview ended" });
+              }}
+            />
+          </div>
           {breadcrumbTrail.length > 0 && (
             <div className="app-breadcrumbs" aria-label="Breadcrumb">
               {breadcrumbTrail.map((crumb) => crumb.label).join(" / ")}
@@ -353,7 +395,7 @@ export default function AppShell() {
             <Route path="artifacts" element={<Navigate to="/app/artifacts/articles" replace />} />
             <Route
               path="artifacts/articles"
-              element={<ArtifactsArticlesPage workspaceId={activeWorkspace?.id || ""} canCreate={isPlatformManager} />}
+              element={<ArtifactsArticlesPage workspaceId={activeWorkspace?.id || ""} canCreate={isPlatformManager && !isPreviewReadOnly} />}
             />
             <Route path="artifacts/all" element={<ArtifactsRegistryPage workspaceId={activeWorkspace?.id || ""} />} />
             <Route
@@ -362,17 +404,17 @@ export default function AppShell() {
                 <ArtifactDetailPage
                   workspaceId={activeWorkspace?.id || ""}
                   workspaceRole={workspaceRole}
-                  canManageArticleLifecycle={isPlatformManager}
+                  canManageArticleLifecycle={isPlatformManager && !isPreviewReadOnly}
                 />
               }
             />
             <Route path="activity" element={<ActivityPage workspaceId={activeWorkspace?.id || ""} />} />
             <Route
               path="people-roles"
-              element={<PeopleRolesPage workspaceId={activeWorkspace?.id || ""} canAdmin={canWorkspaceAdmin} />}
+              element={<PeopleRolesPage workspaceId={activeWorkspace?.id || ""} canAdmin={canWorkspaceAdmin && !isPreviewReadOnly} />}
             />
             <Route path="devices" element={<DevicesPage />} />
-            <Route path="guides" element={<GuidesPage roles={roles} />} />
+            <Route path="guides" element={<GuidesPage roles={effectiveRoles} />} />
             <Route path="tours" element={<ToursPage />} />
             <Route path="map" element={<XynMapPage />} />
             <Route path="blueprints" element={<BlueprintsPage />} />
@@ -421,7 +463,7 @@ export default function AppShell() {
         onClose={() => setHelpOpen(false)}
         routeId={routeId}
         workspaceId={activeWorkspace?.id || ""}
-        roles={roles}
+        roles={effectiveRoles}
         onStartTour={(slug) => {
           setTourSlug(slug);
           setTourLaunchToken((value) => value + 1);

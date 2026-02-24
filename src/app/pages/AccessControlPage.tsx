@@ -12,7 +12,7 @@ const ACCESS_TABS: Array<{ value: AccessTab; label: string }> = [
   { value: "users", label: "Users" },
 ];
 
-const ROLE_OPTIONS = ["platform_admin", "platform_architect", "platform_operator", "app_user"];
+const ROLE_OPTIONS = ["platform_owner", "platform_admin", "platform_architect", "platform_operator", "app_user"];
 
 export default function AccessControlPage() {
   const [searchParams, setSearchParams] = useSearchParams();
