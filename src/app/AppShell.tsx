@@ -15,7 +15,6 @@ import SecretConfigurationPage from "./pages/SecretConfigurationPage";
 import AIConfigPage from "./pages/AIConfigPage";
 import IdentityConfigurationPage from "./pages/IdentityConfigurationPage";
 import AccessControlPage from "./pages/AccessControlPage";
-import AccessExplorerPage from "./pages/AccessExplorerPage";
 import ReleasePlansPage from "./pages/ReleasePlansPage";
 import ReleasesPage from "./pages/ReleasesPage";
 import RunsPage from "./pages/RunsPage";
@@ -80,7 +79,7 @@ function RedirectLegacyTenantsRoute({ view }: { view: "all" | "my" }) {
   return <Navigate to={{ pathname: "/app/platform/tenants", search: `?${currentParams.toString()}` }} replace />;
 }
 
-function RedirectLegacyAccessControlRoute({ tab }: { tab: "roles" | "users" }) {
+function RedirectLegacyAccessControlRoute({ tab }: { tab: "roles" | "users" | "explorer" }) {
   const location = useLocation();
   const currentParams = new URLSearchParams(location.search);
   currentParams.set("tab", tab);
@@ -437,7 +436,7 @@ export default function AppShell() {
             <Route path="platform/tenant-contacts" element={<RedirectLegacyTenantsRoute view="all" />} />
             <Route path="platform/tenant-contacts/:tenantId" element={<RedirectLegacyTenantContactsDetailRoute />} />
             <Route path="platform/access-control" element={<AccessControlPage />} />
-            <Route path="platform/access-explorer" element={<AccessExplorerPage />} />
+            <Route path="platform/access-explorer" element={<RedirectLegacyAccessControlRoute tab="explorer" />} />
             <Route path="platform/users" element={<RedirectLegacyAccessControlRoute tab="users" />} />
             <Route path="platform/roles" element={<RedirectLegacyAccessControlRoute tab="roles" />} />
             <Route path="platform/branding" element={<PlatformBrandingPage />} />

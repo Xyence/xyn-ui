@@ -2374,6 +2374,20 @@ button.sm {
   stroke-width: 1.25 !important;
 }
 
+.access-explorer-flow .react-flow__node-default {
+  background: var(--card-elevated);
+  color: var(--ink);
+  border: 1px solid var(--border-strong);
+}
+
+.access-explorer-flow .react-flow__edge-textbg {
+  fill: var(--card-elevated);
+}
+
+.access-explorer-flow .react-flow__edge-text {
+  fill: var(--ink);
+}
+
 .map-inspector {
   min-height: 70vh;
   position: sticky;

@@ -4,15 +4,23 @@ import InlineMessage from "../../components/InlineMessage";
 import Tabs from "../components/ui/Tabs";
 import { createRoleBinding, deleteRoleBinding, listIdentities, listRoleBindings } from "../../api/xyn";
 import type { IdentitySummary, RoleBindingSummary } from "../../api/types";
+import AccessExplorerPage from "./AccessExplorerPage";
 
-type AccessTab = "roles" | "users";
+type AccessTab = "users" | "explorer" | "roles";
 
 const ACCESS_TABS: Array<{ value: AccessTab; label: string }> = [
-  { value: "roles", label: "Roles" },
   { value: "users", label: "Users" },
+  { value: "explorer", label: "Explorer" },
+  { value: "roles", label: "Roles" },
 ];
 
 const ROLE_OPTIONS = ["platform_owner", "platform_admin", "platform_architect", "platform_operator", "app_user"];
+
+export function parseAccessTab(tabParam: string | null): AccessTab {
+  if (!tabParam) return "users";
+  const normalized = tabParam.trim().toLowerCase();
+  return ACCESS_TABS.find((item) => item.value === normalized)?.value || "users";
+}
 
 export default function AccessControlPage() {
   const [searchParams, setSearchParams] = useSearchParams();
@@ -24,16 +32,24 @@ export default function AccessControlPage() {
   const [message, setMessage] = useState<string | null>(null);
   const [roleToAssign, setRoleToAssign] = useState<string>("platform_operator");
   const [assignOpen, setAssignOpen] = useState(false);
+  const [explorerRefreshToken, setExplorerRefreshToken] = useState(0);
 
-  const tabParam = String(searchParams.get("tab") || "").trim();
-  const activeTab: AccessTab = (ACCESS_TABS.find((item) => item.value === tabParam)?.value || "roles") as AccessTab;
+  const activeTab = parseAccessTab(searchParams.get("tab"));
+
+  useEffect(() => {
+    const rawTab = searchParams.get("tab");
+    if (rawTab && parseAccessTab(rawTab) === rawTab) return;
+    const params = new URLSearchParams(searchParams);
+    params.set("tab", "users");
+    setSearchParams(params, { replace: true });
+  }, [searchParams, setSearchParams]);
 
   const selectedIdentity = useMemo(
     () => identities.find((identity) => identity.id === selectedIdentityId) || null,
     [identities, selectedIdentityId]
   );
 
-  const updateTab = (next: string) => {
+  const updateTab = (next: AccessTab) => {
     const params = new URLSearchParams(searchParams);
     params.set("tab", next);
     setSearchParams(params, { replace: true });
@@ -41,10 +57,11 @@ export default function AccessControlPage() {
 
   const loadIdentities = useCallback(async () => {
     const data = await listIdentities();
-    setIdentities(data.identities || []);
+    const nextIdentities = data.identities || [];
+    setIdentities(nextIdentities);
     setSelectedIdentityId((current) => {
-      if (current && data.identities.some((identity) => identity.id === current)) return current;
-      return data.identities[0]?.id || "";
+      if (current && nextIdentities.some((identity) => identity.id === current)) return current;
+      return nextIdentities[0]?.id || "";
     });
   }, []);
 
@@ -57,24 +74,30 @@ export default function AccessControlPage() {
     setBindings(data.role_bindings || []);
   }, [selectedIdentityId]);
 
+  const refreshUsersAndRoles = useCallback(async () => {
+    await loadIdentities();
+    await loadBindings();
+  }, [loadIdentities, loadBindings]);
+
   const refreshActive = useCallback(async () => {
     try {
       setLoading(true);
       setError(null);
-      await loadIdentities();
-      if (activeTab === "roles") {
-        await loadBindings();
+      if (activeTab === "explorer") {
+        setExplorerRefreshToken((current) => current + 1);
+      } else {
+        await refreshUsersAndRoles();
       }
     } catch (err) {
       setError((err as Error).message);
     } finally {
       setLoading(false);
     }
-  }, [activeTab, loadBindings, loadIdentities]);
+  }, [activeTab, refreshUsersAndRoles]);
 
   useEffect(() => {
-    void refreshActive();
-  }, [refreshActive]);
+    void refreshUsersAndRoles();
+  }, [refreshUsersAndRoles]);
 
   useEffect(() => {
     if (activeTab !== "roles") return;
@@ -133,11 +156,7 @@ export default function AccessControlPage() {
             <button className="primary" onClick={() => setAssignOpen(true)} disabled={!selectedIdentityId}>
               Create role
             </button>
-          ) : (
-            <button className="primary" disabled title="Users are provisioned by external identity providers.">
-              Create user
-            </button>
-          )}
+          ) : null}
           <button className="ghost" onClick={() => void refreshActive()} disabled={loading}>
             {loading ? "Refreshing..." : "Refresh"}
           </button>
@@ -164,7 +183,12 @@ export default function AccessControlPage() {
           </div>
           <div className="instance-list">
             {identities.map((identity) => (
-              <div key={identity.id} className="instance-row">
+              <button
+                key={identity.id}
+                type="button"
+                className={`instance-row ${selectedIdentityId === identity.id ? "active" : ""}`}
+                onClick={() => setSelectedIdentityId(identity.id)}
+              >
                 <div>
                   <strong>{identity.display_name || identity.email || identity.subject}</strong>
                   <span className="muted small">{identity.email || identity.subject}</span>
@@ -176,12 +200,22 @@ export default function AccessControlPage() {
                   </span>
                 </div>
                 <span className="muted small">{identity.last_login_at || "never"}</span>
-              </div>
+              </button>
             ))}
             {identities.length === 0 && <p className="muted">No identities yet.</p>}
           </div>
         </section>
-      ) : (
+      ) : null}
+
+      {activeTab === "explorer" ? (
+        <AccessExplorerPage
+          selectedUserId={selectedIdentityId}
+          onSelectedUserIdChange={setSelectedIdentityId}
+          refreshToken={explorerRefreshToken}
+        />
+      ) : null}
+
+      {activeTab === "roles" ? (
         <div className="layout">
           <section className="card">
             <div className="card-header">
@@ -234,7 +268,7 @@ export default function AccessControlPage() {
             </div>
           </section>
         </div>
-      )}
+      ) : null}
 
       {assignOpen && (
         <div className="modal-backdrop" onClick={loading ? undefined : () => setAssignOpen(false)}>

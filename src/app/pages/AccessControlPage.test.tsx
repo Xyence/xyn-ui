@@ -33,7 +33,7 @@ describe("AccessControlPage", () => {
     apiMocks.deleteRoleBinding.mockResolvedValue(undefined);
   });
 
-  it("defaults to roles tab and can switch to users", async () => {
+  it("defaults to users tab when tab param is missing", async () => {
     render(
       <MemoryRouter initialEntries={["/app/platform/access-control"]}>
         <Routes>
@@ -43,8 +43,36 @@ describe("AccessControlPage", () => {
     );
 
     expect(await screen.findByText("Access Control")).toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: "Create role" })).not.toBeInTheDocument();
+    expect(await screen.findByRole("tab", { name: "Users" })).toHaveAttribute("aria-selected", "true");
+  });
+
+  it("falls back to users for invalid tab param", async () => {
+    render(
+      <MemoryRouter initialEntries={["/app/platform/access-control?tab=invalid"]}>
+        <Routes>
+          <Route path="/app/platform/access-control" element={<AccessControlPage />} />
+        </Routes>
+      </MemoryRouter>
+    );
+
+    expect(await screen.findByRole("tab", { name: "Users" })).toHaveAttribute("aria-selected", "true");
+    expect(screen.queryByRole("button", { name: "Create role" })).not.toBeInTheDocument();
+  });
+
+  it("shows create role button only when roles tab is active", async () => {
+    render(
+      <MemoryRouter initialEntries={["/app/platform/access-control?tab=users"]}>
+        <Routes>
+          <Route path="/app/platform/access-control" element={<AccessControlPage />} />
+        </Routes>
+      </MemoryRouter>
+    );
+
+    expect(await screen.findByRole("tab", { name: "Users" })).toHaveAttribute("aria-selected", "true");
+    expect(screen.queryByRole("button", { name: "Create role" })).not.toBeInTheDocument();
+
+    await userEvent.click(screen.getByRole("tab", { name: "Roles" }));
     expect(await screen.findByRole("button", { name: "Create role" })).toBeInTheDocument();
-    await userEvent.click(screen.getByRole("tab", { name: "Users" }));
-    expect(await screen.findByRole("button", { name: "Create user" })).toBeInTheDocument();
   });
 });

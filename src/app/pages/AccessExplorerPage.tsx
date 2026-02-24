@@ -17,6 +17,12 @@ import type {
   AccessUserSummary,
 } from "../../api/types";
 
+type AccessExplorerPageProps = {
+  selectedUserId?: string;
+  onSelectedUserIdChange?: (userId: string) => void;
+  refreshToken?: number;
+};
+
 function scopeSummary(scope?: Record<string, unknown> | null): string {
   if (!scope || Object.keys(scope).length === 0) return "global";
   return Object.entries(scope)
@@ -24,11 +30,15 @@ function scopeSummary(scope?: Record<string, unknown> | null): string {
     .join(", ");
 }
 
-export default function AccessExplorerPage() {
+export default function AccessExplorerPage({
+  selectedUserId: controlledSelectedUserId,
+  onSelectedUserIdChange,
+  refreshToken = 0,
+}: AccessExplorerPageProps) {
   const [registry, setRegistry] = useState<AccessRegistryResponse | null>(null);
   const [users, setUsers] = useState<AccessUserSummary[]>([]);
   const [search, setSearch] = useState("");
-  const [selectedUser, setSelectedUser] = useState<AccessUserSummary | null>(null);
+  const [uncontrolledSelectedUserId, setUncontrolledSelectedUserId] = useState("");
   const [userRoles, setUserRoles] = useState<Array<{ roleId: string; roleName: string; scope?: Record<string, unknown>; assignedAt?: string }>>([]);
   const [effective, setEffective] = useState<AccessEffectivePermission[]>([]);
   const [activeTab, setActiveTab] = useState<"roles" | "effective" | "graph">("effective");
@@ -43,6 +53,16 @@ export default function AccessExplorerPage() {
   const [inspectedNode, setInspectedNode] = useState<Node | null>(null);
   const [roleDrawerOpen, setRoleDrawerOpen] = useState(false);
   const [roleDetail, setRoleDetail] = useState<AccessRoleDetailResponse | null>(null);
+
+  const selectedUserId = controlledSelectedUserId ?? uncontrolledSelectedUserId;
+  const selectedUser = useMemo(() => users.find((user) => user.id === selectedUserId) || null, [users, selectedUserId]);
+
+  const setSelectedUserId = (nextUserId: string) => {
+    if (controlledSelectedUserId === undefined) {
+      setUncontrolledSelectedUserId(nextUserId);
+    }
+    onSelectedUserIdChange?.(nextUserId);
+  };
 
   const permissionsByKey = useMemo(() => {
     const map = new Map<string, AccessPermissionDefinition>();
@@ -83,6 +103,15 @@ export default function AccessExplorerPage() {
     return ["all", ...Array.from(set).sort()];
   }, [registry]);
 
+  const loadRegistry = async () => {
+    try {
+      const reg = await getAccessRegistry();
+      setRegistry(reg);
+    } catch (err) {
+      setError((err as Error).message || "Failed to load registry");
+    }
+  };
+
   const loadUsers = async (query = "") => {
     try {
       const response = await searchAccessUsers(query);
@@ -93,6 +122,11 @@ export default function AccessExplorerPage() {
   };
 
   const loadSelectedUser = async (userId: string) => {
+    if (!userId) {
+      setUserRoles([]);
+      setEffective([]);
+      return;
+    }
     setLoading(true);
     try {
       const [rolesResponse, effectiveResponse] = await Promise.all([
@@ -109,20 +143,7 @@ export default function AccessExplorerPage() {
   };
 
   useEffect(() => {
-    let mounted = true;
-    (async () => {
-      try {
-        const reg = await getAccessRegistry();
-        if (!mounted) return;
-        setRegistry(reg);
-      } catch (err) {
-        if (!mounted) return;
-        setError((err as Error).message || "Failed to load registry");
-      }
-    })();
-    return () => {
-      mounted = false;
-    };
+    void loadRegistry();
   }, []);
 
   useEffect(() => {
@@ -137,9 +158,23 @@ export default function AccessExplorerPage() {
   }, []);
 
   useEffect(() => {
-    if (!selectedUser) return;
-    void loadSelectedUser(selectedUser.id);
-  }, [selectedUser]);
+    if (!selectedUserId) {
+      setUserRoles([]);
+      setEffective([]);
+      return;
+    }
+    void loadSelectedUser(selectedUserId);
+  }, [selectedUserId]);
+
+  useEffect(() => {
+    if (refreshToken === 0) return;
+    void (async () => {
+      await Promise.all([loadRegistry(), loadUsers(search)]);
+      if (selectedUserId) await loadSelectedUser(selectedUserId);
+    })();
+    // Intentionally keyed to explicit manual refresh.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [refreshToken]);
 
   const nodesAndEdges = useMemo(() => {
     if (!selectedUser || !registry) return { nodes: [] as Node[], edges: [] as Edge[] };
@@ -238,7 +273,7 @@ export default function AccessExplorerPage() {
             <button
               key={user.id}
               className={`app-nav-link ${selectedUser?.id === user.id ? "active" : ""}`}
-              onClick={() => setSelectedUser(user)}
+              onClick={() => setSelectedUserId(user.id)}
               style={{ textAlign: "left" }}
             >
               <strong>{user.name}</strong>
@@ -406,6 +441,7 @@ export default function AccessExplorerPage() {
         {selectedUser && activeTab === "graph" ? (
           <section className="card" style={{ height: 680, padding: 0, overflow: "hidden" }}>
             <ReactFlow
+              className="access-explorer-flow"
               nodes={nodesAndEdges.nodes}
               edges={nodesAndEdges.edges}
               fitView
