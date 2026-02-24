@@ -1686,6 +1686,14 @@ button.sm {
   overflow: auto;
 }
 
+.article-wysiwyg-content p {
+  margin: 0;
+}
+
+.article-wysiwyg-content p + p {
+  margin-top: 1em;
+}
+
 .article-wysiwyg-content p.is-editor-empty:first-child::before {
   color: var(--muted);
   content: attr(data-placeholder);
