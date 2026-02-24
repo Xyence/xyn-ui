@@ -1074,6 +1074,10 @@ export type ArticleDetail = ArticleSummary & {
   body_markdown: string;
   body_html?: string;
   video_spec_json?: VideoSpec | null;
+  video_ai_config_json?: {
+    agents?: Record<string, string>;
+    context_packs?: Record<string, unknown>;
+  } | null;
   video_context_pack_id?: string | null;
   video_context_pack?: {
     id: string;
@@ -1373,6 +1377,33 @@ export type ArtifactEventSummary = {
   actor_id?: string | null;
   payload_json?: Record<string, unknown>;
   created_at?: string;
+};
+
+export type VideoAiConfigEntry = {
+  purpose_slug: string;
+  purpose_name: string;
+  description: string;
+  agent: {
+    id: string;
+    slug: string;
+    name: string;
+    model_provider?: string | null;
+    model_name?: string | null;
+  } | null;
+  context_packs: Array<{
+    id: string;
+    name: string;
+    purpose: string;
+    scope: string;
+    version: string;
+    updated_at?: string | null;
+    content_hash?: string;
+  }>;
+  context_pack_hash?: string;
+  source?: string;
+  agent_source?: string;
+  context_source?: string;
+  warning?: string | null;
 };
 
 export type AiActivityEntry = {

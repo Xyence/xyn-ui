@@ -18,6 +18,8 @@ const apiMocks = vi.hoisted(() => ({
   initializeArticleVideo: vi.fn(),
   generateArticleVideoScript: vi.fn(),
   generateArticleVideoStoryboard: vi.fn(),
+  getArticleVideoAiConfig: vi.fn(),
+  updateArticleVideoAiConfig: vi.fn(),
   renderArticleVideo: vi.fn(),
   retryVideoRender: vi.fn(),
   cancelVideoRender: vi.fn(),
@@ -92,6 +94,37 @@ describe("ArtifactDetailPage video explainer", () => {
     apiMocks.listContextPacks.mockResolvedValue({
       context_packs: [{ id: "pack-1", name: "Explainer Pack", purpose: "video_explainer", scope: "global", version: "1.0.0", is_active: true, is_default: false }],
     });
+    apiMocks.getArticleVideoAiConfig.mockResolvedValue({
+      overrides: { agents: {}, context_packs: {} },
+      effective: {
+        explainer_script: {
+          purpose_slug: "explainer_script",
+          purpose_name: "Script",
+          description: "Generate explainer narration scripts.",
+          agent: { id: "agent-1", slug: "writer", name: "Writer Agent", model_provider: "openai", model_name: "gpt-4o-mini" },
+          context_packs: [],
+          source: "purpose_default",
+          agent_source: "purpose_default",
+          context_source: "purpose_default",
+        },
+      },
+    });
+    apiMocks.updateArticleVideoAiConfig.mockResolvedValue({
+      overrides: { agents: { explainer_script: "writer" }, context_packs: {} },
+      effective: {
+        explainer_script: {
+          purpose_slug: "explainer_script",
+          purpose_name: "Script",
+          description: "Generate explainer narration scripts.",
+          agent: { id: "agent-1", slug: "writer", name: "Writer Agent", model_provider: "openai", model_name: "gpt-4o-mini" },
+          context_packs: [],
+          source: "override",
+          agent_source: "override",
+          context_source: "purpose_default",
+        },
+      },
+      article: {},
+    });
     apiMocks.listAiAgents.mockResolvedValue({ agents: [] });
     apiMocks.updateArticle.mockResolvedValue({ article: {} });
   });
@@ -111,5 +144,77 @@ describe("ArtifactDetailPage video explainer", () => {
     const [, payload] = lastCall;
     expect(payload.format).toBe("video_explainer");
     expect((payload.video_spec_json as Record<string, unknown>).intent).toBe("new intent");
+  });
+
+  it("shows AI Config tab for video_explainer and saves overrides", async () => {
+    apiMocks.listAiAgents.mockImplementation(async ({ purpose }: { purpose?: string }) => {
+      if (purpose === "explainer_script") {
+        return {
+          agents: [
+            {
+              id: "agent-1",
+              slug: "writer",
+              name: "Writer Agent",
+              model_config: { provider: "openai", model_name: "gpt-4o-mini" },
+              purposes: ["explainer_script"],
+              model_config_id: "cfg-1",
+              enabled: true,
+            },
+          ],
+        };
+      }
+      return { agents: [] };
+    });
+    apiMocks.listContextPacks.mockImplementation(async ({ purpose }: { purpose?: string }) => {
+      if (purpose === "explainer_script") {
+        return {
+          context_packs: [
+            { id: "pack-2", name: "Script Pack", purpose: "explainer_script", scope: "global", version: "1.0.0", is_active: true, is_default: false },
+          ],
+        };
+      }
+      return { context_packs: [] };
+    });
+    render(<ArtifactDetailPage workspaceId="ws-1" workspaceRole="owner" canManageArticleLifecycle />);
+    expect(await screen.findByText("Explainer Video")).toBeInTheDocument();
+    await userEvent.click(screen.getByRole("button", { name: "AI Config" }));
+    expect(await screen.findByText("Purpose-scoped agent and context pack defaults for explainer generation.")).toBeInTheDocument();
+
+    const agentSelect = screen.getAllByLabelText("Agent")[0];
+    await userEvent.selectOptions(agentSelect, "writer");
+    await userEvent.click(screen.getByRole("button", { name: "Save" }));
+
+    await waitFor(() =>
+      expect(apiMocks.updateArticleVideoAiConfig).toHaveBeenCalledWith(
+        "art-1",
+        expect.objectContaining({
+          agents: expect.objectContaining({ explainer_script: "writer" }),
+        })
+      )
+    );
+  });
+
+  it("does not show AI Config tab for standard articles", async () => {
+    apiMocks.getArticle.mockResolvedValueOnce({
+      article: {
+        id: "art-1",
+        workspace_id: "ws-1",
+        title: "Standard Article",
+        slug: "standard-article",
+        summary: "summary",
+        body_markdown: "hello",
+        body_html: "",
+        category: "guide",
+        format: "standard",
+        status: "draft",
+        visibility_type: "private",
+        allowed_roles: [],
+        tags: [],
+        published_to: [],
+      },
+    });
+    render(<ArtifactDetailPage workspaceId="ws-1" workspaceRole="owner" canManageArticleLifecycle />);
+    expect(await screen.findByText("Article Editor")).toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: "AI Config" })).not.toBeInTheDocument();
   });
 });

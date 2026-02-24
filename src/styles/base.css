@@ -1570,7 +1570,7 @@ button.sm {
 
 .editor-panel-tabs {
   display: grid;
-  grid-template-columns: repeat(3, minmax(0, 1fr));
+  grid-template-columns: repeat(auto-fit, minmax(0, 1fr));
   gap: 8px;
 }
 
@@ -1698,6 +1698,54 @@ button.sm {
   padding: 3px 8px;
   width: fit-content;
   background: var(--surface-soft);
+}
+
+.activity-ai-config-panel {
+  min-width: 0;
+}
+
+.ai-config-row {
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  padding: 10px;
+  display: grid;
+  gap: 8px;
+  background: var(--surface-soft);
+}
+
+.ai-config-row label {
+  display: grid;
+  gap: 6px;
+  font-weight: 600;
+  font-size: 0.85rem;
+}
+
+.ai-config-row select[multiple] {
+  min-height: 78px;
+  max-height: 120px;
+}
+
+.ai-config-indicator {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: 999px;
+  border: 1px solid var(--border);
+  padding: 2px 7px;
+  font-size: 0.68rem;
+  letter-spacing: 0.02em;
+  text-transform: uppercase;
+}
+
+.ai-config-indicator.default {
+  background: var(--surface-soft);
+  color: var(--muted);
+}
+
+.ai-config-indicator.override {
+  background: var(--accent-soft);
+  color: var(--accent);
+  border-color: var(--border-strong);
 }
 
 .article-review-panel {

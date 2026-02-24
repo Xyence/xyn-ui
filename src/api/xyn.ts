@@ -86,6 +86,7 @@ import type {
   ArticleDetail,
   ArticleRevision,
   VideoRender,
+  VideoAiConfigEntry,
   ArticleCategoryRecord,
   PublishBindingRecord,
   ArtifactEventSummary,
@@ -346,7 +347,7 @@ export async function initializeArticleVideo(articleId: string): Promise<{ artic
 
 export async function generateArticleVideoScript(
   articleId: string,
-  payload: { agent_slug: string; context_pack_id?: string | null }
+  payload: { agent_slug?: string; context_pack_id?: string | null; context_packs?: unknown }
 ): Promise<{ article: ArticleDetail; proposal: Record<string, unknown>; overwrote_draft: boolean }> {
   const apiBaseUrl = resolveApiBaseUrl();
   const response = await apiFetch(`${apiBaseUrl}/xyn/api/articles/${articleId}/video/generate-script`, {
@@ -360,7 +361,7 @@ export async function generateArticleVideoScript(
 
 export async function generateArticleVideoStoryboard(
   articleId: string,
-  payload: { agent_slug: string; context_pack_id?: string | null }
+  payload: { agent_slug?: string; context_pack_id?: string | null; context_packs?: unknown }
 ): Promise<{ article: ArticleDetail; proposal: Record<string, unknown>; overwrote_draft: boolean }> {
   const apiBaseUrl = resolveApiBaseUrl();
   const response = await apiFetch(`${apiBaseUrl}/xyn/api/articles/${articleId}/video/generate-storyboard`, {
@@ -370,6 +371,46 @@ export async function generateArticleVideoStoryboard(
     body: JSON.stringify(payload),
   });
   return handle<{ article: ArticleDetail; proposal: Record<string, unknown>; overwrote_draft: boolean }>(response);
+}
+
+export async function getArticleVideoAiConfig(articleId: string): Promise<{
+  overrides: { agents: Record<string, string>; context_packs: Record<string, unknown> };
+  effective: Record<string, VideoAiConfigEntry>;
+}> {
+  const apiBaseUrl = resolveApiBaseUrl();
+  const response = await apiFetch(`${apiBaseUrl}/xyn/api/articles/${articleId}/video/ai-config`, {
+    credentials: "include",
+  });
+  return handle<{
+    overrides: { agents: Record<string, string>; context_packs: Record<string, unknown> };
+    effective: Record<string, VideoAiConfigEntry>;
+  }>(response);
+}
+
+export async function updateArticleVideoAiConfig(
+  articleId: string,
+  payload: {
+    reset_all?: boolean;
+    agents?: Record<string, string | null>;
+    context_packs?: Record<string, unknown>;
+  }
+): Promise<{
+  overrides: { agents: Record<string, string>; context_packs: Record<string, unknown> };
+  effective: Record<string, VideoAiConfigEntry>;
+  article: ArticleDetail;
+}> {
+  const apiBaseUrl = resolveApiBaseUrl();
+  const response = await apiFetch(`${apiBaseUrl}/xyn/api/articles/${articleId}/video/ai-config`, {
+    method: "PUT",
+    headers: buildHeaders(),
+    credentials: "include",
+    body: JSON.stringify(payload),
+  });
+  return handle<{
+    overrides: { agents: Record<string, string>; context_packs: Record<string, unknown> };
+    effective: Record<string, VideoAiConfigEntry>;
+    article: ArticleDetail;
+  }>(response);
 }
 
 export async function listArticleVideoRenders(articleId: string): Promise<{ renders: VideoRender[] }> {

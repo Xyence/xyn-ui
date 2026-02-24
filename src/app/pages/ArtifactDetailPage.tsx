@@ -12,6 +12,7 @@ import {
   createArticleRevision,
   generateArticleVideoScript,
   generateArticleVideoStoryboard,
+  getArticleVideoAiConfig,
   getArticle,
   initializeArticleVideo,
   listArticleRevisions,
@@ -22,9 +23,10 @@ import {
   retryVideoRender,
   cancelVideoRender,
   transitionArticle,
+  updateArticleVideoAiConfig,
   updateArticle,
 } from "../../api/xyn";
-import type { ArticleDetail, ArticleFormat, ArticleRevision, ContextPackSummary, VideoRender, VideoSpec } from "../../api/types";
+import type { AiAgent, ArticleDetail, ArticleFormat, ArticleRevision, ContextPackSummary, VideoAiConfigEntry, VideoRender, VideoSpec } from "../../api/types";
 import ArtifactWorkflowActions from "../components/workflow/ArtifactWorkflowActions";
 import MarkdownWysiwygEditor from "../components/editor/MarkdownWysiwygEditor";
 import EditorCentricLayout from "../layouts/EditorCentricLayout";
@@ -34,11 +36,19 @@ import { useNotifications } from "../state/notificationsStore";
 import { useOperations } from "../state/operationRegistry";
 import { canRewriteSelection, resolveAssistPrimaryAction } from "./articleAssistLogic";
 
-type ActivityTab = "revisions" | "ai" | "discussion";
+type ActivityTab = "revisions" | "ai" | "ai_config" | "discussion";
 type RevisionMode = "list" | "view" | "diff";
 type EditorMode = "edit" | "review";
 type VideoTab = "overview" | "script" | "storyboard" | "renders";
 const REVIEW_TOAST_ACTION = "article.ai.review";
+const EXPLAINER_PURPOSE_META = [
+  { slug: "explainer_script", name: "Script", description: "Narration draft generation." },
+  { slug: "explainer_storyboard", name: "Storyboard", description: "Scene structure generation." },
+  { slug: "explainer_visual_prompts", name: "Visual Prompts", description: "Scene-by-scene prompt generation." },
+  { slug: "explainer_narration", name: "Narration", description: "Spoken rewrite refinement." },
+  { slug: "explainer_title_description", name: "Title/Description", description: "Title, description, CTA variants." },
+] as const;
+type ExplainerPurposeSlug = (typeof EXPLAINER_PURPOSE_META)[number]["slug"];
 
 type PendingAssist = {
   mode: "generate_draft" | "propose_edits" | "rewrite_selection";
@@ -131,6 +141,18 @@ export default function ArtifactDetailPage({
   const [videoRenders, setVideoRenders] = useState<VideoRender[]>([]);
   const [videoContextPacks, setVideoContextPacks] = useState<ContextPackSummary[]>([]);
   const [selectedVideoContextPackId, setSelectedVideoContextPackId] = useState("");
+  const [videoAiConfigOverrides, setVideoAiConfigOverrides] = useState<{ agents: Record<string, string>; context_packs: Record<string, unknown> }>({
+    agents: {},
+    context_packs: {},
+  });
+  const [videoAiConfigDraft, setVideoAiConfigDraft] = useState<{ agents: Record<string, string>; context_packs: Record<string, unknown> }>({
+    agents: {},
+    context_packs: {},
+  });
+  const [videoAiConfigEffective, setVideoAiConfigEffective] = useState<Record<string, VideoAiConfigEntry>>({});
+  const [videoPurposeAgents, setVideoPurposeAgents] = useState<Record<string, AiAgent[]>>({});
+  const [videoPurposeContextPacks, setVideoPurposeContextPacks] = useState<Record<string, ContextPackSummary[]>>({});
+  const [videoAiConfigBusy, setVideoAiConfigBusy] = useState(false);
   const [videoBusy, setVideoBusy] = useState<"init" | "save" | "script" | "storyboard" | "render" | "retry" | "cancel" | null>(null);
   const [selectedStoryboardSceneIndex, setSelectedStoryboardSceneIndex] = useState(0);
   const [pendingAssist, setPendingAssist] = useState<PendingAssist | null>(null);
@@ -171,6 +193,34 @@ export default function ArtifactDetailPage({
     return packs;
   }, []);
 
+  const loadVideoAiConfig = useCallback(async () => {
+    if (!artifactId) return;
+    const data = await getArticleVideoAiConfig(artifactId);
+    const overrides = {
+      agents: data.overrides?.agents || {},
+      context_packs: data.overrides?.context_packs || {},
+    };
+    setVideoAiConfigOverrides(overrides);
+    setVideoAiConfigDraft(overrides);
+    setVideoAiConfigEffective(data.effective || {});
+  }, [artifactId]);
+
+  const loadVideoAiConfigOptions = useCallback(async () => {
+    const purposes = EXPLAINER_PURPOSE_META.map((item) => item.slug);
+    const [agentsResults, packsResults] = await Promise.all([
+      Promise.all(purposes.map((purpose) => listAiAgents({ purpose, enabled: true }))),
+      Promise.all(purposes.map((purpose) => listContextPacks({ purpose, active: true }))),
+    ]);
+    const nextAgents: Record<string, AiAgent[]> = {};
+    const nextPacks: Record<string, ContextPackSummary[]> = {};
+    purposes.forEach((purpose, index) => {
+      nextAgents[purpose] = agentsResults[index]?.agents || [];
+      nextPacks[purpose] = packsResults[index]?.context_packs || [];
+    });
+    setVideoPurposeAgents(nextAgents);
+    setVideoPurposeContextPacks(nextPacks);
+  }, []);
+
   const load = useCallback(async () => {
     if (!artifactId || !workspaceId) return;
     try {
@@ -198,6 +248,7 @@ export default function ArtifactDetailPage({
           listArticleVideoRenders(artifactId),
           loadVideoContextPacks(),
         ]);
+        await Promise.all([loadVideoAiConfig(), loadVideoAiConfigOptions()]);
         setVideoRenders(renderData.renders || []);
         setVideoContextPacks(packsData || []);
         setSelectedVideoContextPackId(article.video_context_pack_id || "");
@@ -205,6 +256,11 @@ export default function ArtifactDetailPage({
         setVideoRenders([]);
         setVideoContextPacks([]);
         setSelectedVideoContextPackId("");
+        setVideoAiConfigOverrides({ agents: {}, context_packs: {} });
+        setVideoAiConfigDraft({ agents: {}, context_packs: {} });
+        setVideoAiConfigEffective({});
+        setVideoPurposeAgents({});
+        setVideoPurposeContextPacks({});
       }
       setCategory(article.category || "web");
       setVisibilityType(article.visibility_type || "private");
@@ -223,7 +279,7 @@ export default function ArtifactDetailPage({
     } catch (err) {
       setError((err as Error).message);
     }
-  }, [workspaceId, artifactId, loadVideoContextPacks]);
+  }, [workspaceId, artifactId, loadVideoContextPacks, loadVideoAiConfig, loadVideoAiConfigOptions]);
 
   useEffect(() => {
     void load();
@@ -278,6 +334,12 @@ export default function ArtifactDetailPage({
     }, 4000);
     return () => window.clearInterval(timer);
   }, [artifactId, articleFormat, videoRenders]);
+
+  useEffect(() => {
+    if (articleFormat !== "video_explainer" && activityTab === "ai_config") {
+      setActivityTab("ai");
+    }
+  }, [activityTab, articleFormat]);
 
   const save = async () => {
     if (!artifactId) return;
@@ -600,13 +662,116 @@ export default function ArtifactDetailPage({
     }
   };
 
+  const readOverridePackIds = useCallback((purposeSlug: string): string[] => {
+    const raw = videoAiConfigDraft.context_packs?.[purposeSlug];
+    if (!raw) return [];
+    const values = Array.isArray(raw) ? raw : [raw];
+    return values
+      .map((entry) => {
+        if (entry && typeof entry === "object") {
+          return String((entry as { id?: string; context_pack_id?: string }).id || (entry as { context_pack_id?: string }).context_pack_id || "").trim();
+        }
+        return String(entry || "").trim();
+      })
+      .filter(Boolean);
+  }, [videoAiConfigDraft.context_packs]);
+
+  const setOverrideAgent = useCallback((purposeSlug: ExplainerPurposeSlug, value: string) => {
+    setVideoAiConfigDraft((current) => {
+      const next = {
+        agents: { ...(current.agents || {}) },
+        context_packs: { ...(current.context_packs || {}) },
+      };
+      if (!value) delete next.agents[purposeSlug];
+      else next.agents[purposeSlug] = value;
+      return next;
+    });
+  }, []);
+
+  const setOverrideContextPacks = useCallback((purposeSlug: ExplainerPurposeSlug, packIds: string[]) => {
+    setVideoAiConfigDraft((current) => {
+      const next = {
+        agents: { ...(current.agents || {}) },
+        context_packs: { ...(current.context_packs || {}) },
+      };
+      if (!packIds.length) {
+        delete next.context_packs[purposeSlug];
+      } else {
+        next.context_packs[purposeSlug] = packIds;
+      }
+      return next;
+    });
+  }, []);
+
+  const saveVideoAiConfig = useCallback(async () => {
+    if (!artifactId) return;
+    try {
+      setVideoAiConfigBusy(true);
+      setError(null);
+      const result = await updateArticleVideoAiConfig(artifactId, {
+        agents: videoAiConfigDraft.agents,
+        context_packs: videoAiConfigDraft.context_packs,
+      });
+      const overrides = {
+        agents: result.overrides?.agents || {},
+        context_packs: result.overrides?.context_packs || {},
+      };
+      setVideoAiConfigOverrides(overrides);
+      setVideoAiConfigDraft(overrides);
+      setVideoAiConfigEffective(result.effective || {});
+      setItem(result.article || null);
+      push({
+        level: "success",
+        title: "AI config saved",
+        message: "Explainer purpose agent and context defaults updated.",
+        status: "succeeded",
+        action: "article.video.ai_config.save",
+        entityType: "unknown",
+        entityId: artifactId,
+      });
+    } catch (err) {
+      const message = (err as Error).message;
+      setError(message);
+      push({
+        level: "error",
+        title: "AI config failed",
+        message,
+        status: "failed",
+        action: "article.video.ai_config.save",
+        entityType: "unknown",
+        entityId: artifactId,
+      });
+    } finally {
+      setVideoAiConfigBusy(false);
+    }
+  }, [artifactId, push, videoAiConfigDraft.agents, videoAiConfigDraft.context_packs]);
+
+  const resetVideoAiConfig = useCallback(async () => {
+    if (!artifactId) return;
+    try {
+      setVideoAiConfigBusy(true);
+      setError(null);
+      const result = await updateArticleVideoAiConfig(artifactId, { reset_all: true });
+      const overrides = {
+        agents: result.overrides?.agents || {},
+        context_packs: result.overrides?.context_packs || {},
+      };
+      setVideoAiConfigOverrides(overrides);
+      setVideoAiConfigDraft(overrides);
+      setVideoAiConfigEffective(result.effective || {});
+    } catch (err) {
+      setError((err as Error).message);
+    } finally {
+      setVideoAiConfigBusy(false);
+    }
+  }, [artifactId]);
+
   const generateVideoScriptDraft = async () => {
-    if (!artifactId || !selectedAgent) return;
+    if (!artifactId) return;
     try {
       setVideoBusy("script");
       setError(null);
       const result = await generateArticleVideoScript(artifactId, {
-        agent_slug: selectedAgent,
         context_pack_id: selectedVideoContextPackId || null,
       });
       setItem(result.article);
@@ -629,12 +794,11 @@ export default function ArtifactDetailPage({
   };
 
   const generateVideoStoryboardDraft = async () => {
-    if (!artifactId || !selectedAgent) return;
+    if (!artifactId) return;
     try {
       setVideoBusy("storyboard");
       setError(null);
       const result = await generateArticleVideoStoryboard(artifactId, {
-        agent_slug: selectedAgent,
         context_pack_id: selectedVideoContextPackId || null,
       });
       setItem(result.article);
@@ -1103,6 +1267,81 @@ export default function ArtifactDetailPage({
     </div>
   );
 
+  const aiConfigDirty =
+    JSON.stringify(videoAiConfigDraft?.agents || {}) !== JSON.stringify(videoAiConfigOverrides?.agents || {}) ||
+    JSON.stringify(videoAiConfigDraft?.context_packs || {}) !== JSON.stringify(videoAiConfigOverrides?.context_packs || {});
+
+  const aiConfigPanel = (
+    <div className="stack activity-ai-config-panel">
+      <div className="card-header">
+        <h3>AI Config</h3>
+      </div>
+      <p className="muted small">Purpose-scoped agent and context pack defaults for explainer generation.</p>
+      {EXPLAINER_PURPOSE_META.map((purpose) => {
+        const effective = videoAiConfigEffective[purpose.slug];
+        const agentOptions = videoPurposeAgents[purpose.slug] || [];
+        const packOptions = videoPurposeContextPacks[purpose.slug] || [];
+        const hasAgentOverride = Boolean(videoAiConfigDraft.agents?.[purpose.slug]);
+        const hasPackOverride = Boolean(videoAiConfigDraft.context_packs?.[purpose.slug]);
+        const selectedPackIds = readOverridePackIds(purpose.slug);
+        return (
+          <section className="ai-config-row" key={purpose.slug}>
+            <div className="card-header">
+              <h4>{purpose.name}</h4>
+              <span className={`ai-config-indicator ${(hasAgentOverride || hasPackOverride) ? "override" : "default"}`}>
+                {(hasAgentOverride || hasPackOverride) ? "pencil" : "lock"}
+              </span>
+            </div>
+            <p className="muted small">{purpose.description}</p>
+            <label>
+              Agent
+              <select value={videoAiConfigDraft.agents?.[purpose.slug] || ""} onChange={(event) => setOverrideAgent(purpose.slug, event.target.value)}>
+                <option value="">Use Default</option>
+                {agentOptions.map((agent) => (
+                  <option key={agent.id} value={agent.slug}>
+                    {agent.name} ({agent.slug}) · {agent.model_config?.provider}/{agent.model_config?.model_name}
+                  </option>
+                ))}
+              </select>
+            </label>
+            <label>
+              Context packs
+              <select
+                multiple
+                size={Math.min(4, Math.max(2, packOptions.length || 2))}
+                value={selectedPackIds}
+                onChange={(event) => {
+                  const ids = Array.from(event.target.selectedOptions).map((entry) => entry.value).filter(Boolean);
+                  setOverrideContextPacks(purpose.slug, ids);
+                }}
+              >
+                {packOptions.map((pack) => (
+                  <option key={pack.id} value={pack.id}>
+                    {pack.name} · v{pack.version}
+                  </option>
+                ))}
+              </select>
+              <button className="ghost sm" type="button" onClick={() => setOverrideContextPacks(purpose.slug, [])}>
+                Use Default
+              </button>
+            </label>
+            <p className="muted small">
+              Effective: {effective?.agent?.name || "None"} · Packs: {effective?.context_packs?.map((entry) => entry.name).join(", ") || "None"}
+            </p>
+          </section>
+        );
+      })}
+      <div className="inline-actions">
+        <button className="primary sm" type="button" onClick={() => void saveVideoAiConfig()} disabled={videoAiConfigBusy || !aiConfigDirty}>
+          {videoAiConfigBusy ? "Saving…" : "Save"}
+        </button>
+        <button className="ghost sm" type="button" onClick={() => void resetVideoAiConfig()} disabled={videoAiConfigBusy}>
+          Reset all to defaults
+        </button>
+      </div>
+    </div>
+  );
+
   const discussionPanel = (
     <div className="stack">
       <div className="card-header">
@@ -1160,6 +1399,16 @@ export default function ArtifactDetailPage({
         >
           <span className="editor-tab-label">AI Assist</span>
         </button>
+        {articleFormat === "video_explainer" && (
+          <button
+            type="button"
+            title="AI Config"
+            className={`ghost editor-tab-button ${activityTab === "ai_config" ? "active" : ""}`}
+            onClick={() => setActivityTab("ai_config")}
+          >
+            <span className="editor-tab-label">AI Config</span>
+          </button>
+        )}
         <button
           type="button"
           title="Reactions & Comments"
@@ -1171,6 +1420,7 @@ export default function ArtifactDetailPage({
       </div>
       {activityTab === "revisions" && revisionPanel}
       {activityTab === "ai" && aiPanel}
+      {activityTab === "ai_config" && articleFormat === "video_explainer" && aiConfigPanel}
       {activityTab === "discussion" && discussionPanel}
     </div>
   );
@@ -1427,7 +1677,7 @@ export default function ArtifactDetailPage({
               <button className="ghost sm" type="button" onClick={() => void persistVideoSpec(activeVideoSpec)} disabled={videoBusy === "save"}>
                 Save script draft
               </button>
-              <button className="primary sm" type="button" onClick={() => void generateVideoScriptDraft()} disabled={videoBusy === "script" || !selectedAgent}>
+              <button className="primary sm" type="button" onClick={() => void generateVideoScriptDraft()} disabled={videoBusy === "script"}>
                 {videoBusy === "script" ? "Generating…" : "Generate Script"}
               </button>
             </div>
@@ -1542,7 +1792,7 @@ export default function ArtifactDetailPage({
                   className="primary sm"
                   type="button"
                   onClick={() => void generateVideoStoryboardDraft()}
-                  disabled={videoBusy === "storyboard" || !selectedAgent}
+                  disabled={videoBusy === "storyboard"}
                 >
                   {videoBusy === "storyboard" ? "Generating…" : "Generate Storyboard"}
                 </button>
