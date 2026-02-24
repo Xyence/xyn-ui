@@ -85,6 +85,7 @@ import type {
   ArticleSummary,
   ArticleDetail,
   ArticleRevision,
+  VideoRender,
   ArticleCategoryRecord,
   PublishBindingRecord,
   ArtifactEventSummary,
@@ -332,6 +333,91 @@ export async function transitionArticle(
     body: JSON.stringify({ to_status: toStatus }),
   });
   return handle<{ article: ArticleDetail }>(response);
+}
+
+export async function initializeArticleVideo(articleId: string): Promise<{ article: ArticleDetail }> {
+  const apiBaseUrl = resolveApiBaseUrl();
+  const response = await apiFetch(`${apiBaseUrl}/xyn/api/articles/${articleId}/video/initialize`, {
+    method: "POST",
+    credentials: "include",
+  });
+  return handle<{ article: ArticleDetail }>(response);
+}
+
+export async function generateArticleVideoScript(
+  articleId: string,
+  payload: { agent_slug: string }
+): Promise<{ article: ArticleDetail; proposal: Record<string, unknown>; overwrote_draft: boolean }> {
+  const apiBaseUrl = resolveApiBaseUrl();
+  const response = await apiFetch(`${apiBaseUrl}/xyn/api/articles/${articleId}/video/generate-script`, {
+    method: "POST",
+    headers: buildHeaders(),
+    credentials: "include",
+    body: JSON.stringify(payload),
+  });
+  return handle<{ article: ArticleDetail; proposal: Record<string, unknown>; overwrote_draft: boolean }>(response);
+}
+
+export async function generateArticleVideoStoryboard(
+  articleId: string,
+  payload: { agent_slug: string }
+): Promise<{ article: ArticleDetail; proposal: Record<string, unknown>; overwrote_draft: boolean }> {
+  const apiBaseUrl = resolveApiBaseUrl();
+  const response = await apiFetch(`${apiBaseUrl}/xyn/api/articles/${articleId}/video/generate-storyboard`, {
+    method: "POST",
+    headers: buildHeaders(),
+    credentials: "include",
+    body: JSON.stringify(payload),
+  });
+  return handle<{ article: ArticleDetail; proposal: Record<string, unknown>; overwrote_draft: boolean }>(response);
+}
+
+export async function listArticleVideoRenders(articleId: string): Promise<{ renders: VideoRender[] }> {
+  const apiBaseUrl = resolveApiBaseUrl();
+  const response = await apiFetch(`${apiBaseUrl}/xyn/api/articles/${articleId}/video/renders`, {
+    credentials: "include",
+  });
+  return handle<{ renders: VideoRender[] }>(response);
+}
+
+export async function renderArticleVideo(
+  articleId: string,
+  payload: { provider?: string; request_payload_json?: Record<string, unknown> }
+): Promise<{ render: VideoRender; article: ArticleDetail }> {
+  const apiBaseUrl = resolveApiBaseUrl();
+  const response = await apiFetch(`${apiBaseUrl}/xyn/api/articles/${articleId}/video/render`, {
+    method: "POST",
+    headers: buildHeaders(),
+    credentials: "include",
+    body: JSON.stringify(payload),
+  });
+  return handle<{ render: VideoRender; article: ArticleDetail }>(response);
+}
+
+export async function getVideoRender(renderId: string): Promise<{ render: VideoRender }> {
+  const apiBaseUrl = resolveApiBaseUrl();
+  const response = await apiFetch(`${apiBaseUrl}/xyn/api/video-renders/${renderId}`, {
+    credentials: "include",
+  });
+  return handle<{ render: VideoRender }>(response);
+}
+
+export async function cancelVideoRender(renderId: string): Promise<{ render: VideoRender }> {
+  const apiBaseUrl = resolveApiBaseUrl();
+  const response = await apiFetch(`${apiBaseUrl}/xyn/api/video-renders/${renderId}/cancel`, {
+    method: "POST",
+    credentials: "include",
+  });
+  return handle<{ render: VideoRender }>(response);
+}
+
+export async function retryVideoRender(renderId: string): Promise<{ render: VideoRender }> {
+  const apiBaseUrl = resolveApiBaseUrl();
+  const response = await apiFetch(`${apiBaseUrl}/xyn/api/video-renders/${renderId}/retry`, {
+    method: "POST",
+    credentials: "include",
+  });
+  return handle<{ render: VideoRender }>(response);
 }
 
 export async function listArticleCategories(): Promise<{ categories: ArticleCategoryRecord[] }> {

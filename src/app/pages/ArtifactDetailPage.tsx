@@ -10,12 +10,19 @@ import {
   invokeAi,
   convertArticleHtmlToMarkdown,
   createArticleRevision,
+  generateArticleVideoScript,
+  generateArticleVideoStoryboard,
   getArticle,
+  initializeArticleVideo,
   listArticleRevisions,
+  listArticleVideoRenders,
+  renderArticleVideo,
+  retryVideoRender,
+  cancelVideoRender,
   transitionArticle,
   updateArticle,
 } from "../../api/xyn";
-import type { ArticleDetail, ArticleRevision } from "../../api/types";
+import type { ArticleDetail, ArticleFormat, ArticleRevision, VideoRender, VideoSpec } from "../../api/types";
 import ArtifactWorkflowActions from "../components/workflow/ArtifactWorkflowActions";
 import MarkdownWysiwygEditor from "../components/editor/MarkdownWysiwygEditor";
 import EditorCentricLayout from "../layouts/EditorCentricLayout";
@@ -28,6 +35,7 @@ import { canRewriteSelection, resolveAssistPrimaryAction } from "./articleAssist
 type ActivityTab = "revisions" | "ai" | "discussion";
 type RevisionMode = "list" | "view" | "diff";
 type EditorMode = "edit" | "review";
+type VideoTab = "overview" | "script" | "storyboard" | "renders";
 const REVIEW_TOAST_ACTION = "article.ai.review";
 
 type PendingAssist = {
@@ -44,6 +52,40 @@ type EditorSelection = {
   contextAfter: string;
 };
 
+function createDefaultVideoSpec(title: string, summaryText: string): VideoSpec {
+  return {
+    version: 1,
+    title,
+    intent: summaryText || "",
+    audience: "mixed",
+    tone: "clear, confident, warm",
+    duration_seconds_target: 150,
+    voice: {
+      style: "conversational",
+      speaker: "neutral",
+      pace: "medium",
+    },
+    script: {
+      draft: "",
+      last_generated_at: null,
+      notes: "",
+      proposals: [],
+    },
+    storyboard: {
+      draft: [],
+      last_generated_at: null,
+      notes: "",
+      proposals: [],
+    },
+    scenes: [],
+    generation: {
+      provider: null,
+      status: "not_started",
+      last_render_id: null,
+    },
+  };
+}
+
 export default function ArtifactDetailPage({
   workspaceId,
   workspaceRole,
@@ -59,6 +101,7 @@ export default function ArtifactDetailPage({
   const [bodyMarkdown, setBodyMarkdown] = useState("");
   const [legacyBodyHtml, setLegacyBodyHtml] = useState("");
   const [summary, setSummary] = useState("");
+  const [articleFormat, setArticleFormat] = useState<ArticleFormat>("standard");
   const [category, setCategory] = useState<string>("web");
   const [visibilityType, setVisibilityType] = useState<"public" | "authenticated" | "role_based" | "private">("private");
   const [allowedRolesText, setAllowedRolesText] = useState("");
@@ -81,6 +124,11 @@ export default function ArtifactDetailPage({
   const [baselineLabel, setBaselineLabel] = useState("latest saved revision");
   const [showPreview, setShowPreview] = useState(false);
   const [editorMode, setEditorMode] = useState<EditorMode>("edit");
+  const [videoTab, setVideoTab] = useState<VideoTab>("overview");
+  const [videoSpec, setVideoSpec] = useState<VideoSpec | null>(null);
+  const [videoRenders, setVideoRenders] = useState<VideoRender[]>([]);
+  const [videoBusy, setVideoBusy] = useState<"init" | "save" | "script" | "storyboard" | "render" | "retry" | "cancel" | null>(null);
+  const [selectedStoryboardSceneIndex, setSelectedStoryboardSceneIndex] = useState(0);
   const [pendingAssist, setPendingAssist] = useState<PendingAssist | null>(null);
   const [editorSelection, setEditorSelection] = useState<EditorSelection | null>(null);
   const [editorFocusSignal, setEditorFocusSignal] = useState(0);
@@ -131,6 +179,15 @@ export default function ArtifactDetailPage({
       setBodyMarkdown(initialBody);
       setLegacyBodyHtml(fallbackHtml);
       setSummary(article.summary || "");
+      const nextFormat = (article.format as ArticleFormat) || "standard";
+      setArticleFormat(nextFormat);
+      setVideoSpec(article.video_spec_json ? (article.video_spec_json as VideoSpec) : createDefaultVideoSpec(article.title || "", article.summary || ""));
+      if (nextFormat === "video_explainer") {
+        const renderData = await listArticleVideoRenders(artifactId);
+        setVideoRenders(renderData.renders || []);
+      } else {
+        setVideoRenders([]);
+      }
       setCategory(article.category || "web");
       setVisibilityType(article.visibility_type || "private");
       setAllowedRolesText((article.allowed_roles || []).join(", "));
@@ -189,15 +246,32 @@ export default function ArtifactDetailPage({
     };
   }, [selectedAgent]);
 
+  useEffect(() => {
+    if (!artifactId || articleFormat !== "video_explainer") return;
+    const hasRunning = videoRenders.some((entry) => entry.status === "queued" || entry.status === "running");
+    if (!hasRunning) return;
+    const timer = window.setInterval(async () => {
+      try {
+        const rows = await listArticleVideoRenders(artifactId);
+        setVideoRenders(rows.renders || []);
+      } catch {
+        // Ignore polling hiccups; explicit actions still surface errors.
+      }
+    }, 4000);
+    return () => window.clearInterval(timer);
+  }, [artifactId, articleFormat, videoRenders]);
+
   const save = async () => {
     if (!artifactId) return;
     try {
       setError(null);
       await updateArticle(artifactId, {
+        format: articleFormat,
         category,
         visibility_type: visibilityType,
         allowed_roles: visibilityType === "role_based" ? parseCsv(allowedRolesText) : [],
         tags: parseCsv(tagsText),
+        video_spec_json: articleFormat === "video_explainer" ? videoSpec : null,
       });
       await createArticleRevision(artifactId, {
         summary,
@@ -421,6 +495,144 @@ export default function ArtifactDetailPage({
     }
   };
 
+  const persistVideoSpec = async (nextSpec: VideoSpec) => {
+    if (!artifactId) return;
+    try {
+      setVideoBusy("save");
+      setError(null);
+      await updateArticle(artifactId, { format: "video_explainer", video_spec_json: nextSpec });
+      setVideoSpec(nextSpec);
+      setArticleFormat("video_explainer");
+      await load();
+    } catch (err) {
+      setError((err as Error).message);
+    } finally {
+      setVideoBusy(null);
+    }
+  };
+
+  const ensureVideoInitialized = async () => {
+    if (!artifactId) return;
+    try {
+      setVideoBusy("init");
+      setError(null);
+      const result = await initializeArticleVideo(artifactId);
+      setItem(result.article);
+      setArticleFormat(result.article.format);
+      setVideoSpec((result.article.video_spec_json as VideoSpec) || createDefaultVideoSpec(result.article.title || "", result.article.summary || ""));
+      const renderData = await listArticleVideoRenders(artifactId);
+      setVideoRenders(renderData.renders || []);
+    } catch (err) {
+      setError((err as Error).message);
+    } finally {
+      setVideoBusy(null);
+    }
+  };
+
+  const generateVideoScriptDraft = async () => {
+    if (!artifactId || !selectedAgent) return;
+    try {
+      setVideoBusy("script");
+      setError(null);
+      const result = await generateArticleVideoScript(artifactId, { agent_slug: selectedAgent });
+      setItem(result.article);
+      setVideoSpec((result.article.video_spec_json as VideoSpec) || null);
+      push({
+        level: "success",
+        title: "Script proposal ready",
+        message: "Generated outputs are provisional. Accept or refine.",
+        status: "succeeded",
+        action: "article.video.script",
+        entityType: "unknown",
+        entityId: artifactId,
+      });
+    } catch (err) {
+      setError((err as Error).message);
+    } finally {
+      setVideoBusy(null);
+    }
+  };
+
+  const generateVideoStoryboardDraft = async () => {
+    if (!artifactId || !selectedAgent) return;
+    try {
+      setVideoBusy("storyboard");
+      setError(null);
+      const result = await generateArticleVideoStoryboard(artifactId, { agent_slug: selectedAgent });
+      setItem(result.article);
+      setVideoSpec((result.article.video_spec_json as VideoSpec) || null);
+      push({
+        level: "success",
+        title: "Storyboard proposal ready",
+        message: "Generated outputs are provisional. Accept or refine.",
+        status: "succeeded",
+        action: "article.video.storyboard",
+        entityType: "unknown",
+        entityId: artifactId,
+      });
+    } catch (err) {
+      setError((err as Error).message);
+    } finally {
+      setVideoBusy(null);
+    }
+  };
+
+  const requestVideoRender = async () => {
+    if (!artifactId) return;
+    try {
+      setVideoBusy("render");
+      setError(null);
+      const result = await renderArticleVideo(artifactId, { provider: "unknown", request_payload_json: { mode: "full_render" } });
+      setVideoRenders((prev) => [result.render, ...prev.filter((entry) => entry.id !== result.render.id)]);
+      setItem(result.article);
+      push({
+        level: "info",
+        title: "Render requested",
+        message: "Video render job created.",
+        status: "queued",
+        action: "article.video.render",
+        entityType: "unknown",
+        entityId: artifactId,
+      });
+    } catch (err) {
+      setError((err as Error).message);
+    } finally {
+      setVideoBusy(null);
+      if (artifactId) {
+        const rows = await listArticleVideoRenders(artifactId);
+        setVideoRenders(rows.renders || []);
+      }
+    }
+  };
+
+  const retryFailedRender = async (renderId: string) => {
+    if (!artifactId) return;
+    try {
+      setVideoBusy("retry");
+      setError(null);
+      const result = await retryVideoRender(renderId);
+      setVideoRenders((prev) => [result.render, ...prev.filter((entry) => entry.id !== result.render.id)]);
+    } catch (err) {
+      setError((err as Error).message);
+    } finally {
+      setVideoBusy(null);
+    }
+  };
+
+  const cancelRunningRender = async (renderId: string) => {
+    if (!artifactId) return;
+    try {
+      setVideoBusy("cancel");
+      setError(null);
+      const result = await cancelVideoRender(renderId);
+      setVideoRenders((prev) => prev.map((entry) => (entry.id === renderId ? result.render : entry)));
+    } catch (err) {
+      setError((err as Error).message);
+    } finally {
+      setVideoBusy(null);
+    }
+  };
+
   const acceptAssist = async () => {
     if (!artifactId || !pendingAssist) return;
     try {
@@ -599,6 +811,13 @@ export default function ArtifactDetailPage({
   const hasBodyContent = Boolean(bodyMarkdown.trim() || revisions.length > 0);
   const primaryAssistAction = resolveAssistPrimaryAction(hasBodyContent);
   const selectionLength = editorSelection?.selectedText.length || 0;
+  const activeVideoSpec = videoSpec || createDefaultVideoSpec(item?.title || "", summary || "");
+  const scriptProposals = Array.isArray(activeVideoSpec.script?.proposals) ? activeVideoSpec.script.proposals : [];
+  const storyboardProposals = Array.isArray(activeVideoSpec.storyboard?.proposals) ? activeVideoSpec.storyboard.proposals : [];
+  const selectedStoryboardScene =
+    Array.isArray(activeVideoSpec.storyboard?.draft) && activeVideoSpec.storyboard.draft.length > 0
+      ? activeVideoSpec.storyboard.draft[Math.min(selectedStoryboardSceneIndex, activeVideoSpec.storyboard.draft.length - 1)]
+      : null;
 
   const executeAction = async (action: WorkflowAction) => {
     try {
@@ -878,6 +1097,25 @@ export default function ArtifactDetailPage({
         <h3>Inspector</h3>
       </div>
       <div className="field-group">
+        <label className="field-label" htmlFor="article-format">
+          Format
+        </label>
+        <select
+          id="article-format"
+          value={articleFormat}
+          onChange={(event) => {
+            const next = event.target.value as ArticleFormat;
+            setArticleFormat(next);
+            if (next === "video_explainer") {
+              void ensureVideoInitialized();
+            }
+          }}
+        >
+          <option value="standard">Standard Article</option>
+          <option value="video_explainer">Explainer Video</option>
+        </select>
+      </div>
+      <div className="field-group">
         <label className="field-label" htmlFor="article-category">
           Category
         </label>
@@ -955,6 +1193,11 @@ export default function ArtifactDetailPage({
         <button className="primary" type="button" onClick={() => void save()}>
           Save revision
         </button>
+        {articleFormat === "video_explainer" && (
+          <a className="ghost" href={`/xyn/api/articles/${artifactId}/video/export-package`} target="_blank" rel="noreferrer noopener">
+            Export package
+          </a>
+        )}
         {!bodyMarkdown.trim() && legacyBodyHtml.trim() && (
           <button className="ghost" type="button" onClick={() => void convertLegacyHtml()}>
             Convert HTML to Markdown
@@ -1000,10 +1243,278 @@ export default function ArtifactDetailPage({
     </div>
   );
 
+  const videoEditorPanel =
+    articleFormat === "video_explainer" ? (
+      <section className="card video-explainer-panel">
+        <div className="card-header">
+          <h4>Explainer Video</h4>
+          <div className="inline-actions">
+            <button className={`ghost sm ${videoTab === "overview" ? "active" : ""}`} type="button" onClick={() => setVideoTab("overview")}>
+              Overview
+            </button>
+            <button className={`ghost sm ${videoTab === "script" ? "active" : ""}`} type="button" onClick={() => setVideoTab("script")}>
+              Script
+            </button>
+            <button className={`ghost sm ${videoTab === "storyboard" ? "active" : ""}`} type="button" onClick={() => setVideoTab("storyboard")}>
+              Storyboard
+            </button>
+            <button className={`ghost sm ${videoTab === "renders" ? "active" : ""}`} type="button" onClick={() => setVideoTab("renders")}>
+              Render History
+            </button>
+          </div>
+        </div>
+        <p className="muted small">Generated outputs are provisional. Accept or refine.</p>
+        {videoTab === "overview" && (
+          <div className="form-grid">
+            <label>
+              Intent
+              <textarea
+                className="input"
+                rows={3}
+                value={activeVideoSpec.intent || ""}
+                onChange={(event) => setVideoSpec({ ...activeVideoSpec, intent: event.target.value })}
+              />
+            </label>
+            <label>
+              Audience
+              <input
+                className="input"
+                value={activeVideoSpec.audience || ""}
+                onChange={(event) => setVideoSpec({ ...activeVideoSpec, audience: event.target.value })}
+              />
+            </label>
+            <label>
+              Tone
+              <input className="input" value={activeVideoSpec.tone || ""} onChange={(event) => setVideoSpec({ ...activeVideoSpec, tone: event.target.value })} />
+            </label>
+            <label>
+              Duration target (seconds)
+              <input
+                className="input"
+                type="number"
+                min={10}
+                value={activeVideoSpec.duration_seconds_target || 150}
+                onChange={(event) =>
+                  setVideoSpec({ ...activeVideoSpec, duration_seconds_target: Number(event.target.value) || activeVideoSpec.duration_seconds_target })
+                }
+              />
+            </label>
+            <button className="ghost sm" type="button" onClick={() => void persistVideoSpec(activeVideoSpec)} disabled={videoBusy === "save"}>
+              {videoBusy === "save" ? "Saving…" : "Save video spec"}
+            </button>
+          </div>
+        )}
+        {videoTab === "script" && (
+          <div className="stack">
+            <textarea
+              className="input"
+              rows={10}
+              value={activeVideoSpec.script?.draft || ""}
+              onChange={(event) =>
+                setVideoSpec({
+                  ...activeVideoSpec,
+                  script: { ...(activeVideoSpec.script || { draft: "", proposals: [] }), draft: event.target.value },
+                })
+              }
+            />
+            <div className="inline-actions">
+              <button className="ghost sm" type="button" onClick={() => void persistVideoSpec(activeVideoSpec)} disabled={videoBusy === "save"}>
+                Save script draft
+              </button>
+              <button className="primary sm" type="button" onClick={() => void generateVideoScriptDraft()} disabled={videoBusy === "script" || !selectedAgent}>
+                {videoBusy === "script" ? "Generating…" : "Generate Script"}
+              </button>
+            </div>
+            {scriptProposals.length > 0 && (
+              <div className="stack">
+                <div className="card-header">
+                  <h4>Script proposals</h4>
+                </div>
+                {scriptProposals.slice(0, 3).map((proposal) => (
+                  <div className="diff-panel" key={proposal.id}>
+                    <p className="muted small">{proposal.created_at}</p>
+                    <pre className="code-block">{proposal.text}</pre>
+                    <div className="inline-actions">
+                      <button
+                        className="ghost sm"
+                        type="button"
+                        onClick={() =>
+                          setVideoSpec({
+                            ...activeVideoSpec,
+                            script: {
+                              ...(activeVideoSpec.script || { draft: "", proposals: [] }),
+                              draft: proposal.text,
+                            },
+                          })
+                        }
+                      >
+                        Accept proposal
+                      </button>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            )}
+          </div>
+        )}
+        {videoTab === "storyboard" && (
+          <div className="editor-body split">
+            <div className="instance-list">
+              {(activeVideoSpec.storyboard?.draft || []).map((scene, index) => (
+                <button
+                  type="button"
+                  key={`${scene.scene}-${index}`}
+                  className={`instance-row ${selectedStoryboardSceneIndex === index ? "active" : ""}`}
+                  onClick={() => setSelectedStoryboardSceneIndex(index)}
+                >
+                  <div>
+                    <strong>Scene {scene.scene}</strong>
+                    <span className="muted small">{scene.time_range}</span>
+                  </div>
+                </button>
+              ))}
+              {(activeVideoSpec.storyboard?.draft || []).length === 0 && <p className="muted small">No storyboard scenes yet.</p>}
+            </div>
+            <div className="stack">
+              {selectedStoryboardScene && (
+                <>
+                  <label>
+                    On-screen text
+                    <textarea
+                      className="input"
+                      rows={3}
+                      value={selectedStoryboardScene.on_screen_text || ""}
+                      onChange={(event) => {
+                        const nextDraft = [...(activeVideoSpec.storyboard?.draft || [])];
+                        nextDraft[selectedStoryboardSceneIndex] = { ...selectedStoryboardScene, on_screen_text: event.target.value };
+                        setVideoSpec({
+                          ...activeVideoSpec,
+                          storyboard: { ...(activeVideoSpec.storyboard || { draft: [] }), draft: nextDraft },
+                        });
+                      }}
+                    />
+                  </label>
+                  <label>
+                    Visual description
+                    <textarea
+                      className="input"
+                      rows={4}
+                      value={selectedStoryboardScene.visual_description || ""}
+                      onChange={(event) => {
+                        const nextDraft = [...(activeVideoSpec.storyboard?.draft || [])];
+                        nextDraft[selectedStoryboardSceneIndex] = { ...selectedStoryboardScene, visual_description: event.target.value };
+                        setVideoSpec({
+                          ...activeVideoSpec,
+                          storyboard: { ...(activeVideoSpec.storyboard || { draft: [] }), draft: nextDraft },
+                        });
+                      }}
+                    />
+                  </label>
+                  <label>
+                    Narration
+                    <textarea
+                      className="input"
+                      rows={4}
+                      value={selectedStoryboardScene.narration || ""}
+                      onChange={(event) => {
+                        const nextDraft = [...(activeVideoSpec.storyboard?.draft || [])];
+                        nextDraft[selectedStoryboardSceneIndex] = { ...selectedStoryboardScene, narration: event.target.value };
+                        setVideoSpec({
+                          ...activeVideoSpec,
+                          storyboard: { ...(activeVideoSpec.storyboard || { draft: [] }), draft: nextDraft },
+                        });
+                      }}
+                    />
+                  </label>
+                </>
+              )}
+              <div className="inline-actions">
+                <button className="ghost sm" type="button" onClick={() => void persistVideoSpec(activeVideoSpec)} disabled={videoBusy === "save"}>
+                  Save storyboard
+                </button>
+                <button
+                  className="primary sm"
+                  type="button"
+                  onClick={() => void generateVideoStoryboardDraft()}
+                  disabled={videoBusy === "storyboard" || !selectedAgent}
+                >
+                  {videoBusy === "storyboard" ? "Generating…" : "Generate Storyboard"}
+                </button>
+              </div>
+              {storyboardProposals.length > 0 && (
+                <div className="diff-panel">
+                  <p className="muted small">Storyboard proposals: {storyboardProposals.length}</p>
+                  <button
+                    className="ghost sm"
+                    type="button"
+                    onClick={() => {
+                      const first = storyboardProposals[0];
+                      if (!first) return;
+                      setVideoSpec({
+                        ...activeVideoSpec,
+                        storyboard: {
+                          ...(activeVideoSpec.storyboard || { draft: [], proposals: [] }),
+                          draft: (first.storyboard_draft || []) as VideoSpec["storyboard"]["draft"],
+                        },
+                        scenes: first.scenes || [],
+                      });
+                    }}
+                  >
+                    Accept latest proposal
+                  </button>
+                </div>
+              )}
+            </div>
+          </div>
+        )}
+        {videoTab === "renders" && (
+          <div className="stack">
+            <div className="inline-actions">
+              <button className="primary sm" type="button" onClick={() => void requestVideoRender()} disabled={videoBusy === "render"}>
+                {videoBusy === "render" ? "Queueing…" : "Render Video"}
+              </button>
+            </div>
+            <div className="instance-list">
+              {videoRenders.map((entry) => (
+                <div className="instance-row" key={entry.id}>
+                  <div>
+                    <strong>{entry.status}</strong>
+                    <span className="muted small">
+                      {entry.provider} · requested {entry.requested_at || "—"}
+                    </span>
+                    {!!entry.error_message && <span className="muted small">{entry.error_message}</span>}
+                    {(entry.output_assets || []).map((asset, idx) => (
+                      <a key={`${entry.id}-asset-${idx}`} className="muted small" href={asset.url} target="_blank" rel="noreferrer noopener">
+                        {asset.type}: {asset.url}
+                      </a>
+                    ))}
+                  </div>
+                  <div className="inline-actions">
+                    {entry.status === "failed" && (
+                      <button className="ghost sm" type="button" onClick={() => void retryFailedRender(entry.id)} disabled={videoBusy === "retry"}>
+                        Retry
+                      </button>
+                    )}
+                    {(entry.status === "queued" || entry.status === "running") && (
+                      <button className="ghost sm" type="button" onClick={() => void cancelRunningRender(entry.id)} disabled={videoBusy === "cancel"}>
+                        Cancel
+                      </button>
+                    )}
+                  </div>
+                </div>
+              ))}
+              {videoRenders.length === 0 && <p className="muted small">No renders yet.</p>}
+            </div>
+          </div>
+        )}
+      </section>
+    ) : null;
+
   const showRevisionInEditor = activityTab === "revisions" && selectedRevision && revisionMode !== "list";
 
   const mainSection = (
     <div className="stack">
+      {videoEditorPanel}
       <div className="card-header">
         <h3>Article Editor</h3>
         <div className="inline-actions editor-header-actions">

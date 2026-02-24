@@ -946,11 +946,103 @@ export type ArtifactDetail = ArtifactSummary & {
 
 export type ArticleVisibilityType = "public" | "authenticated" | "role_based" | "private";
 export type ArticleCategory = "web" | "guide" | "core-concepts" | "release-note" | "internal" | "tutorial";
+export type ArticleFormat = "standard" | "video_explainer";
+
+export type VideoSpecScene = {
+  id: string;
+  name: string;
+  duration_seconds: number;
+  narration: string;
+  visual_prompt: string;
+  on_screen_text: string;
+  camera_motion: string;
+  style_constraints: string[];
+  generated?: {
+    image_asset_url?: string | null;
+    video_clip_url?: string | null;
+  };
+};
+
+export type VideoSpec = {
+  version: number;
+  title: string;
+  intent: string;
+  audience: string;
+  tone: string;
+  duration_seconds_target: number;
+  voice: {
+    style: string;
+    speaker: string;
+    pace: string;
+  };
+  script: {
+    draft: string;
+    last_generated_at?: string | null;
+    notes?: string;
+    proposals?: Array<{
+      id: string;
+      text: string;
+      created_at: string;
+      model?: string;
+      provider?: string;
+      agent_slug?: string;
+    }>;
+  };
+  storyboard: {
+    draft: Array<{
+      scene: number;
+      time_range: string;
+      on_screen_text: string;
+      visual_description: string;
+      motion: string;
+      assets?: Array<{ type: string; value: string }>;
+      narration: string;
+    }>;
+    last_generated_at?: string | null;
+    notes?: string;
+    proposals?: Array<{
+      id: string;
+      storyboard_draft: Array<Record<string, unknown>>;
+      scenes: VideoSpecScene[];
+      created_at: string;
+      model?: string;
+      provider?: string;
+      agent_slug?: string;
+    }>;
+  };
+  scenes: VideoSpecScene[];
+  generation: {
+    provider?: string | null;
+    status: "not_started" | "queued" | "running" | "succeeded" | "failed" | "canceled";
+    last_render_id?: string | null;
+    updated_at?: string;
+  };
+};
+
+export type VideoRender = {
+  id: string;
+  article_id: string;
+  provider: string;
+  status: "queued" | "running" | "succeeded" | "failed" | "canceled";
+  requested_at?: string;
+  started_at?: string | null;
+  completed_at?: string | null;
+  request_payload_json?: Record<string, unknown>;
+  result_payload_json?: Record<string, unknown>;
+  output_assets?: Array<{
+    type: string;
+    url: string;
+    metadata?: Record<string, unknown>;
+  }>;
+  error_message?: string;
+  error_details_json?: Record<string, unknown>;
+};
 
 export type ArticleSummary = {
   id: string;
   workspace_id: string;
   type: "article";
+  format: ArticleFormat;
   title: string;
   slug: string;
   status: "draft" | "reviewed" | "ratified" | "published" | "deprecated";
@@ -972,6 +1064,8 @@ export type ArticleSummary = {
 export type ArticleDetail = ArticleSummary & {
   body_markdown: string;
   body_html?: string;
+  video_spec_json?: VideoSpec | null;
+  video_latest_render_id?: string | null;
   category_ref?: {
     id: string | null;
     slug: string;

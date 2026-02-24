@@ -13,7 +13,7 @@ import {
   listCategoryBindings,
   updateArticleCategory,
 } from "../../api/xyn";
-import type { ArticleCategoryRecord, ArticleSummary, PublishBindingRecord } from "../../api/types";
+import type { ArticleCategoryRecord, ArticleFormat, ArticleSummary, PublishBindingRecord } from "../../api/types";
 import { resolveCategoryActions } from "./articleCategoryActions";
 
 type CategoryForm = {
@@ -36,6 +36,7 @@ export default function ArtifactsArticlesPage({
   const [bindings, setBindings] = useState<PublishBindingRecord[]>([]);
   const [title, setTitle] = useState("");
   const [categorySlug, setCategorySlug] = useState("web");
+  const [articleFormat, setArticleFormat] = useState<ArticleFormat>("standard");
   const [q, setQ] = useState("");
   const [categoryFilter, setCategoryFilter] = useState("");
   const [visibilityFilter, setVisibilityFilter] = useState("");
@@ -131,7 +132,14 @@ export default function ArtifactsArticlesPage({
     try {
       setLoading(true);
       setError(null);
-      await createArticle({ workspace_id: workspaceId, title, category: categorySlug, visibility_type: "private", body_markdown: "" });
+      await createArticle({
+        workspace_id: workspaceId,
+        title,
+        category: categorySlug,
+        visibility_type: "private",
+        body_markdown: "",
+        format: articleFormat,
+      });
       setTitle("");
       await loadArticles();
     } catch (err) {
@@ -242,6 +250,13 @@ export default function ArtifactsArticlesPage({
                         {value}
                       </option>
                     ))}
+                  </select>
+                </label>
+                <label>
+                  Create as
+                  <select value={articleFormat} onChange={(event) => setArticleFormat(event.target.value as ArticleFormat)}>
+                    <option value="standard">Standard Article</option>
+                    <option value="video_explainer">Explainer Video</option>
                   </select>
                 </label>
                 <button className="primary" onClick={createDraft} disabled={loading || !title.trim()}>
