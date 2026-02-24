@@ -15,6 +15,7 @@ import SecretConfigurationPage from "./pages/SecretConfigurationPage";
 import AIConfigPage from "./pages/AIConfigPage";
 import IdentityConfigurationPage from "./pages/IdentityConfigurationPage";
 import AccessControlPage from "./pages/AccessControlPage";
+import AccessExplorerPage from "./pages/AccessExplorerPage";
 import ReleasePlansPage from "./pages/ReleasePlansPage";
 import ReleasesPage from "./pages/ReleasesPage";
 import RunsPage from "./pages/RunsPage";
@@ -436,6 +437,7 @@ export default function AppShell() {
             <Route path="platform/tenant-contacts" element={<RedirectLegacyTenantsRoute view="all" />} />
             <Route path="platform/tenant-contacts/:tenantId" element={<RedirectLegacyTenantContactsDetailRoute />} />
             <Route path="platform/access-control" element={<AccessControlPage />} />
+            <Route path="platform/access-explorer" element={<AccessExplorerPage />} />
             <Route path="platform/users" element={<RedirectLegacyAccessControlRoute tab="users" />} />
             <Route path="platform/roles" element={<RedirectLegacyAccessControlRoute tab="roles" />} />
             <Route path="platform/branding" element={<PlatformBrandingPage />} />

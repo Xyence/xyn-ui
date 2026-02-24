@@ -101,6 +101,11 @@ import type {
   AiAgent,
   AiInvokeResponse,
   AiModelConfigCompat,
+  AccessRegistryResponse,
+  AccessUserSummary,
+  AccessUserRolesResponse,
+  AccessUserEffectiveResponse,
+  AccessRoleDetailResponse,
 } from "./types";
 import { authHeaders, resolveApiBaseUrl } from "./client";
 
@@ -229,6 +234,38 @@ export async function getPreviewStatus(): Promise<{ preview: PreviewStatus }> {
   const apiBaseUrl = resolveApiBaseUrl();
   const response = await apiFetch(`${apiBaseUrl}/xyn/api/preview/status`, { credentials: "include" });
   return handle<{ preview: PreviewStatus }>(response);
+}
+
+export async function getAccessRegistry(): Promise<AccessRegistryResponse> {
+  const apiBaseUrl = resolveApiBaseUrl();
+  const response = await apiFetch(`${apiBaseUrl}/xyn/api/access/registry`, { credentials: "include" });
+  return handle<AccessRegistryResponse>(response);
+}
+
+export async function searchAccessUsers(query = ""): Promise<{ users: AccessUserSummary[] }> {
+  const apiBaseUrl = resolveApiBaseUrl();
+  const url = new URL(`${apiBaseUrl}/xyn/api/access/users`);
+  if (query.trim()) url.searchParams.set("query", query.trim());
+  const response = await apiFetch(url.toString(), { credentials: "include" });
+  return handle<{ users: AccessUserSummary[] }>(response);
+}
+
+export async function getAccessUserRoles(userId: string): Promise<AccessUserRolesResponse> {
+  const apiBaseUrl = resolveApiBaseUrl();
+  const response = await apiFetch(`${apiBaseUrl}/xyn/api/access/users/${userId}/roles`, { credentials: "include" });
+  return handle<AccessUserRolesResponse>(response);
+}
+
+export async function getAccessUserEffective(userId: string): Promise<AccessUserEffectiveResponse> {
+  const apiBaseUrl = resolveApiBaseUrl();
+  const response = await apiFetch(`${apiBaseUrl}/xyn/api/access/users/${userId}/effective`, { credentials: "include" });
+  return handle<AccessUserEffectiveResponse>(response);
+}
+
+export async function getAccessRoleDetail(roleId: string): Promise<AccessRoleDetailResponse> {
+  const apiBaseUrl = resolveApiBaseUrl();
+  const response = await apiFetch(`${apiBaseUrl}/xyn/api/access/roles/${encodeURIComponent(roleId)}`, { credentials: "include" });
+  return handle<AccessRoleDetailResponse>(response);
 }
 
 export async function enablePreview(payload: { roles: string[]; readOnly: boolean }): Promise<{ preview: PreviewStatus }> {

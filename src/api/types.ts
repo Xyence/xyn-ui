@@ -1786,3 +1786,80 @@ export type PlatformConfigResponse = {
   version: number;
   config: PlatformConfig;
 };
+
+export type AccessPermissionDefinition = {
+  key: string;
+  name: string;
+  description: string;
+  category: string;
+  tags?: string[];
+  isDangerous?: boolean;
+};
+
+export type AccessRoleDefinition = {
+  id: string;
+  name: string;
+  description?: string;
+  tier?: number;
+};
+
+export type AccessRolePermission = {
+  roleId: string;
+  permissionKey: string;
+  scope?: Record<string, unknown> | null;
+  effect?: "allow" | "deny" | string;
+};
+
+export type AccessRegistryResponse = {
+  permissions: AccessPermissionDefinition[];
+  roles: AccessRoleDefinition[];
+  rolePermissions: AccessRolePermission[];
+};
+
+export type AccessUserSummary = {
+  id: string;
+  name: string;
+  email: string;
+};
+
+export type AccessUserRolesResponse = {
+  roles: Array<{
+    roleId: string;
+    roleName: string;
+    scope?: Record<string, unknown>;
+    assignedAt?: string;
+  }>;
+};
+
+export type AccessEffectivePermissionSource = {
+  viaRoleId: string;
+  viaRoleName: string;
+  roleScope?: Record<string, unknown>;
+  permScope?: Record<string, unknown>;
+  mergedScope?: Record<string, unknown>;
+  ruleId?: string;
+};
+
+export type AccessEffectivePermission = {
+  permissionKey: string;
+  scope?: Record<string, unknown>;
+  effect: "allow" | "deny" | string;
+  sources: AccessEffectivePermissionSource[];
+};
+
+export type AccessUserEffectiveResponse = {
+  effective: AccessEffectivePermission[];
+  summary: {
+    totalEffective: number;
+    categories: Array<{ category: string; count: number }>;
+  };
+};
+
+export type AccessRoleDetailResponse = {
+  role: AccessRoleDefinition;
+  permissions: Array<{
+    permissionKey: string;
+    scope?: Record<string, unknown>;
+    effect?: "allow" | "deny" | string;
+  }>;
+};

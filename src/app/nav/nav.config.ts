@@ -126,6 +126,7 @@ export const NAV_GROUPS: NavGroup[] = [
     items: [
       { id: "platform-tenants", label: "Tenants", path: "/app/platform/tenants", icon: "Building2", requiredRoles: ["platform_admin"] },
       { id: "platform-access-control", label: "Access Control", path: "/app/platform/access-control", icon: "KeyRound", requiredRoles: ["platform_admin"] },
+      { id: "platform-access-explorer", label: "Access Explorer", path: "/app/platform/access-explorer", icon: "Network", requiredRoles: ["platform_owner", "platform_admin"] },
       { id: "platform-branding", label: "Branding", path: "/app/platform/branding", icon: "Palette", requiredRoles: ["platform_admin"] },
       { id: "platform-settings", label: "Platform Settings", path: "/app/platform/settings", icon: "SlidersHorizontal", requiredRoles: ["platform_admin"] },
       { id: "identity-configuration", label: "Identity Configuration", path: "/app/platform/identity-configuration", icon: "IdCard", requiredRoles: ["platform_admin"] },
