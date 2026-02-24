@@ -15,6 +15,7 @@ import IdentityProvidersPage from "./pages/IdentityProvidersPage";
 import OidcAppClientsPage from "./pages/OidcAppClientsPage";
 import SecretConfigurationPage from "./pages/SecretConfigurationPage";
 import AIConfigPage from "./pages/AIConfigPage";
+import IdentityConfigurationPage from "./pages/IdentityConfigurationPage";
 import ReleasePlansPage from "./pages/ReleasePlansPage";
 import ReleasesPage from "./pages/ReleasesPage";
 import RunsPage from "./pages/RunsPage";
@@ -63,6 +64,13 @@ function RedirectLegacySecretsRoute({ tab }: { tab: "stores" | "refs" }) {
   const currentParams = new URLSearchParams(location.search);
   currentParams.set("tab", tab);
   return <Navigate to={{ pathname: "/app/platform/secrets", search: `?${currentParams.toString()}` }} replace />;
+}
+
+function RedirectLegacyIdentityRoute({ tab }: { tab: "identity-providers" | "oidc-app-clients" }) {
+  const location = useLocation();
+  const currentParams = new URLSearchParams(location.search);
+  currentParams.set("tab", tab);
+  return <Navigate to={{ pathname: "/app/platform/identity-configuration", search: `?${currentParams.toString()}` }} replace />;
 }
 
 export default function AppShell() {
@@ -366,8 +374,9 @@ export default function AppShell() {
             <Route path="platform/roles" element={<PlatformRolesPage />} />
             <Route path="platform/branding" element={<PlatformBrandingPage />} />
             <Route path="platform/settings" element={<PlatformSettingsPage />} />
-            <Route path="platform/identity-providers" element={<IdentityProvidersPage />} />
-            <Route path="platform/oidc-app-clients" element={<OidcAppClientsPage />} />
+            <Route path="platform/identity-configuration" element={<IdentityConfigurationPage />} />
+            <Route path="platform/identity-providers" element={<RedirectLegacyIdentityRoute tab="identity-providers" />} />
+            <Route path="platform/oidc-app-clients" element={<RedirectLegacyIdentityRoute tab="oidc-app-clients" />} />
             <Route path="platform/secrets" element={<SecretConfigurationPage />} />
             <Route path="platform/secret-stores" element={<RedirectLegacySecretsRoute tab="stores" />} />
             <Route path="platform/secret-refs" element={<RedirectLegacySecretsRoute tab="refs" />} />
