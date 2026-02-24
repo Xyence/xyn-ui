@@ -1390,8 +1390,8 @@ export default function ArtifactDetailPage({
         onChange={(next) => setActivityTab(next as ActivityTab)}
         tabs={
           [
-            { key: "revisions", label: "Revisions", icon: <History size={15} /> },
             { key: "ai", label: "AI Assist", icon: <Bot size={15} /> },
+            { key: "revisions", label: "Revisions", icon: <History size={15} /> },
             ...(articleFormat === "video_explainer"
               ? [{ key: "ai_config", label: "AI Configuration", icon: <SlidersHorizontal size={15} /> }]
               : []),
