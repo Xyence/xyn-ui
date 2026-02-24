@@ -1892,6 +1892,37 @@ button.sm {
   overflow: hidden;
 }
 
+.video-explainer-panel {
+  transition: padding 0.2s ease;
+}
+
+.video-explainer-panel.collapsed {
+  gap: 10px;
+  padding: 12px 14px;
+}
+
+.video-explainer-panel .card-header .inline-actions {
+  align-items: center;
+}
+
+.video-panel-summary {
+  display: grid;
+  gap: 10px;
+}
+
+.video-panel-summary-grid {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 8px;
+}
+
+.video-panel-summary-grid > span {
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  background: var(--surface-soft);
+  padding: 6px 8px;
+}
+
 .article-review-diff {
   min-height: 140px;
   max-height: none;
@@ -2226,6 +2257,10 @@ button.sm {
 
   .compact-pane-tabs-active-label {
     display: none;
+  }
+
+  .video-panel-summary-grid {
+    grid-template-columns: 1fr;
   }
 
   .editor-centric-grid {

@@ -1,6 +1,6 @@
-import { useCallback, useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useParams } from "react-router-dom";
-import { Bot, History, MessageSquareMore, SlidersHorizontal } from "lucide-react";
+import { Bot, ChevronDown, ChevronUp, History, MessageSquareMore, SlidersHorizontal } from "lucide-react";
 import { renderMarkdown } from "../../public/markdown";
 import {
   commentOnWorkspaceArtifact,
@@ -139,6 +139,7 @@ export default function ArtifactDetailPage({
   const [showPreview, setShowPreview] = useState(false);
   const [editorMode, setEditorMode] = useState<EditorMode>("edit");
   const [videoTab, setVideoTab] = useState<VideoTab>("overview");
+  const [videoPanelCollapsed, setVideoPanelCollapsed] = useState(false);
   const [videoSpec, setVideoSpec] = useState<VideoSpec | null>(null);
   const [videoRenders, setVideoRenders] = useState<VideoRender[]>([]);
   const [videoContextPacks, setVideoContextPacks] = useState<ContextPackSummary[]>([]);
@@ -163,6 +164,7 @@ export default function ArtifactDetailPage({
   const [error, setError] = useState<string | null>(null);
   const { push } = useNotifications();
   const { startOperation, finishOperation } = useOperations();
+  const videoPanelRef = useRef<HTMLElement | null>(null);
 
   const parseCsv = (value: string): string[] =>
     value
@@ -1068,6 +1070,68 @@ export default function ArtifactDetailPage({
     Array.isArray(activeVideoSpec.storyboard?.draft) && activeVideoSpec.storyboard.draft.length > 0
       ? activeVideoSpec.storyboard.draft[Math.min(selectedStoryboardSceneIndex, activeVideoSpec.storyboard.draft.length - 1)]
       : null;
+  const scriptDraftText = String(activeVideoSpec.script?.draft || "").trim();
+  const hasScriptDraft = scriptDraftText.length > 0;
+  const storyboardDraftCount = Array.isArray(activeVideoSpec.storyboard?.draft) ? activeVideoSpec.storyboard.draft.length : 0;
+  const hasStoryboardDraft = storyboardDraftCount > 0;
+  const latestVideoRender = videoRenders[0] || null;
+  const isVideoOperationRunning = videoBusy === "script" || videoBusy === "storyboard" || videoBusy === "render" || (latestVideoRender?.status === "queued" || latestVideoRender?.status === "running");
+  const videoSummaryRows = [
+    `Script: ${hasScriptDraft ? "draft ready" : "not generated"}`,
+    `Storyboard: ${hasStoryboardDraft ? `${storyboardDraftCount} scene${storyboardDraftCount === 1 ? "" : "s"}` : "not generated"}`,
+    `Last render: ${latestVideoRender?.status || "none"}`,
+  ];
+
+  const collapsedPrimaryAction = useMemo(() => {
+    if (!hasScriptDraft) {
+      return {
+        label: videoBusy === "script" ? "Generating script…" : "Generate script",
+        disabled: Boolean(videoBusy),
+        run: () => void generateVideoScriptDraft(),
+      };
+    }
+    if (!hasStoryboardDraft) {
+      return {
+        label: videoBusy === "storyboard" ? "Generating storyboard…" : "Generate storyboard",
+        disabled: Boolean(videoBusy),
+        run: () => void generateVideoStoryboardDraft(),
+      };
+    }
+    return {
+      label: videoBusy === "render" ? "Queueing render…" : "Render",
+      disabled: Boolean(videoBusy),
+      run: () => void requestVideoRender(),
+    };
+  }, [generateVideoScriptDraft, generateVideoStoryboardDraft, hasScriptDraft, hasStoryboardDraft, requestVideoRender, videoBusy]);
+
+  const videoPanelStorageKey = artifactId ? `xyn.videoPanelCollapsed:${artifactId}` : "";
+
+  useEffect(() => {
+    if (!videoPanelStorageKey || articleFormat !== "video_explainer") return;
+    const stored = localStorage.getItem(videoPanelStorageKey);
+    if (stored === "true" || stored === "false") {
+      setVideoPanelCollapsed(stored === "true");
+      return;
+    }
+    setVideoPanelCollapsed(false);
+  }, [articleFormat, videoPanelStorageKey]);
+
+  useEffect(() => {
+    if (!videoPanelStorageKey || articleFormat !== "video_explainer") return;
+    localStorage.setItem(videoPanelStorageKey, videoPanelCollapsed ? "true" : "false");
+  }, [articleFormat, videoPanelCollapsed, videoPanelStorageKey]);
+
+  const toggleVideoPanelCollapsed = useCallback(() => {
+    setVideoPanelCollapsed((current) => {
+      const next = !current;
+      if (current) {
+        requestAnimationFrame(() => {
+          videoPanelRef.current?.scrollIntoView({ block: "start", behavior: "smooth" });
+        });
+      }
+      return next;
+    });
+  }, []);
 
   const executeAction = async (action: WorkflowAction) => {
     try {
@@ -1565,26 +1629,64 @@ export default function ArtifactDetailPage({
 
   const videoEditorPanel =
     articleFormat === "video_explainer" ? (
-      <section className="card video-explainer-panel">
+      <section ref={videoPanelRef} className={`card video-explainer-panel ${videoPanelCollapsed ? "collapsed" : "expanded"}`}>
         <div className="card-header">
           <h4>Explainer Video</h4>
           <div className="inline-actions">
-            <button className={`ghost sm ${videoTab === "overview" ? "active" : ""}`} type="button" onClick={() => setVideoTab("overview")}>
-              Overview
-            </button>
-            <button className={`ghost sm ${videoTab === "script" ? "active" : ""}`} type="button" onClick={() => setVideoTab("script")}>
-              Script
-            </button>
-            <button className={`ghost sm ${videoTab === "storyboard" ? "active" : ""}`} type="button" onClick={() => setVideoTab("storyboard")}>
-              Storyboard
-            </button>
-            <button className={`ghost sm ${videoTab === "renders" ? "active" : ""}`} type="button" onClick={() => setVideoTab("renders")}>
-              Render History
+            {!videoPanelCollapsed && (
+              <>
+                <button className={`ghost sm ${videoTab === "overview" ? "active" : ""}`} type="button" onClick={() => setVideoTab("overview")}>
+                  Overview
+                </button>
+                <button className={`ghost sm ${videoTab === "script" ? "active" : ""}`} type="button" onClick={() => setVideoTab("script")}>
+                  Script
+                </button>
+                <button className={`ghost sm ${videoTab === "storyboard" ? "active" : ""}`} type="button" onClick={() => setVideoTab("storyboard")}>
+                  Storyboard
+                </button>
+                <button className={`ghost sm ${videoTab === "renders" ? "active" : ""}`} type="button" onClick={() => setVideoTab("renders")}>
+                  Render History
+                </button>
+              </>
+            )}
+            <button
+              className="ghost sm"
+              type="button"
+              aria-label={videoPanelCollapsed ? "Expand explainer panel" : "Collapse explainer panel"}
+              title={videoPanelCollapsed ? "Expand" : "Collapse"}
+              onClick={toggleVideoPanelCollapsed}
+            >
+              {videoPanelCollapsed ? <ChevronDown size={15} /> : <ChevronUp size={15} />}
             </button>
           </div>
         </div>
-        <p className="muted small">Generated outputs are provisional. Accept or refine.</p>
-        {videoTab === "overview" && (
+        {videoPanelCollapsed ? (
+          <div className="video-panel-summary">
+            <p className="muted small">Generated outputs are provisional. Accept or refine.</p>
+            <div className="video-panel-summary-grid">
+              {videoSummaryRows.map((row) => (
+                <span key={row} className="muted small">
+                  {row}
+                </span>
+              ))}
+            </div>
+            <div className="inline-actions">
+              <button className="primary sm" type="button" onClick={collapsedPrimaryAction.run} disabled={collapsedPrimaryAction.disabled}>
+                {collapsedPrimaryAction.label}
+              </button>
+              <button className="ghost sm" type="button" onClick={() => setVideoTab("renders")} disabled={Boolean(videoBusy)}>
+                Open Render History
+              </button>
+              <button className="ghost sm" type="button" onClick={toggleVideoPanelCollapsed} aria-label="Expand explainer panel">
+                Expand
+              </button>
+            </div>
+            {isVideoOperationRunning && <span className="muted small">Processing…</span>}
+          </div>
+        ) : (
+          <>
+            <p className="muted small">Generated outputs are provisional. Accept or refine.</p>
+            {videoTab === "overview" && (
           <div className="form-grid">
             <label>
               Context pack
@@ -1645,8 +1747,8 @@ export default function ArtifactDetailPage({
               {videoBusy === "save" ? "Saving…" : "Save video spec"}
             </button>
           </div>
-        )}
-        {videoTab === "script" && (
+            )}
+            {videoTab === "script" && (
           <div className="stack">
             <textarea
               className="input"
@@ -1698,8 +1800,8 @@ export default function ArtifactDetailPage({
               </div>
             )}
           </div>
-        )}
-        {videoTab === "storyboard" && (
+            )}
+            {videoTab === "storyboard" && (
           <div className="editor-body split">
             <div className="instance-list">
               {(activeVideoSpec.storyboard?.draft || []).map((scene, index) => (
@@ -1808,8 +1910,8 @@ export default function ArtifactDetailPage({
               )}
             </div>
           </div>
-        )}
-        {videoTab === "renders" && (
+            )}
+            {videoTab === "renders" && (
           <div className="stack">
             <div className="inline-actions">
               <button className="primary sm" type="button" onClick={() => void requestVideoRender()} disabled={videoBusy === "render"}>
@@ -1854,6 +1956,8 @@ export default function ArtifactDetailPage({
               {videoRenders.length === 0 && <p className="muted small">No renders yet.</p>}
             </div>
           </div>
+            )}
+          </>
         )}
       </section>
     ) : null;
