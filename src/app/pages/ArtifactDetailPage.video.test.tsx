@@ -177,7 +177,7 @@ describe("ArtifactDetailPage video explainer", () => {
     });
     render(<ArtifactDetailPage workspaceId="ws-1" workspaceRole="owner" canManageArticleLifecycle />);
     expect(await screen.findByText("Explainer Video")).toBeInTheDocument();
-    await userEvent.click(screen.getByRole("button", { name: "AI Config" }));
+    await userEvent.click(screen.getByRole("button", { name: "AI Configuration" }));
     expect(await screen.findByText("Purpose-scoped agent and context pack defaults for explainer generation.")).toBeInTheDocument();
 
     const agentSelect = screen.getAllByLabelText("Agent")[0];
@@ -215,6 +215,6 @@ describe("ArtifactDetailPage video explainer", () => {
     });
     render(<ArtifactDetailPage workspaceId="ws-1" workspaceRole="owner" canManageArticleLifecycle />);
     expect(await screen.findByText("Article Editor")).toBeInTheDocument();
-    expect(screen.queryByRole("button", { name: "AI Config" })).not.toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: "AI Configuration" })).not.toBeInTheDocument();
   });
 });

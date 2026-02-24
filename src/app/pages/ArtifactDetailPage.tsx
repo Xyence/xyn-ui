@@ -1274,7 +1274,7 @@ export default function ArtifactDetailPage({
   const aiConfigPanel = (
     <div className="stack activity-ai-config-panel">
       <div className="card-header">
-        <h3>AI Config</h3>
+        <h3>AI Configuration</h3>
       </div>
       <p className="muted small">Purpose-scoped agent and context pack defaults for explainer generation.</p>
       {EXPLAINER_PURPOSE_META.map((purpose) => {
@@ -1402,11 +1402,11 @@ export default function ArtifactDetailPage({
         {articleFormat === "video_explainer" && (
           <button
             type="button"
-            title="AI Config"
+            title="AI Configuration"
             className={`ghost editor-tab-button ${activityTab === "ai_config" ? "active" : ""}`}
             onClick={() => setActivityTab("ai_config")}
           >
-            <span className="editor-tab-label">AI Config</span>
+            <span className="editor-tab-label">AI Configuration</span>
           </button>
         )}
         <button

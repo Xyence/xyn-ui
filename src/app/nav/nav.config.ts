@@ -134,7 +134,7 @@ export const NAV_GROUPS: NavGroup[] = [
       { id: "oidc-app-clients", label: "OIDC App Clients", path: "/app/platform/oidc-app-clients", icon: "AppWindow", requiredRoles: ["platform_admin"] },
       { id: "secret-stores", label: "Secret Stores", path: "/app/platform/secret-stores", icon: "Vault", requiredRoles: ["platform_admin"] },
       { id: "secret-refs", label: "Secret Refs", path: "/app/platform/secret-refs", icon: "Key", requiredRoles: ["platform_admin"] },
-      { id: "ai-config", label: "AI Config", path: "/app/platform/ai-config", icon: "Bot", requiredRoles: ["platform_admin", "platform_architect"] },
+      { id: "ai-config", label: "AI Configuration", path: "/app/platform/ai-configuration", icon: "Bot", requiredRoles: ["platform_admin", "platform_architect"] },
       { id: "my-tenants", label: "My Tenants", path: "/app/my-tenants", icon: "UsersRound", requiredRoles: ["platform_admin", "platform_architect", "platform_operator"] },
       { id: "control-plane", label: "Control Plane", path: "/app/control-plane", icon: "ShieldCheck", requiredRoles: ["platform_admin", "platform_architect"] },
     ],

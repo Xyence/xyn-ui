@@ -56,7 +56,7 @@ function RedirectLegacyAiRoute({ tab }: { tab: "credentials" | "model-configs" |
   const location = useLocation();
   const currentParams = new URLSearchParams(location.search);
   currentParams.set("tab", tab);
-  return <Navigate to={{ pathname: "/app/platform/ai-config", search: `?${currentParams.toString()}` }} replace />;
+  return <Navigate to={{ pathname: "/app/platform/ai-configuration", search: `?${currentParams.toString()}` }} replace />;
 }
 
 export default function AppShell() {
@@ -364,7 +364,8 @@ export default function AppShell() {
             <Route path="platform/oidc-app-clients" element={<OidcAppClientsPage />} />
             <Route path="platform/secret-stores" element={<SecretStoresPage />} />
             <Route path="platform/secret-refs" element={<SecretRefsPage />} />
-            <Route path="platform/ai-config" element={<AIConfigPage />} />
+            <Route path="platform/ai-config" element={<Navigate to="/app/platform/ai-configuration" replace />} />
+            <Route path="platform/ai-configuration" element={<AIConfigPage />} />
             <Route path="platform/ai/credentials" element={<RedirectLegacyAiRoute tab="credentials" />} />
             <Route path="platform/ai/model-configs" element={<RedirectLegacyAiRoute tab="model-configs" />} />
             <Route path="platform/ai/agents" element={<RedirectLegacyAiRoute tab="agents" />} />
