@@ -1023,6 +1023,7 @@ export type VideoRender = {
   id: string;
   article_id: string;
   provider: string;
+  model_name?: string;
   status: "queued" | "running" | "succeeded" | "failed" | "canceled";
   requested_at?: string;
   started_at?: string | null;
@@ -1039,6 +1040,8 @@ export type VideoRender = {
   context_pack_version?: string;
   context_pack_updated_at?: string | null;
   context_pack_hash?: string;
+  spec_snapshot_hash?: string;
+  input_snapshot_hash?: string;
   error_message?: string;
   error_details_json?: Record<string, unknown>;
 };
