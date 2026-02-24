@@ -16,13 +16,15 @@ import {
   initializeArticleVideo,
   listArticleRevisions,
   listArticleVideoRenders,
+  listContextPacks,
+  createContextPack,
   renderArticleVideo,
   retryVideoRender,
   cancelVideoRender,
   transitionArticle,
   updateArticle,
 } from "../../api/xyn";
-import type { ArticleDetail, ArticleFormat, ArticleRevision, VideoRender, VideoSpec } from "../../api/types";
+import type { ArticleDetail, ArticleFormat, ArticleRevision, ContextPackSummary, VideoRender, VideoSpec } from "../../api/types";
 import ArtifactWorkflowActions from "../components/workflow/ArtifactWorkflowActions";
 import MarkdownWysiwygEditor from "../components/editor/MarkdownWysiwygEditor";
 import EditorCentricLayout from "../layouts/EditorCentricLayout";
@@ -127,6 +129,8 @@ export default function ArtifactDetailPage({
   const [videoTab, setVideoTab] = useState<VideoTab>("overview");
   const [videoSpec, setVideoSpec] = useState<VideoSpec | null>(null);
   const [videoRenders, setVideoRenders] = useState<VideoRender[]>([]);
+  const [videoContextPacks, setVideoContextPacks] = useState<ContextPackSummary[]>([]);
+  const [selectedVideoContextPackId, setSelectedVideoContextPackId] = useState("");
   const [videoBusy, setVideoBusy] = useState<"init" | "save" | "script" | "storyboard" | "render" | "retry" | "cancel" | null>(null);
   const [selectedStoryboardSceneIndex, setSelectedStoryboardSceneIndex] = useState(0);
   const [pendingAssist, setPendingAssist] = useState<PendingAssist | null>(null);
@@ -160,6 +164,13 @@ export default function ArtifactDetailPage({
     throw new Error("Could not map the selected text into markdown. Try selecting a slightly larger span.");
   }, []);
 
+  const loadVideoContextPacks = useCallback(async () => {
+    const data = await listContextPacks({ purpose: "video_explainer", active: true });
+    const packs = data.context_packs || [];
+    setVideoContextPacks(packs);
+    return packs;
+  }, []);
+
   const load = useCallback(async () => {
     if (!artifactId || !workspaceId) return;
     try {
@@ -183,10 +194,17 @@ export default function ArtifactDetailPage({
       setArticleFormat(nextFormat);
       setVideoSpec(article.video_spec_json ? (article.video_spec_json as VideoSpec) : createDefaultVideoSpec(article.title || "", article.summary || ""));
       if (nextFormat === "video_explainer") {
-        const renderData = await listArticleVideoRenders(artifactId);
+        const [renderData, packsData] = await Promise.all([
+          listArticleVideoRenders(artifactId),
+          loadVideoContextPacks(),
+        ]);
         setVideoRenders(renderData.renders || []);
+        setVideoContextPacks(packsData || []);
+        setSelectedVideoContextPackId(article.video_context_pack_id || "");
       } else {
         setVideoRenders([]);
+        setVideoContextPacks([]);
+        setSelectedVideoContextPackId("");
       }
       setCategory(article.category || "web");
       setVisibilityType(article.visibility_type || "private");
@@ -205,7 +223,7 @@ export default function ArtifactDetailPage({
     } catch (err) {
       setError((err as Error).message);
     }
-  }, [workspaceId, artifactId]);
+  }, [workspaceId, artifactId, loadVideoContextPacks]);
 
   useEffect(() => {
     void load();
@@ -272,6 +290,7 @@ export default function ArtifactDetailPage({
         allowed_roles: visibilityType === "role_based" ? parseCsv(allowedRolesText) : [],
         tags: parseCsv(tagsText),
         video_spec_json: articleFormat === "video_explainer" ? videoSpec : null,
+        video_context_pack_id: articleFormat === "video_explainer" ? selectedVideoContextPackId || null : null,
       });
       await createArticleRevision(artifactId, {
         summary,
@@ -500,7 +519,11 @@ export default function ArtifactDetailPage({
     try {
       setVideoBusy("save");
       setError(null);
-      await updateArticle(artifactId, { format: "video_explainer", video_spec_json: nextSpec });
+      await updateArticle(artifactId, {
+        format: "video_explainer",
+        video_spec_json: nextSpec,
+        video_context_pack_id: selectedVideoContextPackId || null,
+      });
       setVideoSpec(nextSpec);
       setArticleFormat("video_explainer");
       await load();
@@ -520,8 +543,56 @@ export default function ArtifactDetailPage({
       setItem(result.article);
       setArticleFormat(result.article.format);
       setVideoSpec((result.article.video_spec_json as VideoSpec) || createDefaultVideoSpec(result.article.title || "", result.article.summary || ""));
+      setSelectedVideoContextPackId(result.article.video_context_pack_id || "");
       const renderData = await listArticleVideoRenders(artifactId);
       setVideoRenders(renderData.renders || []);
+      await loadVideoContextPacks();
+    } catch (err) {
+      setError((err as Error).message);
+    } finally {
+      setVideoBusy(null);
+    }
+  };
+
+  const createDefaultExplainerPack = async () => {
+    if (!artifactId) return;
+    try {
+      setVideoBusy("save");
+      setError(null);
+      const stamp = new Date().toISOString().slice(0, 10);
+      const packName = item?.title ? `${item.title} Explainer Pack` : "Explainer Video Pack";
+      const packVersion = `v${stamp}`;
+      await createContextPack({
+        name: packName,
+        purpose: "video_explainer",
+        scope: "global",
+        version: packVersion,
+        content_markdown: [
+          "# Explainer Video Context",
+          "- Keep language concrete and plain.",
+          "- Keep claims aligned with the source article.",
+          "- Prefer short scenes and clear visual beats.",
+          "- Avoid introducing facts that are not in evidence.",
+        ].join("\n"),
+        is_active: true,
+        is_default: false,
+      });
+      const packs = await loadVideoContextPacks();
+      const newest = [...packs].sort((a, b) => String(b.updated_at || "").localeCompare(String(a.updated_at || "")))[0];
+      if (newest) {
+        setSelectedVideoContextPackId(newest.id);
+        await updateArticle(artifactId, { video_context_pack_id: newest.id, format: "video_explainer" });
+      }
+      await load();
+      push({
+        level: "success",
+        title: "Context pack created",
+        message: "Created a default explainer context pack and attached it.",
+        status: "succeeded",
+        action: "article.video.context_pack.create",
+        entityType: "unknown",
+        entityId: artifactId,
+      });
     } catch (err) {
       setError((err as Error).message);
     } finally {
@@ -534,9 +605,13 @@ export default function ArtifactDetailPage({
     try {
       setVideoBusy("script");
       setError(null);
-      const result = await generateArticleVideoScript(artifactId, { agent_slug: selectedAgent });
+      const result = await generateArticleVideoScript(artifactId, {
+        agent_slug: selectedAgent,
+        context_pack_id: selectedVideoContextPackId || null,
+      });
       setItem(result.article);
       setVideoSpec((result.article.video_spec_json as VideoSpec) || null);
+      setSelectedVideoContextPackId(result.article.video_context_pack_id || selectedVideoContextPackId || "");
       push({
         level: "success",
         title: "Script proposal ready",
@@ -558,9 +633,13 @@ export default function ArtifactDetailPage({
     try {
       setVideoBusy("storyboard");
       setError(null);
-      const result = await generateArticleVideoStoryboard(artifactId, { agent_slug: selectedAgent });
+      const result = await generateArticleVideoStoryboard(artifactId, {
+        agent_slug: selectedAgent,
+        context_pack_id: selectedVideoContextPackId || null,
+      });
       setItem(result.article);
       setVideoSpec((result.article.video_spec_json as VideoSpec) || null);
+      setSelectedVideoContextPackId(result.article.video_context_pack_id || selectedVideoContextPackId || "");
       push({
         level: "success",
         title: "Storyboard proposal ready",
@@ -582,9 +661,14 @@ export default function ArtifactDetailPage({
     try {
       setVideoBusy("render");
       setError(null);
-      const result = await renderArticleVideo(artifactId, { provider: "unknown", request_payload_json: { mode: "full_render" } });
+      const result = await renderArticleVideo(artifactId, {
+        provider: "unknown",
+        context_pack_id: selectedVideoContextPackId || null,
+        request_payload_json: { mode: "full_render" },
+      });
       setVideoRenders((prev) => [result.render, ...prev.filter((entry) => entry.id !== result.render.id)]);
       setItem(result.article);
+      setSelectedVideoContextPackId(result.article.video_context_pack_id || selectedVideoContextPackId || "");
       push({
         level: "info",
         title: "Render requested",
@@ -1267,6 +1351,28 @@ export default function ArtifactDetailPage({
         {videoTab === "overview" && (
           <div className="form-grid">
             <label>
+              Context pack
+              <select
+                className="input"
+                value={selectedVideoContextPackId}
+                onChange={(event) => setSelectedVideoContextPackId(event.target.value)}
+              >
+                <option value="">None</option>
+                {videoContextPacks.map((pack) => (
+                  <option key={pack.id} value={pack.id}>
+                    {pack.name} · v{pack.version}
+                  </option>
+                ))}
+              </select>
+            </label>
+            {videoContextPacks.length === 0 && (
+              <div className="inline-actions">
+                <button className="ghost sm" type="button" onClick={() => void createDefaultExplainerPack()} disabled={videoBusy === "save"}>
+                  {videoBusy === "save" ? "Creating…" : "Create default Explainer Pack"}
+                </button>
+              </div>
+            )}
+            <label>
               Intent
               <textarea
                 className="input"
@@ -1482,6 +1588,12 @@ export default function ArtifactDetailPage({
                     <span className="muted small">
                       {entry.provider} · requested {entry.requested_at || "—"}
                     </span>
+                    {(entry.context_pack_name || entry.context_pack_id) && (
+                      <span className="muted small">
+                        Context pack: {entry.context_pack_name || entry.context_pack_id}
+                        {entry.context_pack_version ? ` · v${entry.context_pack_version}` : ""}
+                      </span>
+                    )}
                     {!!entry.error_message && <span className="muted small">{entry.error_message}</span>}
                     {(entry.output_assets || []).map((asset, idx) => (
                       <a key={`${entry.id}-asset-${idx}`} className="muted small" href={asset.url} target="_blank" rel="noreferrer noopener">

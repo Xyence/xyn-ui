@@ -1034,6 +1034,11 @@ export type VideoRender = {
     url: string;
     metadata?: Record<string, unknown>;
   }>;
+  context_pack_id?: string | null;
+  context_pack_name?: string | null;
+  context_pack_version?: string;
+  context_pack_updated_at?: string | null;
+  context_pack_hash?: string;
   error_message?: string;
   error_details_json?: Record<string, unknown>;
 };
@@ -1043,6 +1048,7 @@ export type ArticleSummary = {
   workspace_id: string;
   type: "article";
   format: ArticleFormat;
+  video_context_pack_id?: string | null;
   title: string;
   slug: string;
   status: "draft" | "reviewed" | "ratified" | "published" | "deprecated";
@@ -1065,6 +1071,16 @@ export type ArticleDetail = ArticleSummary & {
   body_markdown: string;
   body_html?: string;
   video_spec_json?: VideoSpec | null;
+  video_context_pack_id?: string | null;
+  video_context_pack?: {
+    id: string;
+    name: string;
+    purpose: string;
+    scope: string;
+    version: string;
+    updated_at?: string | null;
+    content_hash?: string;
+  } | null;
   video_latest_render_id?: string | null;
   category_ref?: {
     id: string | null;

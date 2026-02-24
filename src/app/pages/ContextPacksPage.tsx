@@ -10,7 +10,7 @@ import {
 } from "../../api/xyn";
 import type { ContextPackCreatePayload, ContextPackDetail, ContextPackSummary } from "../../api/types";
 
-const PURPOSE_OPTIONS = ["any", "planner", "coder", "deployer", "operator"];
+const PURPOSE_OPTIONS = ["any", "planner", "coder", "deployer", "operator", "video_explainer"];
 const SCOPE_OPTIONS = ["global", "namespace", "project"];
 
 const emptyForm: ContextPackCreatePayload = {

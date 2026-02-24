@@ -8,6 +8,8 @@ const apiMocks = vi.hoisted(() => ({
   listArticleRevisions: vi.fn(),
   listArticleCategories: vi.fn(),
   listArticleVideoRenders: vi.fn(),
+  listContextPacks: vi.fn(),
+  createContextPack: vi.fn(),
   updateArticle: vi.fn(),
   createArticleRevision: vi.fn(),
   listAiAgents: vi.fn(),
@@ -68,6 +70,7 @@ describe("ArtifactDetailPage video explainer", () => {
         allowed_roles: [],
         tags: [],
         published_to: [],
+        video_context_pack_id: "pack-1",
         video_spec_json: {
           version: 1,
           title: "Video Article",
@@ -86,6 +89,9 @@ describe("ArtifactDetailPage video explainer", () => {
     apiMocks.listArticleRevisions.mockResolvedValue({ revisions: [] });
     apiMocks.listArticleCategories.mockResolvedValue({ categories: [{ slug: "guide", name: "Guide", enabled: true }] });
     apiMocks.listArticleVideoRenders.mockResolvedValue({ renders: [] });
+    apiMocks.listContextPacks.mockResolvedValue({
+      context_packs: [{ id: "pack-1", name: "Explainer Pack", purpose: "video_explainer", scope: "global", version: "1.0.0", is_active: true, is_default: false }],
+    });
     apiMocks.listAiAgents.mockResolvedValue({ agents: [] });
     apiMocks.updateArticle.mockResolvedValue({ article: {} });
   });
@@ -93,6 +99,7 @@ describe("ArtifactDetailPage video explainer", () => {
   it("renders video explainer panel and saves overview spec edits", async () => {
     render(<ArtifactDetailPage workspaceId="ws-1" workspaceRole="owner" canManageArticleLifecycle />);
     expect(await screen.findByText("Explainer Video")).toBeInTheDocument();
+    await waitFor(() => expect(apiMocks.listContextPacks).toHaveBeenCalledWith({ purpose: "video_explainer", active: true }));
 
     const intent = screen.getByLabelText("Intent");
     await userEvent.clear(intent);

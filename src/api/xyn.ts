@@ -346,7 +346,7 @@ export async function initializeArticleVideo(articleId: string): Promise<{ artic
 
 export async function generateArticleVideoScript(
   articleId: string,
-  payload: { agent_slug: string }
+  payload: { agent_slug: string; context_pack_id?: string | null }
 ): Promise<{ article: ArticleDetail; proposal: Record<string, unknown>; overwrote_draft: boolean }> {
   const apiBaseUrl = resolveApiBaseUrl();
   const response = await apiFetch(`${apiBaseUrl}/xyn/api/articles/${articleId}/video/generate-script`, {
@@ -360,7 +360,7 @@ export async function generateArticleVideoScript(
 
 export async function generateArticleVideoStoryboard(
   articleId: string,
-  payload: { agent_slug: string }
+  payload: { agent_slug: string; context_pack_id?: string | null }
 ): Promise<{ article: ArticleDetail; proposal: Record<string, unknown>; overwrote_draft: boolean }> {
   const apiBaseUrl = resolveApiBaseUrl();
   const response = await apiFetch(`${apiBaseUrl}/xyn/api/articles/${articleId}/video/generate-storyboard`, {
@@ -382,7 +382,7 @@ export async function listArticleVideoRenders(articleId: string): Promise<{ rend
 
 export async function renderArticleVideo(
   articleId: string,
-  payload: { provider?: string; request_payload_json?: Record<string, unknown> }
+  payload: { provider?: string; context_pack_id?: string | null; request_payload_json?: Record<string, unknown> }
 ): Promise<{ render: VideoRender; article: ArticleDetail }> {
   const apiBaseUrl = resolveApiBaseUrl();
   const response = await apiFetch(`${apiBaseUrl}/xyn/api/articles/${articleId}/video/render`, {
