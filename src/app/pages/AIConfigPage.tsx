@@ -28,9 +28,9 @@ type AiConfigTab = "credentials" | "model-configs" | "agents" | "purposes";
 type CreateModalType = AiConfigTab | null;
 
 const AI_TABS: Array<{ value: AiConfigTab; label: string }> = [
+  { value: "agents", label: "Agents" },
   { value: "credentials", label: "Credentials" },
   { value: "model-configs", label: "Model Configs" },
-  { value: "agents", label: "Agents" },
   { value: "purposes", label: "Purposes" },
 ];
 const PURPOSE_SLUG_RE = /^[a-z0-9][a-z0-9-]{1,62}$/;
