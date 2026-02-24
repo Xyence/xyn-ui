@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { useParams } from "react-router-dom";
+import { Bot, History, MessageSquareMore, SlidersHorizontal } from "lucide-react";
 import { renderMarkdown } from "../../public/markdown";
 import {
   commentOnWorkspaceArtifact,
@@ -29,6 +30,7 @@ import {
 import type { AiAgent, ArticleDetail, ArticleFormat, ArticleRevision, ContextPackSummary, VideoAiConfigEntry, VideoRender, VideoSpec } from "../../api/types";
 import ArtifactWorkflowActions from "../components/workflow/ArtifactWorkflowActions";
 import MarkdownWysiwygEditor from "../components/editor/MarkdownWysiwygEditor";
+import CompactPaneTabs, { type CompactPaneTab } from "../components/ui/CompactPaneTabs";
 import EditorCentricLayout from "../layouts/EditorCentricLayout";
 import { resolveArtifactWorkflowActions, type WorkflowAction, type WorkflowActionId } from "../workflows/artifactWorkflow";
 import { computeLineDiff } from "../utils/textDiff";
@@ -1382,42 +1384,26 @@ export default function ArtifactDetailPage({
 
   const activityPanel = (
     <div className="stack">
-      <div className="editor-panel-tabs">
-        <button
-          type="button"
-          title="Revisions"
-          className={`ghost editor-tab-button ${activityTab === "revisions" ? "active" : ""}`}
-          onClick={() => setActivityTab("revisions")}
-        >
-          <span className="editor-tab-label">Revisions</span>
-        </button>
-        <button
-          type="button"
-          title="AI Assist"
-          className={`ghost editor-tab-button ${activityTab === "ai" ? "active" : ""}`}
-          onClick={() => setActivityTab("ai")}
-        >
-          <span className="editor-tab-label">AI Assist</span>
-        </button>
-        {articleFormat === "video_explainer" && (
-          <button
-            type="button"
-            title="AI Configuration"
-            className={`ghost editor-tab-button ${activityTab === "ai_config" ? "active" : ""}`}
-            onClick={() => setActivityTab("ai_config")}
-          >
-            <span className="editor-tab-label">AI Configuration</span>
-          </button>
-        )}
-        <button
-          type="button"
-          title="Reactions & Comments"
-          className={`ghost editor-tab-button ${activityTab === "discussion" ? "active" : ""}`}
-          onClick={() => setActivityTab("discussion")}
-        >
-          <span className="editor-tab-label">Reactions</span>
-        </button>
-      </div>
+      <CompactPaneTabs
+        ariaLabel="Activity panel tabs"
+        activeKey={activityTab}
+        onChange={(next) => setActivityTab(next as ActivityTab)}
+        tabs={
+          [
+            { key: "revisions", label: "Revisions", icon: <History size={15} /> },
+            { key: "ai", label: "AI Assist", icon: <Bot size={15} /> },
+            ...(articleFormat === "video_explainer"
+              ? [{ key: "ai_config", label: "AI Configuration", icon: <SlidersHorizontal size={15} /> }]
+              : []),
+            {
+              key: "discussion",
+              label: "Reactions & Comments",
+              icon: <MessageSquareMore size={15} />,
+              badgeCount: (item?.comments?.length || 0) + ((item?.reactions?.endorse || 0) + (item?.reactions?.oppose || 0) + (item?.reactions?.neutral || 0)),
+            },
+          ] satisfies CompactPaneTab[]
+        }
+      />
       {activityTab === "revisions" && revisionPanel}
       {activityTab === "ai" && aiPanel}
       {activityTab === "ai_config" && articleFormat === "video_explainer" && aiConfigPanel}

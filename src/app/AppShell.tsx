@@ -375,7 +375,7 @@ export default function AppShell() {
           onWorkspaceChange={setActiveWorkspaceId}
         />
         <main className="app-content" ref={contentRef}>
-          <div className="preview-banner-slot">
+          <div className={`preview-banner-slot ${preview.enabled ? "active" : ""}`}>
             <PreviewBanner
               actorLabel={String(authUser?.email || authUser?.display_name || authUser?.subject || "current user")}
               onExit={async () => {

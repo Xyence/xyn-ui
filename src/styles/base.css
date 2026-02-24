@@ -948,6 +948,10 @@ button.sm {
 }
 
 .preview-banner-slot {
+  min-height: 0;
+}
+
+.preview-banner-slot.active {
   min-height: 52px;
 }
 
@@ -1644,38 +1648,96 @@ button.sm {
   line-height: 1.2;
 }
 
-.editor-panel-tabs {
+.compact-pane-tabs {
   display: grid;
-  grid-template-columns: repeat(auto-fit, minmax(0, 1fr));
   gap: 8px;
 }
 
-.editor-tab-button {
-  min-width: 0;
-  min-height: 34px;
-  padding: 6px 10px;
-  border-radius: 9px;
-  font-size: 0.84rem;
+.compact-pane-tabs-mobile {
+  display: none;
+}
+
+.compact-pane-tabs-mobile label {
+  display: grid;
+  gap: 6px;
   font-weight: 600;
-  justify-content: flex-start;
-  border: 1px solid transparent;
+  font-size: 0.85rem;
 }
 
-.editor-tab-label {
+.compact-pane-tabs-mobile-label {
+  color: var(--muted);
+}
+
+.compact-pane-tabs-desktop {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  flex-wrap: wrap;
   min-width: 0;
-  white-space: normal;
-  line-height: 1.15;
-  text-wrap: balance;
 }
 
-.editor-panel-tabs .ghost.active {
-  border: 1px solid var(--border-strong);
+.compact-pane-tab-button {
+  min-width: 38px;
+  width: 38px;
+  height: 38px;
+  border-radius: 10px;
+  border: 1px solid var(--border);
+  background: var(--surface-soft);
+  color: var(--muted);
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  position: relative;
+  transition: background 0.2s ease, color 0.2s ease, border-color 0.2s ease;
+}
+
+.compact-pane-tab-button:hover {
+  border-color: var(--border-strong);
+  color: var(--ink);
+}
+
+.compact-pane-tab-button.active {
+  border-color: var(--border-strong);
   background: var(--accent-soft);
   color: var(--accent);
 }
 
-.editor-panel-tabs .ghost:focus-visible {
-  border-color: var(--accent);
+.compact-pane-tab-button:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: 1px;
+}
+
+.compact-pane-tab-button:disabled {
+  opacity: 0.6;
+  cursor: not-allowed;
+}
+
+.compact-pane-tab-icon {
+  display: inline-flex;
+}
+
+.compact-pane-tab-badge {
+  position: absolute;
+  top: -5px;
+  right: -5px;
+  min-width: 16px;
+  height: 16px;
+  border-radius: 999px;
+  border: 1px solid var(--card);
+  background: var(--accent);
+  color: #fff;
+  font-size: 0.62rem;
+  line-height: 1;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  padding: 0 3px;
+}
+
+.compact-pane-tabs-active-label {
+  font-size: 0.79rem;
+  color: var(--muted);
+  min-height: 1em;
 }
 
 .revision-list {
@@ -2152,6 +2214,18 @@ button.sm {
 
   .editor-centric-top {
     position: static;
+  }
+
+  .compact-pane-tabs-desktop {
+    display: none;
+  }
+
+  .compact-pane-tabs-mobile {
+    display: block;
+  }
+
+  .compact-pane-tabs-active-label {
+    display: none;
   }
 
   .editor-centric-grid {
