@@ -13,8 +13,7 @@ import RegistriesPage from "./pages/RegistriesPage";
 import EnvironmentsPage from "./pages/EnvironmentsPage";
 import IdentityProvidersPage from "./pages/IdentityProvidersPage";
 import OidcAppClientsPage from "./pages/OidcAppClientsPage";
-import SecretStoresPage from "./pages/SecretStoresPage";
-import SecretRefsPage from "./pages/SecretRefsPage";
+import SecretConfigurationPage from "./pages/SecretConfigurationPage";
 import AIConfigPage from "./pages/AIConfigPage";
 import ReleasePlansPage from "./pages/ReleasePlansPage";
 import ReleasesPage from "./pages/ReleasesPage";
@@ -57,6 +56,13 @@ function RedirectLegacyAiRoute({ tab }: { tab: "credentials" | "model-configs" |
   const currentParams = new URLSearchParams(location.search);
   currentParams.set("tab", tab);
   return <Navigate to={{ pathname: "/app/platform/ai-configuration", search: `?${currentParams.toString()}` }} replace />;
+}
+
+function RedirectLegacySecretsRoute({ tab }: { tab: "stores" | "refs" }) {
+  const location = useLocation();
+  const currentParams = new URLSearchParams(location.search);
+  currentParams.set("tab", tab);
+  return <Navigate to={{ pathname: "/app/platform/secrets", search: `?${currentParams.toString()}` }} replace />;
 }
 
 export default function AppShell() {
@@ -362,8 +368,9 @@ export default function AppShell() {
             <Route path="platform/settings" element={<PlatformSettingsPage />} />
             <Route path="platform/identity-providers" element={<IdentityProvidersPage />} />
             <Route path="platform/oidc-app-clients" element={<OidcAppClientsPage />} />
-            <Route path="platform/secret-stores" element={<SecretStoresPage />} />
-            <Route path="platform/secret-refs" element={<SecretRefsPage />} />
+            <Route path="platform/secrets" element={<SecretConfigurationPage />} />
+            <Route path="platform/secret-stores" element={<RedirectLegacySecretsRoute tab="stores" />} />
+            <Route path="platform/secret-refs" element={<RedirectLegacySecretsRoute tab="refs" />} />
             <Route path="platform/ai-config" element={<Navigate to="/app/platform/ai-configuration" replace />} />
             <Route path="platform/ai-configuration" element={<AIConfigPage />} />
             <Route path="platform/ai/credentials" element={<RedirectLegacyAiRoute tab="credentials" />} />
