@@ -716,7 +716,7 @@ export default function AIConfigPage() {
     <>
       <div className="page-header">
         <div>
-          <h2>AI Configuration</h2>
+          <h2>AI Agents</h2>
           <p className="muted">Manage credentials, model configs, agents, and purposes.</p>
         </div>
         <div className="inline-actions">
@@ -729,7 +729,7 @@ export default function AIConfigPage() {
 
       <div className="page-tabs">
         <Tabs
-          ariaLabel="AI Configuration tabs"
+          ariaLabel="AI Agents tabs"
           value={activeTab}
           onChange={updateTab}
           options={AI_TABS.map((item) => ({ value: item.value, label: item.label }))}

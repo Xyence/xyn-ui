@@ -41,14 +41,14 @@ describe("AIConfigPage", () => {
 
   it("defaults to agents tab and updates create label when switching tabs", async () => {
     render(
-      <MemoryRouter initialEntries={["/app/platform/ai-configuration"]}>
+      <MemoryRouter initialEntries={["/app/platform/ai-agents"]}>
         <Routes>
-          <Route path="/app/platform/ai-configuration" element={<AIConfigPage />} />
+          <Route path="/app/platform/ai-agents" element={<AIConfigPage />} />
         </Routes>
       </MemoryRouter>
     );
 
-    expect(await screen.findByText("AI Configuration")).toBeInTheDocument();
+    expect(await screen.findByText("AI Agents")).toBeInTheDocument();
     await waitFor(() => expect(screen.getByRole("button", { name: "Create agent" })).toBeInTheDocument());
     await userEvent.click(screen.getByRole("tab", { name: "Credentials" }));
     expect(await screen.findByRole("button", { name: "Create credential" })).toBeInTheDocument();
