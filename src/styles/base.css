@@ -691,6 +691,83 @@ button.sm {
   accent-color: var(--accent);
 }
 
+.checkbox-row.compact {
+  font-size: 0.82rem;
+  font-weight: 500;
+  align-self: center;
+}
+
+.article-filter-bar {
+  background: transparent;
+  border: 1px solid var(--border);
+  border-radius: 14px;
+  padding: 10px 12px;
+}
+
+.article-filter-row {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 10px;
+}
+
+.article-filter-field {
+  display: flex;
+  min-width: 0;
+}
+
+.article-filter-field select,
+.article-filter-field input {
+  min-width: 160px;
+}
+
+.article-filter-search {
+  flex: 1 1 280px;
+}
+
+.article-filter-search input {
+  width: 100%;
+}
+
+.article-row {
+  align-items: flex-start;
+}
+
+.article-row strong {
+  font-size: 1rem;
+}
+
+.article-row-meta {
+  margin-top: 4px;
+  display: block;
+}
+
+.article-row.flash {
+  animation: article-row-flash 1.8s ease-out;
+}
+
+.error-text {
+  color: var(--danger);
+  font-size: 0.82rem;
+  margin: 0;
+  font-weight: 600;
+}
+
+.articles-create-modal .inline-actions {
+  margin-top: 4px;
+}
+
+@keyframes article-row-flash {
+  0% {
+    border-color: var(--accent);
+    box-shadow: 0 0 0 2px var(--accent-soft);
+  }
+  100% {
+    border-color: var(--border);
+    box-shadow: none;
+  }
+}
+
 .inline-field {
   display: flex;
   align-items: center;

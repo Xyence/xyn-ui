@@ -1,5 +1,5 @@
-import { useCallback, useEffect, useMemo, useState } from "react";
-import { Link } from "react-router-dom";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { Link, useNavigate } from "react-router-dom";
 import InlineMessage from "../../components/InlineMessage";
 import Tabs from "../components/ui/Tabs";
 import {
@@ -15,6 +15,7 @@ import {
 } from "../../api/xyn";
 import type { ArticleCategoryRecord, ArticleFormat, ArticleSummary, PublishBindingRecord } from "../../api/types";
 import { resolveCategoryActions } from "./articleCategoryActions";
+import { useNotifications } from "../state/notificationsStore";
 
 type CategoryForm = {
   slug: string;
@@ -30,13 +31,22 @@ export default function ArtifactsArticlesPage({
   workspaceId: string;
   canCreate: boolean;
 }) {
+  const navigate = useNavigate();
+  const { push } = useNotifications();
+  const createButtonRef = useRef<HTMLButtonElement | null>(null);
+  const createTitleInputRef = useRef<HTMLInputElement | null>(null);
+  const listRowRefs = useRef<Record<string, HTMLAnchorElement | null>>({});
   const [tab, setTab] = useState<"articles" | "categories">("articles");
   const [items, setItems] = useState<ArticleSummary[]>([]);
   const [categories, setCategories] = useState<ArticleCategoryRecord[]>([]);
   const [bindings, setBindings] = useState<PublishBindingRecord[]>([]);
-  const [title, setTitle] = useState("");
-  const [categorySlug, setCategorySlug] = useState("web");
-  const [articleFormat, setArticleFormat] = useState<ArticleFormat>("standard");
+  const [showCreateModal, setShowCreateModal] = useState(false);
+  const [createTitle, setCreateTitle] = useState("");
+  const [createCategorySlug, setCreateCategorySlug] = useState("web");
+  const [createArticleFormat, setCreateArticleFormat] = useState<ArticleFormat>("standard");
+  const [createErrors, setCreateErrors] = useState<{ title?: string; category?: string; form?: string }>({});
+  const [createLoading, setCreateLoading] = useState(false);
+  const [highlightArticleId, setHighlightArticleId] = useState<string | null>(null);
   const [q, setQ] = useState("");
   const [categoryFilter, setCategoryFilter] = useState("");
   const [visibilityFilter, setVisibilityFilter] = useState("");
@@ -118,6 +128,11 @@ export default function ArtifactsArticlesPage({
     [items]
   );
 
+  const filteredCategoryOptions = useMemo(
+    () => Array.from(new Set(items.map((item) => item.category).filter(Boolean))).sort(),
+    [items]
+  );
+
   const selectedCategory = useMemo(
     () => categories.find((item) => item.slug === selectedCategorySlug) || null,
     [categories, selectedCategorySlug]
@@ -127,27 +142,112 @@ export default function ArtifactsArticlesPage({
     referencedArticleCount: Number(selectedCategory?.referenced_article_count || selectedCategory?.references?.articles || 0),
   });
 
+  const openCreateModal = useCallback(() => {
+    const storedCategory = window.localStorage.getItem("xyn.articles.lastCategory") || "";
+    const storedFormat = window.localStorage.getItem("xyn.articles.lastCreateAs") as ArticleFormat | null;
+    const nextCategory = storedCategory && categoryOptions.includes(storedCategory) ? storedCategory : (categoryOptions[0] || "web");
+    const nextFormat = storedFormat === "video_explainer" ? "video_explainer" : "standard";
+    setCreateTitle("");
+    setCreateCategorySlug(nextCategory);
+    setCreateArticleFormat(nextFormat);
+    setCreateErrors({});
+    setShowCreateModal(true);
+  }, [categoryOptions]);
+
+  const closeCreateModal = useCallback(() => {
+    setShowCreateModal(false);
+    window.setTimeout(() => createButtonRef.current?.focus(), 0);
+  }, []);
+
   const createDraft = async () => {
-    if (!title.trim()) return;
+    const trimmedTitle = createTitle.trim();
+    const nextErrors: { title?: string; category?: string } = {};
+    if (!trimmedTitle) nextErrors.title = "Title is required.";
+    if (!createCategorySlug.trim()) nextErrors.category = "Category is required.";
+    if (nextErrors.title || nextErrors.category) {
+      setCreateErrors(nextErrors);
+      return;
+    }
     try {
-      setLoading(true);
+      setCreateLoading(true);
       setError(null);
-      await createArticle({
+      setCreateErrors({});
+      const response = await createArticle({
         workspace_id: workspaceId,
-        title,
-        category: categorySlug,
+        title: trimmedTitle,
+        category: createCategorySlug,
         visibility_type: "private",
         body_markdown: "",
-        format: articleFormat,
+        format: createArticleFormat,
       });
-      setTitle("");
+      const createdArticleId = response?.article?.id;
+      window.localStorage.setItem("xyn.articles.lastCategory", createCategorySlug);
+      window.localStorage.setItem("xyn.articles.lastCreateAs", createArticleFormat);
+      closeCreateModal();
+      if (createdArticleId) {
+        navigate(`/app/artifacts/${createdArticleId}`);
+        return;
+      }
       await loadArticles();
+      const fallbackId = response?.article?.id || null;
+      if (fallbackId) {
+        setHighlightArticleId(fallbackId);
+        window.setTimeout(() => {
+          listRowRefs.current[fallbackId]?.scrollIntoView({ behavior: "smooth", block: "center" });
+          listRowRefs.current[fallbackId]?.focus();
+        }, 40);
+        window.setTimeout(() => setHighlightArticleId((prev) => (prev === fallbackId ? null : prev)), 2000);
+      }
+      push({
+        level: "success",
+        title: "Draft created",
+        message: "Open the new draft to continue editing.",
+        href: fallbackId ? `/app/artifacts/${fallbackId}` : undefined,
+        ctaLabel: fallbackId ? "Continue editing" : undefined,
+      });
     } catch (err) {
-      setError((err as Error).message);
+      const message = (err as Error).message || "Could not create draft.";
+      setCreateErrors({ form: message });
+      push({ level: "error", title: "Create draft failed", message });
     } finally {
-      setLoading(false);
+      setCreateLoading(false);
     }
   };
+
+  useEffect(() => {
+    if (!showCreateModal) return;
+    const focusTimer = window.setTimeout(() => createTitleInputRef.current?.focus(), 0);
+    const onKeyDown = (event: KeyboardEvent) => {
+      if (event.key === "Escape" && !createLoading) {
+        event.preventDefault();
+        closeCreateModal();
+      }
+      if (event.key !== "Tab") return;
+      const modal = document.querySelector(".articles-create-modal");
+      if (!(modal instanceof HTMLElement)) return;
+      const focusable = Array.from(
+        modal.querySelectorAll<HTMLElement>(
+          'button:not([disabled]), [href], input:not([disabled]), select:not([disabled]), textarea:not([disabled]), [tabindex]:not([tabindex="-1"])'
+        )
+      ).filter((element) => !element.hasAttribute("hidden") && element.tabIndex !== -1);
+      if (focusable.length < 2) return;
+      const first = focusable[0];
+      const last = focusable[focusable.length - 1];
+      const active = document.activeElement as HTMLElement | null;
+      if (event.shiftKey && active === first) {
+        event.preventDefault();
+        last.focus();
+      } else if (!event.shiftKey && active === last) {
+        event.preventDefault();
+        first.focus();
+      }
+    };
+    window.addEventListener("keydown", onKeyDown);
+    return () => {
+      window.clearTimeout(focusTimer);
+      window.removeEventListener("keydown", onKeyDown);
+    };
+  }, [closeCreateModal, createLoading, showCreateModal]);
 
   const createCategory = async () => {
     try {
@@ -217,6 +317,11 @@ export default function ArtifactsArticlesPage({
           <h2>Articles</h2>
           <p className="muted">Governed article artifacts in this workspace.</p>
         </div>
+        {tab === "articles" && canCreate && (
+          <button ref={createButtonRef} className="primary" onClick={openCreateModal}>
+            New Article
+          </button>
+        )}
       </div>
       {error && <InlineMessage tone="error" title="Request failed" body={error} />}
       {message && <InlineMessage tone="info" title="Articles" body={message} />}
@@ -235,55 +340,25 @@ export default function ArtifactsArticlesPage({
 
       {tab === "articles" && (
         <>
-          {canCreate && (
-            <section className="card">
-              <div className="form-grid">
-                <label>
-                  New Article Draft
-                  <input className="input" value={title} onChange={(event) => setTitle(event.target.value)} placeholder="Title" />
-                </label>
-                <label>
-                  Category
-                  <select value={categorySlug} onChange={(event) => setCategorySlug(event.target.value)}>
-                    {categoryOptions.map((value) => (
-                      <option key={value} value={value}>
-                        {value}
-                      </option>
-                    ))}
-                  </select>
-                </label>
-                <label>
-                  Create as
-                  <select value={articleFormat} onChange={(event) => setArticleFormat(event.target.value as ArticleFormat)}>
-                    <option value="standard">Standard Article</option>
-                    <option value="video_explainer">Explainer Video</option>
-                  </select>
-                </label>
-                <button className="primary" onClick={createDraft} disabled={loading || !title.trim()}>
-                  Create draft
-                </button>
-              </div>
-            </section>
-          )}
-          <section className="card">
-            <div className="form-grid">
-              <label>
-                Search
+          <section className="article-filter-bar" aria-label="Article filters">
+            <div className="article-filter-row">
+              <label className="article-filter-field article-filter-search">
+                <span className="sr-only">Search articles</span>
                 <input className="input" value={q} onChange={(event) => setQ(event.target.value)} placeholder="Search title, slug, summary, tags" />
               </label>
-              <label>
-                Category
+              <label className="article-filter-field">
+                <span className="sr-only">Filter by category</span>
                 <select value={categoryFilter} onChange={(event) => setCategoryFilter(event.target.value)}>
                   <option value="">All categories</option>
-                  {Array.from(new Set(items.map((item) => item.category).filter(Boolean))).sort().map((value) => (
+                  {filteredCategoryOptions.map((value) => (
                     <option key={value} value={value}>
                       {value}
                     </option>
                   ))}
                 </select>
               </label>
-              <label>
-                Visibility
+              <label className="article-filter-field">
+                <span className="sr-only">Filter by visibility</span>
                 <select value={visibilityFilter} onChange={(event) => setVisibilityFilter(event.target.value)}>
                   <option value="">All visibility</option>
                   {visibilityOptions.map((value) => (
@@ -293,10 +368,10 @@ export default function ArtifactsArticlesPage({
                   ))}
                 </select>
               </label>
-              <div className="checkbox-row">
-                <span>Include deprecated</span>
+              <label className="checkbox-row compact">
                 <input type="checkbox" checked={includeDeprecated} onChange={(event) => setIncludeDeprecated(event.target.checked)} />
-              </div>
+                <span>Include deprecated</span>
+              </label>
             </div>
           </section>
           <section className="card">
@@ -305,10 +380,17 @@ export default function ArtifactsArticlesPage({
             </div>
             <div className="instance-list">
               {filtered.map((item) => (
-                <Link className="instance-row" key={item.id} to={`/app/artifacts/${item.id}`}>
+                <Link
+                  className={`instance-row article-row ${highlightArticleId === item.id ? "flash" : ""}`}
+                  key={item.id}
+                  to={`/app/artifacts/${item.id}`}
+                  ref={(element) => {
+                    listRowRefs.current[item.id] = element;
+                  }}
+                >
                   <div>
                     <strong>{item.title}</strong>
-                    <span className="muted small">
+                    <span className="muted small article-row-meta">
                       {item.slug || item.id} · {item.category} · {item.visibility_type}
                     </span>
                   </div>
@@ -507,6 +589,65 @@ export default function ArtifactsArticlesPage({
               <p className="muted">Select a category.</p>
             )}
           </section>
+        </div>
+      )}
+
+      {showCreateModal && (
+        <div className="modal-backdrop" onClick={createLoading ? undefined : closeCreateModal}>
+          <div className="modal articles-create-modal" role="dialog" aria-modal="true" aria-labelledby="article-create-title" onClick={(event) => event.stopPropagation()}>
+            <h3 id="article-create-title">New Article</h3>
+            <form
+              className="form-grid"
+              onSubmit={(event) => {
+                event.preventDefault();
+                if (!createLoading) createDraft();
+              }}
+            >
+              <label>
+                Title
+                <input
+                  ref={createTitleInputRef}
+                  className="input"
+                  value={createTitle}
+                  onChange={(event) => setCreateTitle(event.target.value)}
+                  aria-invalid={Boolean(createErrors.title)}
+                />
+                {createErrors.title && <span className="error-text">{createErrors.title}</span>}
+              </label>
+              <label>
+                Category
+                <select
+                  value={createCategorySlug}
+                  onChange={(event) => setCreateCategorySlug(event.target.value)}
+                  aria-invalid={Boolean(createErrors.category)}
+                >
+                  <option value="">Select category</option>
+                  {categoryOptions.map((value) => (
+                    <option key={value} value={value}>
+                      {value}
+                    </option>
+                  ))}
+                </select>
+                {createErrors.category && <span className="error-text">{createErrors.category}</span>}
+              </label>
+              <label>
+                Create as
+                <select value={createArticleFormat} onChange={(event) => setCreateArticleFormat(event.target.value as ArticleFormat)}>
+                  <option value="standard">Standard Article</option>
+                  <option value="video_explainer">Explainer Video</option>
+                </select>
+              </label>
+              {createErrors.form && <p className="error-text" role="alert">{createErrors.form}</p>}
+              <div className="inline-actions">
+                <button className="primary" type="submit" disabled={createLoading}>
+                  {createLoading ? "Creating..." : "Create draft"}
+                </button>
+                <button className="ghost" type="button" onClick={closeCreateModal} disabled={createLoading}>
+                  Cancel
+                </button>
+              </div>
+            </form>
+          </div>
         </div>
       )}
     </>
