@@ -15,10 +15,7 @@ import IdentityProvidersPage from "./pages/IdentityProvidersPage";
 import OidcAppClientsPage from "./pages/OidcAppClientsPage";
 import SecretStoresPage from "./pages/SecretStoresPage";
 import SecretRefsPage from "./pages/SecretRefsPage";
-import AICredentialsPage from "./pages/AICredentialsPage";
-import AIModelConfigsPage from "./pages/AIModelConfigsPage";
-import AIAgentsPage from "./pages/AIAgentsPage";
-import AIPurposesPage from "./pages/AIPurposesPage";
+import AIConfigPage from "./pages/AIConfigPage";
 import ReleasePlansPage from "./pages/ReleasePlansPage";
 import ReleasesPage from "./pages/ReleasesPage";
 import RunsPage from "./pages/RunsPage";
@@ -54,6 +51,13 @@ import { useOperations } from "./state/operationRegistry";
 import HelpDrawer from "./components/help/HelpDrawer";
 import TourOverlay from "./components/help/TourOverlay";
 import { resolveRouteId } from "./help/routeHelp";
+
+function RedirectLegacyAiRoute({ tab }: { tab: "credentials" | "model-configs" | "agents" | "purposes" }) {
+  const location = useLocation();
+  const currentParams = new URLSearchParams(location.search);
+  currentParams.set("tab", tab);
+  return <Navigate to={{ pathname: "/app/platform/ai-config", search: `?${currentParams.toString()}` }} replace />;
+}
 
 export default function AppShell() {
   const location = useLocation();
@@ -360,10 +364,11 @@ export default function AppShell() {
             <Route path="platform/oidc-app-clients" element={<OidcAppClientsPage />} />
             <Route path="platform/secret-stores" element={<SecretStoresPage />} />
             <Route path="platform/secret-refs" element={<SecretRefsPage />} />
-            <Route path="platform/ai/credentials" element={<AICredentialsPage />} />
-            <Route path="platform/ai/model-configs" element={<AIModelConfigsPage />} />
-            <Route path="platform/ai/agents" element={<AIAgentsPage />} />
-            <Route path="platform/ai/purposes" element={<AIPurposesPage />} />
+            <Route path="platform/ai-config" element={<AIConfigPage />} />
+            <Route path="platform/ai/credentials" element={<RedirectLegacyAiRoute tab="credentials" />} />
+            <Route path="platform/ai/model-configs" element={<RedirectLegacyAiRoute tab="model-configs" />} />
+            <Route path="platform/ai/agents" element={<RedirectLegacyAiRoute tab="agents" />} />
+            <Route path="platform/ai/purposes" element={<RedirectLegacyAiRoute tab="purposes" />} />
             <Route path="settings" element={<WorkspaceSettingsPage workspaceName={activeWorkspace?.name || "Workspace"} />} />
             <Route path="*" element={<Navigate to="home" replace />} />
           </Routes>
