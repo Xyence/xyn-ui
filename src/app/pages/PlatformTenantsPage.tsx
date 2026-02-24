@@ -580,7 +580,7 @@ export default function PlatformTenantsPage() {
                 </select>
               </label>
             </div>
-            <div className="inline-actions">
+            <div className="inline-actions" style={{ marginTop: 12 }}>
               <button className="primary" onClick={() => void createTenantHandler()} disabled={loading || !newTenantForm.name || !newTenantForm.slug}>{loading ? "Creating..." : "Create tenant"}</button>
               <button className="ghost" onClick={() => setCreateTenantOpen(false)} disabled={loading}>Cancel</button>
             </div>
