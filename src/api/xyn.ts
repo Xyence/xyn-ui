@@ -78,6 +78,8 @@ import type {
   SecretStore,
   SecretStoreListResponse,
   SecretRefListResponse,
+  UnifiedArtifact,
+  UnifiedArtifactListResponse,
   ReportPayload,
   ReportRecord,
   PlatformConfig,
@@ -338,6 +340,75 @@ export async function getWorkspaceArtifact(workspaceId: string, artifactId: stri
     credentials: "include",
   });
   return handle<ArtifactDetail>(response);
+}
+
+export async function listArtifacts(params: {
+  type?: "blueprint" | "draft_session";
+  state?: "provisional" | "canonical" | "immutable" | "deprecated";
+  query?: string;
+  owner?: string;
+  limit?: number;
+  offset?: number;
+} = {}): Promise<UnifiedArtifactListResponse> {
+  const apiBaseUrl = resolveApiBaseUrl();
+  const url = new URL(`${apiBaseUrl}/xyn/api/artifacts`);
+  if (params.type) url.searchParams.set("type", params.type);
+  if (params.state) url.searchParams.set("state", params.state);
+  if (params.query) url.searchParams.set("query", params.query);
+  if (params.owner) url.searchParams.set("owner", params.owner);
+  if (typeof params.limit === "number") url.searchParams.set("limit", String(params.limit));
+  if (typeof params.offset === "number") url.searchParams.set("offset", String(params.offset));
+  const response = await apiFetch(url.toString(), { credentials: "include" });
+  return handle<UnifiedArtifactListResponse>(response);
+}
+
+export async function getArtifact(artifactId: string): Promise<UnifiedArtifact> {
+  const apiBaseUrl = resolveApiBaseUrl();
+  const response = await apiFetch(`${apiBaseUrl}/xyn/api/artifacts/${artifactId}`, {
+    credentials: "include",
+  });
+  return handle<UnifiedArtifact>(response);
+}
+
+export async function createDraftSessionArtifact(payload: {
+  title?: string;
+  name?: string;
+  kind?: "blueprint" | "solution";
+  draft_kind?: "blueprint" | "solution";
+  blueprint_kind?: "solution" | "module" | "bundle";
+  namespace?: string;
+  project_key?: string;
+  blueprint_id?: string;
+  initial_prompt?: string;
+  revision_instruction?: string;
+  selected_context_pack_ids?: string[];
+}): Promise<{ artifact_id: string; session_id: string }> {
+  const apiBaseUrl = resolveApiBaseUrl();
+  const response = await apiFetch(`${apiBaseUrl}/xyn/api/artifacts/create-draft-session`, {
+    method: "POST",
+    headers: buildHeaders(),
+    credentials: "include",
+    body: JSON.stringify(payload),
+  });
+  return handle<{ artifact_id: string; session_id: string }>(response);
+}
+
+export async function createBlueprintArtifact(payload: {
+  name: string;
+  namespace?: string;
+  description?: string;
+  spec_text?: string;
+  metadata_json?: Record<string, unknown> | null;
+  parent_artifact_id?: string;
+}): Promise<{ artifact_id: string; blueprint_id: string }> {
+  const apiBaseUrl = resolveApiBaseUrl();
+  const response = await apiFetch(`${apiBaseUrl}/xyn/api/artifacts/create-blueprint`, {
+    method: "POST",
+    headers: buildHeaders(),
+    credentials: "include",
+    body: JSON.stringify(payload),
+  });
+  return handle<{ artifact_id: string; blueprint_id: string }>(response);
 }
 
 export async function updateWorkspaceArtifact(
@@ -1501,14 +1572,14 @@ export async function getActionReceipts(actionId: string): Promise<{ receipts: E
 }
 
 export async function listBlueprints(query = ""): Promise<BlueprintListResponse> {
-  const apiBaseUrl = resolveApiBaseUrl();
-  const url = new URL(`${apiBaseUrl}/xyn/api/blueprints`);
-  if (query) {
-    url.searchParams.set("q", query);
-  }
-  url.searchParams.set("page_size", "200");
-  const response = await apiFetch(url.toString(), { credentials: "include" });
-  return handle<BlueprintListResponse>(response);
+  const payload = await listUnifiedArtifacts({ type: "blueprint", query, limit: 200, offset: 0 });
+  const blueprints = payload.artifacts.map((artifact) => mapArtifactToBlueprintSummary(artifact));
+  return {
+    blueprints,
+    count: blueprints.length,
+    next: null,
+    prev: null,
+  };
 }
 
 export async function getBlueprint(id: string): Promise<BlueprintDetail> {
@@ -1721,16 +1792,54 @@ export async function listDraftSessions(params: {
   blueprint_id?: string;
   q?: string;
 } = {}): Promise<{ sessions: BlueprintDraftSession[] }> {
-  const apiBaseUrl = resolveApiBaseUrl();
-  const url = new URL(`${apiBaseUrl}/xyn/api/draft-sessions`);
-  if (params.status) url.searchParams.set("status", params.status);
-  if (params.kind) url.searchParams.set("kind", params.kind);
-  if (params.namespace) url.searchParams.set("namespace", params.namespace);
-  if (params.project_key) url.searchParams.set("project_key", params.project_key);
-  if (params.blueprint_id) url.searchParams.set("blueprint_id", params.blueprint_id);
-  if (params.q) url.searchParams.set("q", params.q);
-  const response = await apiFetch(url.toString(), { credentials: "include" });
-  return handle<{ sessions: BlueprintDraftSession[] }>(response);
+  const payload = await listUnifiedArtifacts({ type: "draft_session", query: params.q || "", limit: 500, offset: 0 });
+  let sessions = payload.artifacts.map((artifact) => mapArtifactToDraftSessionSummary(artifact));
+  if (params.status) sessions = sessions.filter((item) => item.status === params.status);
+  if (params.kind) sessions = sessions.filter((item) => item.kind === params.kind);
+  if (params.namespace) sessions = sessions.filter((item) => (item.namespace || "") === params.namespace);
+  if (params.project_key) sessions = sessions.filter((item) => (item.project_key || "") === params.project_key);
+  if (params.blueprint_id) sessions = sessions.filter((item) => (item.blueprint_id || "") === params.blueprint_id);
+  return { sessions };
+}
+
+async function listUnifiedArtifacts(params: {
+  type: "blueprint" | "draft_session";
+  query?: string;
+  limit?: number;
+  offset?: number;
+}): Promise<UnifiedArtifactListResponse> {
+  return listArtifacts(params);
+}
+
+function mapArtifactToBlueprintSummary(artifact: UnifiedArtifact): BlueprintSummary {
+  const source = (artifact.source || {}) as Record<string, unknown>;
+  return {
+    id: String(source.id || artifact.source_ref_id || artifact.id),
+    name: String(source.name || artifact.title || "Untitled blueprint"),
+    namespace: String(source.namespace || "core"),
+    status: (source.status as BlueprintSummary["status"]) || "active",
+    description: String(source.description || artifact.summary || ""),
+    created_at: String(source.created_at || artifact.created_at || ""),
+    updated_at: String(source.updated_at || artifact.updated_at || ""),
+  };
+}
+
+function mapArtifactToDraftSessionSummary(artifact: UnifiedArtifact): BlueprintDraftSession {
+  const source = (artifact.source || {}) as Record<string, unknown>;
+  return {
+    id: String(source.id || artifact.source_ref_id || artifact.id),
+    name: String(source.name || artifact.title || "Untitled draft"),
+    title: String(source.title || artifact.title || "Untitled draft"),
+    kind: (source.kind as BlueprintDraftSession["kind"]) || "blueprint",
+    status: String(source.status || "drafting"),
+    blueprint_kind: String(source.blueprint_kind || "solution"),
+    namespace: (source.namespace as string | null | undefined) ?? null,
+    project_key: (source.project_key as string | null | undefined) ?? null,
+    blueprint_id: (source.blueprint_id as string | null | undefined) ?? null,
+    linked_blueprint_id: (source.linked_blueprint_id as string | null | undefined) ?? null,
+    created_at: String(source.created_at || artifact.created_at || ""),
+    updated_at: String(source.updated_at || artifact.updated_at || ""),
+  };
 }
 
 export async function listReleaseTargets(blueprintId?: string): Promise<ReleaseTargetListResponse> {

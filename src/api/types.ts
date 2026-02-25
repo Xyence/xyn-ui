@@ -944,6 +944,39 @@ export type ArtifactDetail = ArtifactSummary & {
   }>;
 };
 
+export type UnifiedArtifactType = "draft_session" | "blueprint";
+export type UnifiedArtifactState = "provisional" | "canonical" | "immutable" | "deprecated";
+
+export type UnifiedArtifact = {
+  id: string;
+  artifact_id: string;
+  artifact_type: UnifiedArtifactType | string;
+  artifact_state: UnifiedArtifactState | string;
+  title: string;
+  summary?: string;
+  schema_version?: string;
+  owner?: {
+    id: string;
+    email?: string;
+    display_name?: string;
+  } | null;
+  source_ref_type?: string;
+  source_ref_id?: string;
+  parent_artifact_id?: string | null;
+  lineage_root_id?: string | null;
+  tags?: string[];
+  created_at?: string;
+  updated_at?: string;
+  source?: Record<string, unknown>;
+};
+
+export type UnifiedArtifactListResponse = {
+  artifacts: UnifiedArtifact[];
+  count: number;
+  limit: number;
+  offset: number;
+};
+
 export type ArticleVisibilityType = "public" | "authenticated" | "role_based" | "private";
 export type ArticleCategory = "web" | "guide" | "core-concepts" | "release-note" | "internal" | "tutorial";
 export type ArticleFormat = "standard" | "video_explainer";
