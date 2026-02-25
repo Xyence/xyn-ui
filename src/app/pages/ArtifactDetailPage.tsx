@@ -19,7 +19,6 @@ import {
   listArticleRevisions,
   listArticleVideoRenders,
   listContextPacks,
-  applySeedPacks,
   renderArticleVideo,
   retryVideoRender,
   cancelVideoRender,
@@ -748,28 +747,6 @@ export default function ArtifactDetailPage({
       const renderData = await listArticleVideoRenders(artifactId);
       setVideoRenders(renderData.renders || []);
       await loadVideoContextPacks();
-    } catch (err) {
-      setError((err as Error).message);
-    } finally {
-      setVideoBusy(null);
-    }
-  };
-
-  const installMissingExplainerDefaults = async () => {
-    try {
-      setVideoBusy("save");
-      setError(null);
-      await applySeedPacks({ apply_core: true });
-      await Promise.all([loadVideoContextPacks(), loadVideoAiConfig(), loadVideoAiConfigOptions()]);
-      push({
-        level: "success",
-        title: "Defaults installed",
-        message: "Core explainer defaults were applied from Seed Packs.",
-        status: "succeeded",
-        action: "article.video.defaults.install",
-        entityType: "unknown",
-        entityId: artifactId || "",
-      });
     } catch (err) {
       setError((err as Error).message);
     } finally {
@@ -1844,13 +1821,6 @@ export default function ArtifactDetailPage({
                 ))}
               </select>
             </label>
-            {videoContextPacks.length === 0 && (
-              <div className="inline-actions">
-                <button className="ghost sm" type="button" onClick={() => void installMissingExplainerDefaults()} disabled={videoBusy === "save"}>
-                  {videoBusy === "save" ? "Installing…" : "Install missing defaults"}
-                </button>
-              </div>
-            )}
             <label>
               Intent
               <textarea
