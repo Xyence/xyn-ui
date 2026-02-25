@@ -165,6 +165,7 @@ export default function ArtifactDetailPage({
   const { push } = useNotifications();
   const { startOperation, finishOperation } = useOperations();
   const videoPanelRef = useRef<HTMLElement | null>(null);
+  const videoIntentFieldRef = useRef<HTMLTextAreaElement | null>(null);
 
   const parseCsv = (value: string): string[] =>
     value
@@ -417,7 +418,7 @@ export default function ArtifactDetailPage({
       setError("No documentation agent selected. Configure one in Platform -> AI -> Agents.");
       return;
     }
-    if (mode === "rewrite_selection" && !editorSelection) return;
+    if ((mode === "rewrite_selection" || (isExplainerFormat && mode === "propose_edits")) && !editorSelection) return;
     const opId = `${artifactId}:${mode}:${Date.now()}`;
     startOperation({
       id: opId,
@@ -443,11 +444,19 @@ export default function ArtifactDetailPage({
       const prompt =
         mode === "generate_draft"
           ? `Draft article content from this idea. Return markdown only. Idea:\n${assistInstruction || summary || item?.title || ""}`
-          : mode === "rewrite_selection" && editorSelection
+          : editorSelection && (mode === "rewrite_selection" || (isExplainerFormat && mode === "propose_edits"))
             ? [
-                "Rewrite only the selected region and preserve all intent.",
+                mode === "rewrite_selection"
+                  ? "Rewrite only the selected region and preserve all intent."
+                  : "Suggest improvements for only the selected region and preserve all intent.",
                 "Return only the rewritten selected text. Do not include markdown fences or commentary.",
-                `Instruction: ${assistInstruction || "Improve clarity and flow."}`,
+                `Instruction: ${assistInstruction || "Improve clarity and flow while preserving meaning."}`,
+                ...(isExplainerFormat
+                  ? [
+                      "Explainer video context (canonical goals):",
+                      explainerRefinementContext,
+                    ]
+                  : []),
                 "Selected text:",
                 editorSelection.selectedText,
                 "Context before:",
@@ -465,7 +474,7 @@ export default function ArtifactDetailPage({
       const rawBody = String(result.content || "").trim();
       if (!rawBody) throw new Error("AI returned empty content.");
       const nextBody =
-        mode === "rewrite_selection" && editorSelection
+        editorSelection && (mode === "rewrite_selection" || (isExplainerFormat && mode === "propose_edits"))
           ? applyRewriteSelection(bodyMarkdown, editorSelection.selectedText, rawBody)
           : rawBody;
       setPendingAssist({
@@ -1039,6 +1048,8 @@ export default function ArtifactDetailPage({
   const hasBodyContent = Boolean(bodyMarkdown.trim() || revisions.length > 0);
   const primaryAssistAction = resolveAssistPrimaryAction(hasBodyContent);
   const selectionLength = editorSelection?.selectedText.length || 0;
+  const canRefineSelection = canRewriteSelection(selectionLength);
+  const isExplainerFormat = articleFormat === "video_explainer";
   const activeVideoSpec = videoSpec || createDefaultVideoSpec(item?.title || "", summary || "");
   const scriptProposals = Array.isArray(activeVideoSpec.script?.proposals) ? activeVideoSpec.script.proposals : [];
   const storyboardProposals = Array.isArray(activeVideoSpec.storyboard?.proposals) ? activeVideoSpec.storyboard.proposals : [];
@@ -1057,6 +1068,20 @@ export default function ArtifactDetailPage({
     `Storyboard: ${hasStoryboardDraft ? `${storyboardDraftCount} scene${storyboardDraftCount === 1 ? "" : "s"}` : "not generated"}`,
     `Last render: ${latestVideoRender?.status || "none"}`,
   ];
+  const selectedVideoContextPack = selectedVideoContextPackId ? videoContextPacks.find((pack) => pack.id === selectedVideoContextPackId) || null : null;
+  const explainerRefinementContext = useMemo(() => {
+    if (!isExplainerFormat) return "";
+    const rows = [
+      `Intent: ${activeVideoSpec.intent || "(none)"}`,
+      `Audience: ${activeVideoSpec.audience || "(none)"}`,
+      `Tone: ${activeVideoSpec.tone || "(none)"}`,
+      `Duration target: ${activeVideoSpec.duration_seconds_target || "(none)"} seconds`,
+    ];
+    if (selectedVideoContextPack) {
+      rows.push(`Context pack: ${selectedVideoContextPack.name} (v${selectedVideoContextPack.version})`);
+    }
+    return rows.join("\n");
+  }, [activeVideoSpec.audience, activeVideoSpec.duration_seconds_target, activeVideoSpec.intent, activeVideoSpec.tone, isExplainerFormat, selectedVideoContextPack]);
 
   const collapsedPrimaryAction = useMemo(() => {
     if (!hasScriptDraft) {
@@ -1248,10 +1273,11 @@ export default function ArtifactDetailPage({
       <div className="card-header">
         <h3>AI Assist</h3>
       </div>
+      {isExplainerFormat && <p className="muted small">For overall video goals, use Intent in the Explainer Video panel.</p>}
       <label>
-        Documentation agent
+        {isExplainerFormat ? "Refinement agent" : "Documentation agent"}
         <select value={selectedAgent} onChange={(event) => setSelectedAgent(event.target.value)}>
-          {!assistAgents.length && <option value="">No documentation agents found</option>}
+          {!assistAgents.length && <option value="">{isExplainerFormat ? "No refinement agents found" : "No documentation agents found"}</option>}
           {assistAgents.map((agent) => (
             <option key={agent.id} value={agent.slug}>
               {agent.name} ({agent.slug})
@@ -1260,26 +1286,62 @@ export default function ArtifactDetailPage({
         </select>
       </label>
       <label>
-        Idea / instruction
+        {isExplainerFormat ? "Refinement instruction (optional)" : "Idea / instruction"}
         <textarea
           className="input"
-          rows={4}
+          rows={isExplainerFormat ? 3 : 4}
           value={assistInstruction}
-          placeholder="What should the assistant do? e.g., tighten intro, add examples, change tone..."
+          placeholder={
+            isExplainerFormat
+              ? "Example: tighten clarity, simplify wording, keep tone confident."
+              : "What should the assistant do? e.g., tighten intro, add examples, change tone..."
+          }
           onChange={(event) => setAssistInstruction(event.target.value)}
         />
       </label>
+      {isExplainerFormat && (
+        <p className="muted small">Applies only to selected text. Use Explainer Video → Intent for overall goals.</p>
+      )}
       {selectionLength > 0 && <p className="muted small selection-chip">Selection: {selectionLength} chars</p>}
+      {isExplainerFormat && !canRefineSelection && (
+        <div className="activity-ai-helper-row">
+          <p className="muted small">Select text in the editor to enable refinement.</p>
+          <button
+            className="ghost sm"
+            type="button"
+            onClick={() => {
+              setEditorMode("edit");
+              setEditorFocusSignal((current) => current + 1);
+            }}
+          >
+            Open Article Editor
+          </button>
+          <button
+            className="ghost sm"
+            type="button"
+            onClick={() => {
+              setVideoTab("overview");
+              setVideoPanelCollapsed(false);
+              requestAnimationFrame(() => {
+                videoIntentFieldRef.current?.focus();
+                videoIntentFieldRef.current?.scrollIntoView({ behavior: "smooth", block: "center" });
+              });
+            }}
+          >
+            Edit video goals
+          </button>
+        </div>
+      )}
       <div className="inline-actions ai-assist-actions">
         <button
           className="primary sm"
           type="button"
-          onClick={() => void runAssist(primaryAssistAction)}
-          disabled={assistBusy || !selectedAgent}
+          onClick={() => void runAssist(isExplainerFormat ? "propose_edits" : primaryAssistAction)}
+          disabled={assistBusy || !selectedAgent || (isExplainerFormat && !canRefineSelection)}
         >
-          {assistBusy ? "Thinking…" : primaryAssistAction === "generate_draft" ? "Generate draft" : "Propose edits"}
+          {assistBusy ? "Thinking…" : isExplainerFormat ? "Suggest edits" : primaryAssistAction === "generate_draft" ? "Generate draft" : "Propose edits"}
         </button>
-        {primaryAssistAction !== "propose_edits" && (
+        {!isExplainerFormat && primaryAssistAction !== "propose_edits" && (
           <button className="ghost sm" type="button" onClick={() => void runAssist("propose_edits")} disabled={assistBusy || !selectedAgent}>
             Propose edits
           </button>
@@ -1287,9 +1349,9 @@ export default function ArtifactDetailPage({
         <button
           className="ghost sm"
           type="button"
-          title={canRewriteSelection(selectionLength) ? "Rewrite selected text" : "Select text in the article to enable"}
+          title={canRefineSelection ? "Rewrite selected text" : "Select text in the article to enable"}
           onClick={() => void runAssist("rewrite_selection")}
-          disabled={assistBusy || !selectedAgent || !canRewriteSelection(selectionLength)}
+          disabled={assistBusy || !selectedAgent || !canRefineSelection}
         >
           Rewrite selection
         </button>
@@ -1691,6 +1753,7 @@ export default function ArtifactDetailPage({
               <textarea
                 className="input"
                 rows={3}
+                ref={videoIntentFieldRef}
                 value={activeVideoSpec.intent || ""}
                 onChange={(event) => setVideoSpec({ ...activeVideoSpec, intent: event.target.value })}
               />

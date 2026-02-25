@@ -1830,6 +1830,11 @@ button.sm {
   gap: 6px;
 }
 
+.activity-ai-helper-row {
+  display: grid;
+  gap: 6px;
+}
+
 .selection-chip {
   border: 1px solid var(--border);
   border-radius: 999px;
