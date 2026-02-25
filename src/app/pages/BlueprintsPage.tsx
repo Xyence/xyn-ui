@@ -3,7 +3,7 @@ import { Link, useNavigate, useParams } from "react-router-dom";
 import InlineMessage from "../../components/InlineMessage";
 import {
   archiveBlueprint,
-  createBlueprint,
+  createBlueprintArtifact,
   deprovisionBlueprint,
   getBlueprint,
   getBlueprintDeprovisionPlan,
@@ -390,14 +390,23 @@ export default function BlueprintsPage({ mode = "all" }: BlueprintsPageProps) {
       } else {
         payload.metadata_json = null;
       }
-      await createBlueprint(payload);
+      const created = await createBlueprintArtifact({
+        name: payload.name || "Untitled blueprint",
+        namespace: payload.namespace || "core",
+        description: payload.description || "",
+        spec_text: payload.spec_text || "",
+        metadata_json: payload.metadata_json as Record<string, unknown> | null,
+        artifact_state: mode === "drafts" ? "provisional" : "canonical",
+      });
       setForm(emptyForm);
       setMetadataText("");
       await load();
+      setSelectedId(created.blueprint_id);
+      navigate(`/app/blueprints/${created.blueprint_id}`);
       notifySucceeded(push, {
-        action: "blueprint.create",
+        action: mode === "drafts" ? "blueprint.create_draft" : "blueprint.create",
         entityType: "blueprint",
-        title: "Blueprint created",
+        title: mode === "drafts" ? "Blueprint draft created" : "Blueprint created",
       });
     } catch (err) {
       setError((err as Error).message);
@@ -710,8 +719,14 @@ export default function BlueprintsPage({ mode = "all" }: BlueprintsPageProps) {
     <>
       <div className="page-header">
         <div>
-          <h2>Blueprints</h2>
-          <p className="muted">Manage blueprint specs and submissions.</p>
+          <h2>{mode === "drafts" ? "Blueprint Drafts" : mode === "versions" ? "Blueprint Versions" : "Blueprints"}</h2>
+          <p className="muted">
+            {mode === "drafts"
+              ? "Provisional blueprint artifacts awaiting publish."
+              : mode === "versions"
+                ? "Canonical and deprecated blueprint versions."
+                : "Manage blueprint specs and submissions."}
+          </p>
         </div>
         <div className="inline-actions">
           <Link className="ghost" to="/app/drafts">
@@ -781,7 +796,7 @@ export default function BlueprintsPage({ mode = "all" }: BlueprintsPageProps) {
 
         <section className="card">
           <div className="card-header">
-            <h3>{selected ? "Blueprint detail" : "Create blueprint"}</h3>
+            <h3>{selected ? "Blueprint detail" : mode === "drafts" ? "Create blueprint draft" : "Create blueprint"}</h3>
           </div>
           <div className="form-grid">
             <label>
@@ -942,7 +957,7 @@ export default function BlueprintsPage({ mode = "all" }: BlueprintsPageProps) {
           </div>
           <div className="form-actions">
             <button className="primary" onClick={selected ? handleUpdate : handleCreate} disabled={loading}>
-              {selected ? "Save changes" : "Create"}
+              {selected ? "Save changes" : mode === "drafts" ? "Create draft" : "Create"}
             </button>
             {selected && (
               <>

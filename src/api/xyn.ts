@@ -400,6 +400,7 @@ export async function createBlueprintArtifact(payload: {
   spec_text?: string;
   metadata_json?: Record<string, unknown> | null;
   parent_artifact_id?: string;
+  artifact_state?: "canonical" | "provisional";
 }): Promise<{ artifact_id: string; blueprint_id: string }> {
   const apiBaseUrl = resolveApiBaseUrl();
   const response = await apiFetch(`${apiBaseUrl}/xyn/api/artifacts/create-blueprint`, {
