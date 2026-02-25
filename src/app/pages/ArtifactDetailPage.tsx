@@ -385,6 +385,15 @@ export default function ArtifactDetailPage({
   }, [load]);
 
   useEffect(() => {
+    if (articleFormat !== "video_explainer") return;
+    if (selectedVideoContextPackId) return;
+    const defaultPack = videoContextPacks.find((pack) => pack.is_default);
+    if (defaultPack?.id) {
+      setSelectedVideoContextPackId(defaultPack.id);
+    }
+  }, [articleFormat, selectedVideoContextPackId, videoContextPacks]);
+
+  useEffect(() => {
     const onToastAction = (event: Event) => {
       const detail = (event as CustomEvent<{ action?: string }>).detail || {};
       if (detail.action !== REVIEW_TOAST_ACTION) return;
