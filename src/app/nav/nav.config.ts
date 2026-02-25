@@ -128,6 +128,7 @@ export const NAV_GROUPS: NavGroup[] = [
       { id: "platform-access-control", label: "Access Control", path: "/app/platform/access-control", icon: "KeyRound", requiredRoles: ["platform_admin"] },
       { id: "platform-branding", label: "Branding", path: "/app/platform/branding", icon: "Palette", requiredRoles: ["platform_admin"] },
       { id: "platform-settings", label: "Platform Settings", path: "/app/platform/settings", icon: "SlidersHorizontal", requiredRoles: ["platform_admin"] },
+      { id: "platform-seeds", label: "Seed Packs", path: "/app/platform/seeds", icon: "Library", requiredRoles: ["platform_admin"] },
       { id: "identity-configuration", label: "Identity Configuration", path: "/app/platform/identity-configuration", icon: "IdCard", requiredRoles: ["platform_admin"] },
       { id: "secrets", label: "Secrets", path: "/app/platform/secrets", icon: "Vault", requiredRoles: ["platform_admin"] },
       { id: "ai-agents", label: "AI Agents", path: "/app/platform/ai-agents", icon: "Bot", requiredRoles: ["platform_admin", "platform_architect"] },

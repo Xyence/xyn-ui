@@ -1611,6 +1611,74 @@ export type ContextPackCreatePayload = {
   applies_to_json?: Record<string, unknown>;
 };
 
+export type SeedPackItemStatus = {
+  id: string;
+  entity_type: string;
+  entity_slug: string;
+  status: "missing" | "matches" | "drifted" | "skipped";
+  content_hash: string;
+  entity_unique_key_json?: Record<string, unknown>;
+};
+
+export type SeedPackStatus = {
+  slug: string;
+  name: string;
+  description: string;
+  version: string;
+  scope: "core" | "optional";
+  namespace?: string;
+  last_applied?: string | null;
+  last_status?: "succeeded" | "failed" | null;
+  last_summary?: Record<string, number> | null;
+  item_count: number;
+  missing_count: number;
+  matches_count: number;
+  drifted_count: number;
+  skipped_count: number;
+  items?: SeedPackItemStatus[];
+};
+
+export type SeedPackListResponse = {
+  packs: SeedPackStatus[];
+};
+
+export type SeedPackDetailResponse = {
+  pack: SeedPackStatus;
+};
+
+export type SeedApplyResult = {
+  pack_slug: string;
+  pack_version: string;
+  dry_run: boolean;
+  created: number;
+  updated: number;
+  unchanged: number;
+  skipped: number;
+  failed: number;
+  application_id?: string | null;
+  items: Array<{
+    seed_item_id: string;
+    entity_type: string;
+    entity_slug: string;
+    action: "created" | "updated" | "unchanged" | "skipped" | "failed";
+    target_entity_id?: string | null;
+    message?: string;
+  }>;
+};
+
+export type SeedApplyResponse = {
+  pack_count: number;
+  dry_run: boolean;
+  summary: {
+    created: number;
+    updated: number;
+    unchanged: number;
+    skipped: number;
+    failed: number;
+  };
+  results: SeedApplyResult[];
+};
+
 export type ControlPlaneAppRegistryItem = {
   app_id: string;
   display_name: string;

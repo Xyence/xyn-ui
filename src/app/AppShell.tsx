@@ -28,6 +28,7 @@ import GuidesPage from "./pages/GuidesPage";
 import ToursPage from "./pages/ToursPage";
 import XynMapPage from "./pages/XynMapPage";
 import PlatformSettingsPage from "./pages/PlatformSettingsPage";
+import SeedPacksPage from "./pages/SeedPacksPage";
 import WorkspaceHomePage from "./pages/WorkspaceHomePage";
 import ArtifactsArticlesPage from "./pages/ArtifactsArticlesPage";
 import ArtifactsRegistryPage from "./pages/ArtifactsRegistryPage";
@@ -441,6 +442,7 @@ export default function AppShell() {
             <Route path="platform/roles" element={<RedirectLegacyAccessControlRoute tab="roles" />} />
             <Route path="platform/branding" element={<PlatformBrandingPage />} />
             <Route path="platform/settings" element={<PlatformSettingsPage />} />
+            <Route path="platform/seeds" element={<SeedPacksPage />} />
             <Route path="platform/identity-configuration" element={<IdentityConfigurationPage />} />
             <Route path="platform/identity-providers" element={<RedirectLegacyIdentityRoute tab="identity-providers" />} />
             <Route path="platform/oidc-app-clients" element={<RedirectLegacyIdentityRoute tab="oidc-app-clients" />} />

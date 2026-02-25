@@ -39,6 +39,9 @@ import type {
   ContextPackCreatePayload,
   ContextPackDetail,
   ContextPackListResponse,
+  SeedPackListResponse,
+  SeedPackDetailResponse,
+  SeedApplyResponse,
   Tenant,
   TenantCreatePayload,
   TenantListResponse,
@@ -2227,6 +2230,37 @@ export async function deactivateContextPack(id: string): Promise<{ status: strin
     credentials: "include",
   });
   return handle<{ status: string }>(response);
+}
+
+export async function listSeedPacks(params: { include_items?: boolean } = {}): Promise<SeedPackListResponse> {
+  const apiBaseUrl = resolveApiBaseUrl();
+  const url = new URL(`${apiBaseUrl}/xyn/api/seeds/packs`);
+  if (params.include_items !== undefined) url.searchParams.set("include_items", params.include_items ? "1" : "0");
+  const response = await apiFetch(url.toString(), { credentials: "include" });
+  return handle<SeedPackListResponse>(response);
+}
+
+export async function getSeedPack(slug: string): Promise<SeedPackDetailResponse> {
+  const apiBaseUrl = resolveApiBaseUrl();
+  const response = await apiFetch(`${apiBaseUrl}/xyn/api/seeds/packs/${encodeURIComponent(slug)}`, {
+    credentials: "include",
+  });
+  return handle<SeedPackDetailResponse>(response);
+}
+
+export async function applySeedPacks(payload: {
+  pack_slugs?: string[];
+  apply_core?: boolean;
+  dry_run?: boolean;
+}): Promise<SeedApplyResponse> {
+  const apiBaseUrl = resolveApiBaseUrl();
+  const response = await apiFetch(`${apiBaseUrl}/xyn/api/seeds/apply`, {
+    method: "POST",
+    headers: buildHeaders(),
+    credentials: "include",
+    body: JSON.stringify(payload || {}),
+  });
+  return handle<SeedApplyResponse>(response);
 }
 
 export async function listModules(query = ""): Promise<ModuleListResponse> {

@@ -19,7 +19,7 @@ import {
   listArticleRevisions,
   listArticleVideoRenders,
   listContextPacks,
-  createContextPack,
+  applySeedPacks,
   renderArticleVideo,
   retryVideoRender,
   cancelVideoRender,
@@ -620,44 +620,20 @@ export default function ArtifactDetailPage({
     }
   };
 
-  const createDefaultExplainerPack = async () => {
-    if (!artifactId) return;
+  const installMissingExplainerDefaults = async () => {
     try {
       setVideoBusy("save");
       setError(null);
-      const stamp = new Date().toISOString().slice(0, 10);
-      const packName = item?.title ? `${item.title} Explainer Pack` : "Explainer Video Pack";
-      const packVersion = `v${stamp}`;
-      await createContextPack({
-        name: packName,
-        purpose: "video_explainer",
-        scope: "global",
-        version: packVersion,
-        content_markdown: [
-          "# Explainer Video Context",
-          "- Keep language concrete and plain.",
-          "- Keep claims aligned with the source article.",
-          "- Prefer short scenes and clear visual beats.",
-          "- Avoid introducing facts that are not in evidence.",
-        ].join("\n"),
-        is_active: true,
-        is_default: false,
-      });
-      const packs = await loadVideoContextPacks();
-      const newest = [...packs].sort((a, b) => String(b.updated_at || "").localeCompare(String(a.updated_at || "")))[0];
-      if (newest) {
-        setSelectedVideoContextPackId(newest.id);
-        await updateArticle(artifactId, { video_context_pack_id: newest.id, format: "video_explainer" });
-      }
-      await load();
+      await applySeedPacks({ apply_core: true });
+      await Promise.all([loadVideoContextPacks(), loadVideoAiConfig(), loadVideoAiConfigOptions()]);
       push({
         level: "success",
-        title: "Context pack created",
-        message: "Created a default explainer context pack and attached it.",
+        title: "Defaults installed",
+        message: "Core explainer defaults were applied from Seed Packs.",
         status: "succeeded",
-        action: "article.video.context_pack.create",
+        action: "article.video.defaults.install",
         entityType: "unknown",
-        entityId: artifactId,
+        entityId: artifactId || "",
       });
     } catch (err) {
       setError((err as Error).message);
@@ -1705,8 +1681,8 @@ export default function ArtifactDetailPage({
             </label>
             {videoContextPacks.length === 0 && (
               <div className="inline-actions">
-                <button className="ghost sm" type="button" onClick={() => void createDefaultExplainerPack()} disabled={videoBusy === "save"}>
-                  {videoBusy === "save" ? "Creating…" : "Create default Explainer Pack"}
+                <button className="ghost sm" type="button" onClick={() => void installMissingExplainerDefaults()} disabled={videoBusy === "save"}>
+                  {videoBusy === "save" ? "Installing…" : "Install missing defaults"}
                 </button>
               </div>
             )}

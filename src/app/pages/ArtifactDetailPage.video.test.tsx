@@ -9,7 +9,7 @@ const apiMocks = vi.hoisted(() => ({
   listArticleCategories: vi.fn(),
   listArticleVideoRenders: vi.fn(),
   listContextPacks: vi.fn(),
-  createContextPack: vi.fn(),
+  applySeedPacks: vi.fn(),
   updateArticle: vi.fn(),
   createArticleRevision: vi.fn(),
   listAiAgents: vi.fn(),
