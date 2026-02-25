@@ -243,6 +243,7 @@ html.xyn-nav-collapsed .app-body {
   gap: 5px;
   margin-top: 6px;
   padding: 6px;
+  padding-top: 6px;
   border-top: 1px solid var(--sidebar-border);
 }
 

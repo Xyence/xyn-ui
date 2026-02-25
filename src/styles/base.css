@@ -3331,6 +3331,7 @@ button.sm {
   flex-direction: column;
   gap: 5px;
   padding: 0 6px 6px;
+  padding-top: 6px;
 }
 
 .nav-item-link {
