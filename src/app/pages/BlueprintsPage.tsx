@@ -42,7 +42,11 @@ const emptyForm: BlueprintCreatePayload = {
   metadata_json: null,
 };
 
-export default function BlueprintsPage() {
+type BlueprintsPageProps = {
+  mode?: "all" | "drafts" | "versions";
+};
+
+export default function BlueprintsPage({ mode = "all" }: BlueprintsPageProps) {
   const navigate = useNavigate();
   const { blueprintId } = useParams();
   const [items, setItems] = useState<BlueprintSummary[]>([]);
@@ -87,6 +91,20 @@ export default function BlueprintsPage() {
     return devTasks.slice(start, start + devTasksPageSize);
   }, [devTasks, devTaskPage]);
   const intent = useMemo<BlueprintIntent | null>(() => extractBlueprintIntent(selected), [selected]);
+  const familyChain = useMemo(() => {
+    if (!selected?.family_id) return [];
+    const stateOrder: Record<string, number> = { canonical: 0, provisional: 1, deprecated: 2 };
+    return items
+      .filter((item) => item.family_id && item.family_id === selected.family_id)
+      .sort((a, b) => {
+        const rankA = stateOrder[String(a.artifact_state || "").toLowerCase()] ?? 99;
+        const rankB = stateOrder[String(b.artifact_state || "").toLowerCase()] ?? 99;
+        if (rankA !== rankB) return rankA - rankB;
+        const at = Date.parse(String(a.updated_at || "")) || 0;
+        const bt = Date.parse(String(b.updated_at || "")) || 0;
+        return bt - at;
+      });
+  }, [items, selected?.family_id]);
 
   const handleCreateReleaseTarget = async () => {
     if (!selected) return;
@@ -223,7 +241,7 @@ export default function BlueprintsPage() {
   const load = useCallback(async () => {
     try {
       setError(null);
-      const data = await listBlueprints();
+      const data = await listBlueprints("", mode);
       setItems(data.blueprints);
       if (blueprintId) {
         const explicit = data.blueprints.find((item) => item.id === blueprintId);
@@ -238,7 +256,7 @@ export default function BlueprintsPage() {
     } catch (err) {
       setError((err as Error).message);
     }
-  }, [blueprintId, selectedId]);
+  }, [blueprintId, selectedId, mode]);
 
   useEffect(() => {
     load();
@@ -447,7 +465,7 @@ export default function BlueprintsPage() {
         artifact_state: "deprecated",
         reason: "discarded_provisional_revision",
       });
-      const data = await listBlueprints();
+      const data = await listBlueprints("", mode);
       setItems(data.blueprints);
       const next = data.blueprints.find((item) => item.family_id === selected.family_id && item.artifact_state === "canonical");
       if (next) {
@@ -507,7 +525,7 @@ export default function BlueprintsPage() {
       setReleaseTargets([]);
       setSelectedReleaseTargetId("");
       await archiveBlueprint(archivedId);
-      const data = await listBlueprints();
+      const data = await listBlueprints("", mode);
       setItems(data.blueprints);
       const next = data.blueprints.find((item) => item.id !== archivedId) ?? null;
       if (!next) {
@@ -828,6 +846,27 @@ export default function BlueprintsPage() {
               <p className="muted small">
                 Archive hides and disables deploys. Deprovision stops runtime resources through auditable run steps.
               </p>
+              {familyChain.length > 0 && (
+                <div className="stack">
+                  <div className="label">Version chain</div>
+                  {familyChain.map((entry) => (
+                    <button
+                      key={entry.id}
+                      className="item-row"
+                      type="button"
+                      onClick={() => {
+                        setSelectedId(entry.id);
+                        navigate(`/app/blueprints/${entry.id}`);
+                      }}
+                    >
+                      <strong>{entry.name}</strong>
+                      <span className={`status-pill ${entry.artifact_state === "provisional" ? "status-warn" : entry.artifact_state === "canonical" ? "status-good" : ""}`}>
+                        {entry.artifact_state || "unknown"}
+                      </span>
+                    </button>
+                  ))}
+                </div>
+              )}
             </div>
           )}
           <div className="card-subsection">

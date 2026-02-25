@@ -2,7 +2,7 @@ import { useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
 import { Navigate, Route, Routes, useLocation, useNavigate } from "react-router-dom";
 import { Bot } from "lucide-react";
 import { getMe, getMyProfile, getTenantBranding, listWorkspaces } from "../api/xyn";
-import { NAV_GROUPS, NavUserContext } from "./nav/nav.config";
+import { NAV_GROUPS, NAV_MOVE_TOAST_STORAGE_KEY, NavUserContext } from "./nav/nav.config";
 import { getBreadcrumbs, visibleNav } from "./nav/nav.utils";
 import Sidebar from "./components/nav/Sidebar";
 import BlueprintsPage from "./pages/BlueprintsPage";
@@ -86,6 +86,19 @@ function RedirectLegacyAccessControlRoute({ tab }: { tab: "roles" | "users" | "e
   const currentParams = new URLSearchParams(location.search);
   currentParams.set("tab", tab);
   return <Navigate to={{ pathname: "/app/platform/access-control", search: `?${currentParams.toString()}` }} replace />;
+}
+
+function RedirectWithNotice({ to, notice }: { to: string; notice: string }) {
+  const { push } = useNotifications();
+  useEffect(() => {
+    if (typeof window === "undefined") return;
+    const key = `${NAV_MOVE_TOAST_STORAGE_KEY}:${to}`;
+    if (!window.sessionStorage.getItem(key)) {
+      push({ level: "info", title: "Moved", message: notice });
+      window.sessionStorage.setItem(key, "1");
+    }
+  }, [push, to, notice]);
+  return <Navigate to={to} replace />;
 }
 
 function RedirectLegacyTenantContactsDetailRoute() {
@@ -394,7 +407,7 @@ export default function AppShell() {
           <Routes>
             <Route path="/" element={<Navigate to="home" replace />} />
             <Route path="home" element={<WorkspaceHomePage workspaceName={activeWorkspace?.name || "Workspace"} />} />
-            <Route path="artifacts" element={<Navigate to="/app/artifacts/articles" replace />} />
+            <Route path="artifacts" element={<Navigate to="/app/artifacts/all" replace />} />
             <Route
               path="artifacts/articles"
               element={<ArtifactsArticlesPage workspaceId={activeWorkspace?.id || ""} canCreate={isPlatformManager && !isPreviewReadOnly} />}
@@ -423,9 +436,21 @@ export default function AppShell() {
             <Route path="guides" element={<GuidesPage roles={effectiveRoles} />} />
             <Route path="tours" element={<ToursPage />} />
             <Route path="map" element={<XynMapPage />} />
-            <Route path="blueprints" element={<BlueprintsPage />} />
+            <Route
+              path="blueprints"
+              element={<RedirectWithNotice to="/app/blueprints/versions" notice="Blueprints moved to Build / Blueprints / Versions." />}
+            />
+            <Route path="blueprints/drafts" element={<BlueprintsPage mode="drafts" />} />
+            <Route path="blueprints/versions" element={<BlueprintsPage mode="versions" />} />
             <Route path="blueprints/:blueprintId" element={<BlueprintsPage />} />
-            <Route path="drafts" element={<DraftSessionsPage />} />
+            <Route
+              path="drafts"
+              element={<RedirectWithNotice to="/app/blueprints/drafts" notice="Draft Sessions moved to Build / Blueprints / Drafts." />}
+            />
+            <Route
+              path="draft-sessions"
+              element={<RedirectWithNotice to="/app/blueprints/drafts" notice="Draft Sessions moved to Build / Blueprints / Drafts." />}
+            />
             <Route path="drafts/:draftId" element={<DraftSessionsPage />} />
             <Route path="modules" element={<ModulesPage />} />
             <Route path="release-plans" element={<ReleasePlansPage />} />

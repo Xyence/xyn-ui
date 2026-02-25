@@ -1600,11 +1600,17 @@ export async function getActionReceipts(actionId: string): Promise<{ receipts: E
   return handle<{ receipts: ExecutionReceipt[] }>(response);
 }
 
-export async function listBlueprints(query = ""): Promise<BlueprintListResponse> {
+export async function listBlueprints(query = "", mode: "all" | "drafts" | "versions" = "all"): Promise<BlueprintListResponse> {
   const payload = await listUnifiedArtifacts({ type: "blueprint", query, limit: 200, offset: 0 });
   const order: Record<string, number> = { canonical: 0, provisional: 1, deprecated: 2 };
   const blueprints = payload.artifacts
     .map((artifact) => mapArtifactToBlueprintSummary(artifact))
+    .filter((item) => {
+      const state = String(item.artifact_state || "").toLowerCase();
+      if (mode === "drafts") return state === "provisional";
+      if (mode === "versions") return state === "canonical" || state === "deprecated";
+      return true;
+    })
     .sort((a, b) => {
       const rankA = order[String(a.artifact_state || "").toLowerCase()] ?? 99;
       const rankB = order[String(b.artifact_state || "").toLowerCase()] ?? 99;

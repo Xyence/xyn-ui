@@ -1,3 +1,5 @@
+import { ARTIFACT_TYPE_REGISTRY } from "./artifactTypeRegistry";
+
 export type NavVisibility = {
   requiredRoles?: string[];
   requiredPermissions?: string[];
@@ -32,7 +34,56 @@ export type NavUserContext = {
   permissions?: string[];
 };
 
+export type CreateAction = NavVisibility & {
+  id: string;
+  label: string;
+  path: string;
+  icon?: string;
+};
+
 export const NAV_STATE_STORAGE_KEY = "xyn.nav.state.v1";
+export const NAV_MOVE_TOAST_STORAGE_KEY = "xyn.nav.moved-toast.v1";
+
+const NAV_PERMISSION_MAP: Record<string, NavVisibility> = {
+  "platform-tenants": { requiredRoles: ["platform_admin"] },
+  "platform-access-control": { requiredRoles: ["platform_admin"] },
+  "platform-branding": { requiredRoles: ["platform_admin"] },
+  "platform-settings": { requiredRoles: ["platform_admin"] },
+  "platform-seeds": { requiredRoles: ["platform_admin"] },
+  "identity-configuration": { requiredRoles: ["platform_admin"] },
+  secrets: { requiredRoles: ["platform_admin"] },
+  "ai-agents": { requiredRoles: ["platform_admin", "platform_architect"] },
+  "control-plane": { requiredRoles: ["platform_admin", "platform_architect"] },
+};
+
+const BUILD_ITEMS = ARTIFACT_TYPE_REGISTRY.filter((entry) => entry.group === "build").sort((a, b) => a.order - b.order);
+
+const buildGroupItems: NavItem[] = [];
+const buildGroupSubgroups: NavSubgroup[] = [];
+for (const entry of BUILD_ITEMS) {
+  if (entry.children?.length) {
+    buildGroupSubgroups.push({
+      id: entry.key,
+      label: entry.display_name,
+      icon: entry.icon,
+      items: [...entry.children]
+        .sort((a, b) => (a.order || 0) - (b.order || 0))
+        .map((child) => ({
+          id: child.key,
+          label: child.label,
+          path: child.path,
+          icon: child.icon,
+        })),
+    });
+    continue;
+  }
+  buildGroupItems.push({
+    id: entry.key,
+    label: entry.display_name,
+    path: entry.default_route,
+    icon: entry.icon,
+  });
+}
 
 export const NAV_GROUPS: NavGroup[] = [
   {
@@ -42,50 +93,11 @@ export const NAV_GROUPS: NavGroup[] = [
     items: [{ id: "home", label: "Home", path: "/app/home", icon: "Compass", keywords: ["overview", "workspace"] }],
   },
   {
-    id: "shape",
-    label: "Shape",
-    icon: "WandSparkles",
-    items: [
-      { id: "drafts", label: "Draft Sessions", path: "/app/drafts", icon: "FilePenLine", keywords: ["generate", "revise"] },
-      { id: "context-packs", label: "Context Packs", path: "/app/context-packs", icon: "Library", keywords: ["context"] },
-    ],
-  },
-  {
-    id: "design",
-    label: "Design",
-    icon: "PencilRuler",
-    items: [
-      { id: "blueprints", label: "Blueprints", path: "/app/blueprints", icon: "LayoutTemplate", keywords: ["intent", "design"] },
-      { id: "modules", label: "Modules", path: "/app/modules", icon: "Blocks", keywords: ["catalog"] },
-    ],
-  },
-  {
-    id: "artifacts",
-    label: "Artifacts",
-    icon: "BookOpen",
-    items: [
-      { id: "artifacts-articles", label: "Articles", path: "/app/artifacts/articles", icon: "BookOpen", keywords: ["article", "editor"] },
-      { id: "artifacts-workflows", label: "Workflows", path: "/app/artifacts/workflows", icon: "Route", keywords: ["workflow", "tour"] },
-      { id: "artifacts-all", label: "Artifact Explorer", path: "/app/artifacts/all", icon: "Layers", keywords: ["registry", "types"] },
-    ],
-  },
-  {
-    id: "activity",
-    label: "Activity",
-    icon: "Activity",
-    items: [{ id: "activity", label: "Activity", path: "/app/activity", icon: "Activity", keywords: ["events", "audit"] }],
-  },
-  {
-    id: "workspace-access",
-    label: "Workspace Access",
-    icon: "Users",
-    items: [{ id: "workspace-access", label: "Workspace Access", path: "/app/people-roles", icon: "Users", keywords: ["membership", "rbac"] }],
-  },
-  {
-    id: "settings",
-    label: "Settings",
-    icon: "Settings",
-    items: [{ id: "settings", label: "Settings", path: "/app/settings", icon: "Settings" }],
+    id: "build",
+    label: "Build",
+    icon: "Hammer",
+    items: buildGroupItems,
+    subgroups: buildGroupSubgroups,
   },
   {
     id: "package",
@@ -120,20 +132,36 @@ export const NAV_GROUPS: NavGroup[] = [
     ],
   },
   {
-    id: "platform",
-    label: "Platform Control Plane",
-    icon: "Shield",
-    requiredRoles: ["platform_admin", "platform_architect"],
+    id: "govern",
+    label: "Govern",
+    icon: "Scale",
     items: [
-      { id: "platform-tenants", label: "Tenants", path: "/app/platform/tenants", icon: "Building2", requiredRoles: ["platform_admin"] },
-      { id: "platform-access-control", label: "Access Control", path: "/app/platform/access-control", icon: "KeyRound", requiredRoles: ["platform_admin"] },
-      { id: "platform-branding", label: "Branding", path: "/app/platform/branding", icon: "Palette", requiredRoles: ["platform_admin"] },
-      { id: "platform-settings", label: "Platform Settings", path: "/app/platform/settings", icon: "SlidersHorizontal", requiredRoles: ["platform_admin"] },
-      { id: "platform-seeds", label: "Seed Packs", path: "/app/platform/seeds", icon: "Library", requiredRoles: ["platform_admin"] },
-      { id: "identity-configuration", label: "Identity Configuration", path: "/app/platform/identity-configuration", icon: "IdCard", requiredRoles: ["platform_admin"] },
-      { id: "secrets", label: "Secrets", path: "/app/platform/secrets", icon: "Vault", requiredRoles: ["platform_admin"] },
-      { id: "ai-agents", label: "AI Agents", path: "/app/platform/ai-agents", icon: "Bot", requiredRoles: ["platform_admin", "platform_architect"] },
-      { id: "control-plane", label: "Control Plane", path: "/app/control-plane", icon: "ShieldCheck", requiredRoles: ["platform_admin", "platform_architect"] },
-    ],
+      { id: "activity", label: "Activity", path: "/app/activity", icon: "Activity", keywords: ["events", "audit"] },
+      { id: "workspace-access", label: "Workspace Access", path: "/app/people-roles", icon: "Users", keywords: ["membership", "rbac"] },
+      { id: "platform-access-control", label: "Access Control", path: "/app/platform/access-control", icon: "KeyRound" },
+      { id: "identity-configuration", label: "Identity Configuration", path: "/app/platform/identity-configuration", icon: "IdCard" },
+      { id: "secrets", label: "Secrets", path: "/app/platform/secrets", icon: "Vault" },
+      { id: "ai-agents", label: "AI Agents", path: "/app/platform/ai-agents", icon: "Bot" },
+      { id: "platform-branding", label: "Branding", path: "/app/platform/branding", icon: "Palette" },
+      { id: "platform-settings", label: "Platform Settings", path: "/app/platform/settings", icon: "SlidersHorizontal" },
+      { id: "platform-seeds", label: "Seed Packs", path: "/app/platform/seeds", icon: "Library" },
+      { id: "control-plane", label: "Control Plane", path: "/app/control-plane", icon: "ShieldCheck" },
+      { id: "platform-tenants", label: "Tenants", path: "/app/platform/tenants", icon: "Building2" },
+    ].map((item) => ({ ...item, ...(NAV_PERMISSION_MAP[item.id] || {}) })),
   },
 ];
+
+export const CREATE_ACTIONS: CreateAction[] = BUILD_ITEMS.flatMap((entry) =>
+  entry.create_action
+    ? [
+        {
+          id: entry.create_action.id,
+          label: entry.create_action.label,
+          path: entry.create_action.path,
+          icon: entry.icon,
+          requiredRoles: entry.create_action.requiredRoles,
+          requiredPermissions: entry.create_action.requiredPermissions,
+        },
+      ]
+    : [],
+);

@@ -2,8 +2,11 @@ import { type KeyboardEvent, type ReactNode, useEffect, useMemo, useRef, useStat
 import {
   Activity,
   Archive,
+  Bot,
+  Blocks,
   BookOpen,
   BookText,
+  Cpu,
   Box,
   Building2,
   ChevronLeft,
@@ -12,18 +15,26 @@ import {
   ChevronUp,
   Compass,
   Database,
+  FilePenLine,
   Globe,
   GitBranch,
+  Hammer,
+  IdCard,
   KeyRound,
   KeySquare,
   Layers,
+  Library,
   Lock,
   Map,
+  ListChecks,
   Palette,
   Package,
+  PackageCheck,
   PlayCircle,
   Plus,
+  Route,
   Rocket,
+  Scale,
   Search,
   Server,
   Settings,
@@ -36,7 +47,7 @@ import {
   Users,
 } from "lucide-react";
 import { NavLink, useLocation, useNavigate } from "react-router-dom";
-import { NAV_GROUPS, NavGroup, NavUserContext } from "../../nav/nav.config";
+import { CREATE_ACTIONS, NAV_GROUPS, NavGroup, NavUserContext } from "../../nav/nav.config";
 import {
   canViewNavItem,
   filterNav,
@@ -57,7 +68,9 @@ type QuickAction = {
   id: string;
   label: string;
   path: string;
+  icon?: string;
   requiredRoles?: string[];
+  requiredPermissions?: string[];
 };
 
 type Props = {
@@ -67,12 +80,7 @@ type Props = {
   onWorkspaceChange?: (workspaceId: string) => void;
 };
 
-const QUICK_ACTIONS: QuickAction[] = [
-  { id: "new-blueprint", label: "New Blueprint", path: "/app/blueprints" },
-  { id: "new-release-plan", label: "New Release Plan", path: "/app/release-plans" },
-  { id: "new-release", label: "New Release", path: "/app/releases" },
-  { id: "new-environment", label: "New Environment", path: "/app/platform/environments", requiredRoles: ["platform_admin"] },
-];
+const QUICK_ACTIONS: QuickAction[] = CREATE_ACTIONS;
 
 const ICONS: Record<string, (props: { size?: number }) => ReactNode> = {
   Compass: ({ size = 18 }) => <Compass size={size} />,
@@ -93,7 +101,10 @@ const ICONS: Record<string, (props: { size?: number }) => ReactNode> = {
   Terminal: ({ size = 18 }) => <Terminal size={size} />,
   Building2: ({ size = 18 }) => <Building2 size={size} />,
   Globe: ({ size = 18 }) => <Globe size={size} />,
+  Cpu: ({ size = 18 }) => <Cpu size={size} />,
   Users: ({ size = 18 }) => <Users size={size} />,
+  IdCard: ({ size = 18 }) => <IdCard size={size} />,
+  Bot: ({ size = 18 }) => <Bot size={size} />,
   UserCheck: ({ size = 18 }) => <UserCheck size={size} />,
   KeyRound: ({ size = 18 }) => <KeyRound size={size} />,
   ShieldCheck: ({ size = 18 }) => <ShieldCheck size={size} />,
@@ -102,6 +113,15 @@ const ICONS: Record<string, (props: { size?: number }) => ReactNode> = {
   Settings: ({ size = 18 }) => <Settings size={size} />,
   Palette: ({ size = 18 }) => <Palette size={size} />,
   SlidersHorizontal: ({ size = 18 }) => <SlidersHorizontal size={size} />,
+  Route: ({ size = 18 }) => <Route size={size} />,
+  PackageCheck: ({ size = 18 }) => <PackageCheck size={size} />,
+  ListChecks: ({ size = 18 }) => <ListChecks size={size} />,
+  FilePenLine: ({ size = 18 }) => <FilePenLine size={size} />,
+  Library: ({ size = 18 }) => <Library size={size} />,
+  Blocks: ({ size = 18 }) => <Blocks size={size} />,
+  Hammer: ({ size = 18 }) => <Hammer size={size} />,
+  Scale: ({ size = 18 }) => <Scale size={size} />,
+  Vault: ({ size = 18 }) => <Lock size={size} />,
 };
 
 function renderIcon(name?: string, size = 18) {
@@ -345,7 +365,7 @@ export default function Sidebar({ user, workspaces = [], activeWorkspaceId = "",
                             navigate(action.path);
                           }}
                         >
-                          {action.label}
+                          <span className="inline-actions">{renderIcon(action.icon, 14)} {action.label}</span>
                         </MenuItem>
                       ))}
                     </Menu>
