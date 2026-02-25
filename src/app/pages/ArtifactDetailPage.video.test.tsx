@@ -133,9 +133,8 @@ describe("ArtifactDetailPage video explainer", () => {
     render(<ArtifactDetailPage workspaceId="ws-1" workspaceRole="owner" canManageArticleLifecycle />);
     expect(await screen.findByText("Explainer Video")).toBeInTheDocument();
     await waitFor(() => expect(apiMocks.listContextPacks).toHaveBeenCalledWith({ purpose: "video_explainer", active: true }));
-    expect(screen.queryByText("Idea / instruction")).not.toBeInTheDocument();
-    expect(screen.getByText("Refinement instruction (optional)")).toBeInTheDocument();
-    expect(screen.getByText("For overall video goals, use Intent in the Explainer Video panel.")).toBeInTheDocument();
+    expect(screen.queryByText("AI Assist")).not.toBeInTheDocument();
+    expect(screen.getAllByRole("button", { name: /Refine/i }).length).toBeGreaterThan(0);
 
     const intent = screen.getByLabelText("Intent");
     await userEvent.clear(intent);

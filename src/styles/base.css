@@ -1857,6 +1857,48 @@ button.sm {
   gap: 6px;
 }
 
+.floating-refine-trigger {
+  position: fixed;
+  z-index: 1400;
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 7px 10px;
+  border-radius: 999px;
+  border: 1px solid var(--border-strong);
+  background: var(--card-elevated);
+  color: var(--ink);
+  box-shadow: 0 10px 24px rgba(0, 0, 0, 0.24);
+}
+
+.refinement-overlay {
+  position: fixed;
+  inset: 0;
+  z-index: 1500;
+  pointer-events: none;
+}
+
+.refinement-popover {
+  width: min(420px, calc(100vw - 24px));
+  background: var(--card-elevated);
+  border: 1px solid var(--border);
+  border-radius: 12px;
+  padding: 12px;
+  display: grid;
+  gap: 10px;
+  pointer-events: auto;
+  box-shadow: var(--shadow);
+}
+
+.refinement-popover.sheet {
+  position: fixed;
+  left: 12px;
+  right: 12px;
+  bottom: 12px;
+  top: auto;
+  width: auto;
+}
+
 .selection-chip {
   border: 1px solid var(--border);
   border-radius: 999px;

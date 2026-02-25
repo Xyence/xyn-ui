@@ -7,10 +7,16 @@ import TurndownService from "turndown";
 import { gfm } from "turndown-plugin-gfm";
 import { renderMarkdown } from "../../../public/markdown";
 
-type EditorSelectionPayload = {
+export type EditorSelectionPayload = {
   selectedText: string;
   contextBefore: string;
   contextAfter: string;
+  anchorRect?: {
+    top: number;
+    left: number;
+    width: number;
+    height: number;
+  };
 } | null;
 
 type MarkdownWysiwygEditorProps = {
@@ -73,10 +79,22 @@ export default function MarkdownWysiwygEditor({
       }
       const before = editorInstance.state.doc.textBetween(0, from, "\n\n", " ");
       const after = editorInstance.state.doc.textBetween(to, editorInstance.state.doc.content.size, "\n\n", " ");
+      const domSelection = window.getSelection();
+      const range = domSelection && domSelection.rangeCount > 0 ? domSelection.getRangeAt(0) : null;
+      const rect = range ? range.getBoundingClientRect() : null;
       onSelectionChange({
         selectedText,
         contextBefore: before.slice(-CONTEXT_RADIUS),
         contextAfter: after.slice(0, CONTEXT_RADIUS),
+        anchorRect:
+          rect && Number.isFinite(rect.top)
+            ? {
+                top: rect.top,
+                left: rect.left,
+                width: rect.width,
+                height: rect.height,
+              }
+            : undefined,
       });
     },
     [onSelectionChange]

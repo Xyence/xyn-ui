@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useParams } from "react-router-dom";
-import { Bot, ChevronDown, ChevronUp, History, MessageSquareMore, SlidersHorizontal } from "lucide-react";
+import { ChevronDown, ChevronUp, History, MessageSquareMore, SlidersHorizontal, Sparkles } from "lucide-react";
 import { renderMarkdown } from "../../public/markdown";
 import {
   commentOnWorkspaceArtifact,
@@ -29,7 +29,8 @@ import {
 } from "../../api/xyn";
 import type { AiAgent, ArticleDetail, ArticleFormat, ArticleRevision, ContextPackSummary, VideoAiConfigEntry, VideoRender, VideoSpec } from "../../api/types";
 import ArtifactWorkflowActions from "../components/workflow/ArtifactWorkflowActions";
-import MarkdownWysiwygEditor from "../components/editor/MarkdownWysiwygEditor";
+import MarkdownWysiwygEditor, { type EditorSelectionPayload } from "../components/editor/MarkdownWysiwygEditor";
+import ContextRefinementTool from "../components/editor/ContextRefinementTool";
 import CompactPaneTabs, { type CompactPaneTab } from "../components/ui/CompactPaneTabs";
 import EditorCentricLayout from "../layouts/EditorCentricLayout";
 import { resolveArtifactWorkflowActions, type WorkflowAction, type WorkflowActionId } from "../workflows/artifactWorkflow";
@@ -38,7 +39,7 @@ import { useNotifications } from "../state/notificationsStore";
 import { useOperations } from "../state/operationRegistry";
 import { canRewriteSelection, resolveAssistPrimaryAction } from "./articleAssistLogic";
 
-type ActivityTab = "revisions" | "ai" | "ai_config" | "discussion";
+type ActivityTab = "revisions" | "ai_config" | "discussion";
 type RevisionMode = "list" | "view" | "diff";
 type EditorMode = "edit" | "review";
 type VideoTab = "overview" | "script" | "storyboard" | "renders";
@@ -64,6 +65,33 @@ type EditorSelection = {
   selectedText: string;
   contextBefore: string;
   contextAfter: string;
+  anchorRect?: {
+    top: number;
+    left: number;
+    width: number;
+    height: number;
+  };
+};
+
+type RefinementSurface = "article" | "script" | "storyboard";
+
+type StoryboardFieldKey = "on_screen_text" | "visual_description" | "narration";
+
+type StoryboardSelection = EditorSelection & {
+  field: StoryboardFieldKey;
+  sceneIndex: number;
+};
+
+type PendingSurfaceRefinement = {
+  surface: "script" | "storyboard";
+  mode: "propose_edits" | "rewrite_selection";
+  baseText: string;
+  nextText: string;
+  storyboardField?: StoryboardFieldKey;
+  storyboardSceneIndex?: number;
+  provider?: string;
+  model?: string;
+  agent_slug?: string;
 };
 
 function createDefaultVideoSpec(title: string, summaryText: string): VideoSpec {
@@ -130,7 +158,7 @@ export default function ArtifactDetailPage({
   const [busyActionId, setBusyActionId] = useState<WorkflowActionId | null>(null);
   const [confirmingAction, setConfirmingAction] = useState<WorkflowAction | null>(null);
   const [restoreRevisionId, setRestoreRevisionId] = useState<string | null>(null);
-  const [activityTab, setActivityTab] = useState<ActivityTab>("ai");
+  const [activityTab, setActivityTab] = useState<ActivityTab>("revisions");
   const [revisionMode, setRevisionMode] = useState<RevisionMode>("list");
   const [selectedRevisionId, setSelectedRevisionId] = useState<string>("");
   const [compareRevisionId, setCompareRevisionId] = useState<string>("current");
@@ -159,13 +187,21 @@ export default function ArtifactDetailPage({
   const [videoBusy, setVideoBusy] = useState<"init" | "save" | "script" | "storyboard" | "render" | "retry" | "cancel" | null>(null);
   const [selectedStoryboardSceneIndex, setSelectedStoryboardSceneIndex] = useState(0);
   const [pendingAssist, setPendingAssist] = useState<PendingAssist | null>(null);
+  const [pendingSurfaceRefinement, setPendingSurfaceRefinement] = useState<PendingSurfaceRefinement | null>(null);
   const [editorSelection, setEditorSelection] = useState<EditorSelection | null>(null);
+  const [scriptSelection, setScriptSelection] = useState<EditorSelection | null>(null);
+  const [storyboardSelection, setStoryboardSelection] = useState<StoryboardSelection | null>(null);
+  const [selectionSurface, setSelectionSurface] = useState<RefinementSurface | null>(null);
+  const [refinementOpen, setRefinementOpen] = useState(false);
+  const [refinementSurface, setRefinementSurface] = useState<RefinementSurface>("article");
+  const [refinementAnchorRect, setRefinementAnchorRect] = useState<EditorSelection["anchorRect"] | null>(null);
   const [editorFocusSignal, setEditorFocusSignal] = useState(0);
   const [error, setError] = useState<string | null>(null);
   const { push } = useNotifications();
   const { startOperation, finishOperation } = useOperations();
   const videoPanelRef = useRef<HTMLElement | null>(null);
   const videoIntentFieldRef = useRef<HTMLTextAreaElement | null>(null);
+  const scriptTextareaRef = useRef<HTMLTextAreaElement | null>(null);
 
   const parseCsv = (value: string): string[] =>
     value
@@ -173,9 +209,16 @@ export default function ArtifactDetailPage({
       .map((entry) => entry.trim())
       .filter(Boolean);
 
-  const handleEditorSelectionChange = useCallback((selection: EditorSelection | null) => {
+  const handleEditorSelectionChange = useCallback((selection: EditorSelectionPayload) => {
     setEditorSelection(selection);
-  }, []);
+    if (selection?.selectedText?.trim()) {
+      setSelectionSurface("article");
+      setRefinementSurface("article");
+      setRefinementAnchorRect(selection.anchorRect || null);
+    } else if (selectionSurface === "article") {
+      setSelectionSurface(null);
+    }
+  }, [selectionSurface]);
 
   const applyRewriteSelection = useCallback((source: string, selectedText: string, rewrittenText: string): string => {
     if (!selectedText.trim()) return source;
@@ -190,6 +233,58 @@ export default function ArtifactDetailPage({
     }
     throw new Error("Could not map the selected text into markdown. Try selecting a slightly larger span.");
   }, []);
+
+  const extractTextareaSelection = useCallback((element: HTMLTextAreaElement): EditorSelection | null => {
+    const start = element.selectionStart ?? 0;
+    const end = element.selectionEnd ?? 0;
+    if (end <= start) return null;
+    const selectedText = element.value.slice(start, end);
+    if (!selectedText.trim()) return null;
+    const radius = 600;
+    const contextBefore = element.value.slice(Math.max(0, start - radius), start);
+    const contextAfter = element.value.slice(end, Math.min(element.value.length, end + radius));
+    const rect = element.getBoundingClientRect();
+    return {
+      selectedText,
+      contextBefore,
+      contextAfter,
+      anchorRect: {
+        top: rect.top + 8,
+        left: rect.left + Math.min(rect.width * 0.5, 220),
+        width: 1,
+        height: 1,
+      },
+    };
+  }, []);
+
+  const handleScriptSelection = useCallback((element: HTMLTextAreaElement) => {
+    const selection = extractTextareaSelection(element);
+    setScriptSelection(selection);
+    if (selection?.selectedText?.trim()) {
+      setSelectionSurface("script");
+      setRefinementSurface("script");
+      setRefinementAnchorRect(selection.anchorRect || null);
+    } else if (selectionSurface === "script") {
+      setSelectionSurface(null);
+    }
+  }, [extractTextareaSelection, selectionSurface]);
+
+  const handleStoryboardSelection = useCallback(
+    (element: HTMLTextAreaElement, field: StoryboardFieldKey, sceneIndex: number) => {
+      const selection = extractTextareaSelection(element);
+      if (!selection) {
+        setStoryboardSelection(null);
+        if (selectionSurface === "storyboard") setSelectionSurface(null);
+        return;
+      }
+      const payload: StoryboardSelection = { ...selection, field, sceneIndex };
+      setStoryboardSelection(payload);
+      setSelectionSurface("storyboard");
+      setRefinementSurface("storyboard");
+      setRefinementAnchorRect(payload.anchorRect || null);
+    },
+    [extractTextareaSelection, selectionSurface]
+  );
 
   const loadVideoContextPacks = useCallback(async () => {
     const data = await listContextPacks({ purpose: "video_explainer", active: true });
@@ -296,7 +391,6 @@ export default function ArtifactDetailPage({
       if (detail.action !== REVIEW_TOAST_ACTION) return;
       if (!pendingAssist) return;
       setEditorMode("review");
-      setActivityTab("ai");
       setEditorFocusSignal((current) => current + 1);
     };
     window.addEventListener("xyn:notification-action", onToastAction as EventListener);
@@ -342,9 +436,14 @@ export default function ArtifactDetailPage({
 
   useEffect(() => {
     if (articleFormat !== "video_explainer" && activityTab === "ai_config") {
-      setActivityTab("ai");
+      setActivityTab("revisions");
     }
   }, [activityTab, articleFormat]);
+
+  useEffect(() => {
+    if (videoTab !== "script") setScriptSelection(null);
+    if (videoTab !== "storyboard") setStoryboardSelection(null);
+  }, [videoTab]);
 
   const save = async () => {
     if (!artifactId) return;
@@ -412,18 +511,19 @@ export default function ArtifactDetailPage({
     }
   };
 
-  const runAssist = async (mode: "generate_draft" | "propose_edits" | "rewrite_selection") => {
+  const runAssist = async (mode: "generate_draft" | "propose_edits" | "rewrite_selection", surface: RefinementSurface = "article") => {
     if (!artifactId) return;
     if (!selectedAgent) {
-      setError("No documentation agent selected. Configure one in Platform -> AI -> Agents.");
+      setError("No refinement agent selected. Configure one in Platform -> AI Agents.");
       return;
     }
-    if ((mode === "rewrite_selection" || (isExplainerFormat && mode === "propose_edits")) && !editorSelection) return;
-    const opId = `${artifactId}:${mode}:${Date.now()}`;
+    const surfaceSelection = surface === "article" ? editorSelection : surface === "script" ? scriptSelection : storyboardSelection;
+    if ((mode === "rewrite_selection" || (isExplainerFormat && mode === "propose_edits")) && !surfaceSelection) return;
+    const opId = `${artifactId}:${surface}:${mode}:${Date.now()}`;
     startOperation({
       id: opId,
       type: "ai",
-      label: mode === "generate_draft" ? "Generate draft" : mode === "propose_edits" ? "Propose edits" : "Rewrite selection",
+      label: mode === "generate_draft" ? "Generate draft" : mode === "propose_edits" ? "Suggest edits" : "Rewrite selection",
       entityType: "article",
       entityId: artifactId,
     });
@@ -438,18 +538,30 @@ export default function ArtifactDetailPage({
         action: "article.ai",
         entityType: "unknown",
         entityId: artifactId,
-        dedupeKey: `article-ai:${artifactId}:${mode}`,
+        dedupeKey: `article-ai:${artifactId}:${surface}:${mode}`,
       });
       localStorage.setItem("xyn.articleAiAgentSlug", selectedAgent);
+      const surfaceBody =
+        surface === "article"
+          ? bodyMarkdown
+          : surface === "script"
+            ? String(activeVideoSpec.script?.draft || "")
+            : (() => {
+                if (!storyboardSelection) return "";
+                const scene = (activeVideoSpec.storyboard?.draft || [])[storyboardSelection.sceneIndex];
+                if (!scene) return "";
+                return String(scene[storyboardSelection.field] || "");
+              })();
       const prompt =
         mode === "generate_draft"
           ? `Draft article content from this idea. Return markdown only. Idea:\n${assistInstruction || summary || item?.title || ""}`
-          : editorSelection && (mode === "rewrite_selection" || (isExplainerFormat && mode === "propose_edits"))
+          : surfaceSelection && (mode === "rewrite_selection" || (isExplainerFormat && mode === "propose_edits"))
             ? [
                 mode === "rewrite_selection"
                   ? "Rewrite only the selected region and preserve all intent."
                   : "Suggest improvements for only the selected region and preserve all intent.",
                 "Return only the rewritten selected text. Do not include markdown fences or commentary.",
+                `Surface: ${surface}`,
                 `Instruction: ${assistInstruction || "Improve clarity and flow while preserving meaning."}`,
                 ...(isExplainerFormat
                   ? [
@@ -458,34 +570,48 @@ export default function ArtifactDetailPage({
                     ]
                   : []),
                 "Selected text:",
-                editorSelection.selectedText,
+                surfaceSelection.selectedText,
                 "Context before:",
-                editorSelection.contextBefore,
+                surfaceSelection.contextBefore,
                 "Context after:",
-                editorSelection.contextAfter,
+                surfaceSelection.contextAfter,
               ].join("\n\n")
-            : `Suggest edits and provide an improved markdown version.\n\nInstruction: ${assistInstruction || "Improve clarity and readability."}\n\n${bodyMarkdown}`;
+            : `Suggest edits and provide an improved markdown version.\n\nInstruction: ${assistInstruction || "Improve clarity and readability."}\n\n${surfaceBody}`;
       const modeForApi = mode === "generate_draft" ? "draft" : mode === "rewrite_selection" ? "rewrite" : "edits";
       const result = await invokeAi({
         agent_slug: selectedAgent,
         messages: [{ role: "user", content: prompt }],
-        metadata: { feature: "articles_ai_assist", artifact_id: artifactId, workspace_id: workspaceId, mode: modeForApi },
+        metadata: { feature: "articles_ai_assist", artifact_id: artifactId, workspace_id: workspaceId, mode: modeForApi, surface },
       });
       const rawBody = String(result.content || "").trim();
       if (!rawBody) throw new Error("AI returned empty content.");
-      const nextBody =
-        editorSelection && (mode === "rewrite_selection" || (isExplainerFormat && mode === "propose_edits"))
-          ? applyRewriteSelection(bodyMarkdown, editorSelection.selectedText, rawBody)
+      const nextText =
+        surfaceSelection && (mode === "rewrite_selection" || (isExplainerFormat && mode === "propose_edits"))
+          ? applyRewriteSelection(surfaceBody, surfaceSelection.selectedText, rawBody)
           : rawBody;
-      setPendingAssist({
-        mode,
-        body: nextBody,
-        provider: result.provider,
-        model: result.model,
-        agent_slug: result.agent_slug,
-      });
-      setEditorMode("review");
-      setActivityTab("ai");
+      if (surface === "article") {
+        setPendingAssist({
+          mode,
+          body: nextText,
+          provider: result.provider,
+          model: result.model,
+          agent_slug: result.agent_slug,
+        });
+        setEditorMode("review");
+      } else {
+        setPendingSurfaceRefinement({
+          surface,
+          mode: mode === "rewrite_selection" ? "rewrite_selection" : "propose_edits",
+          baseText: surfaceBody,
+          nextText,
+          storyboardField: surface === "storyboard" ? storyboardSelection?.field : undefined,
+          storyboardSceneIndex: surface === "storyboard" ? storyboardSelection?.sceneIndex : undefined,
+          provider: result.provider,
+          model: result.model,
+          agent_slug: result.agent_slug,
+        });
+      }
+      setRefinementOpen(false);
       finishOperation({
         id: opId,
         status: "succeeded",
@@ -494,14 +620,14 @@ export default function ArtifactDetailPage({
       push({
         level: "success",
         title: "AI suggestion ready",
-        message: "Review changes in Article Editor.",
+        message: "Review changes in editor.",
         status: "succeeded",
         action: "article.ai",
         entityType: "unknown",
         entityId: artifactId,
-        ctaLabel: "Review changes",
-        ctaAction: REVIEW_TOAST_ACTION,
-        dedupeKey: `article-ai:${artifactId}:${mode}`,
+        ctaLabel: surface === "article" ? "Review changes" : undefined,
+        ctaAction: surface === "article" ? REVIEW_TOAST_ACTION : undefined,
+        dedupeKey: `article-ai:${artifactId}:${surface}:${mode}`,
       });
     } catch (err) {
       finishOperation({
@@ -1046,8 +1172,10 @@ export default function ArtifactDetailPage({
 
   const drift = useMemo(() => computeLineDiff(baselineBody, bodyMarkdown), [baselineBody, bodyMarkdown]);
   const hasBodyContent = Boolean(bodyMarkdown.trim() || revisions.length > 0);
-  const primaryAssistAction = resolveAssistPrimaryAction(hasBodyContent);
-  const selectionLength = editorSelection?.selectedText.length || 0;
+  const fallbackAssistAction = resolveAssistPrimaryAction(hasBodyContent);
+  const activeSelection =
+    selectionSurface === "script" ? scriptSelection : selectionSurface === "storyboard" ? storyboardSelection : editorSelection;
+  const selectionLength = activeSelection?.selectedText.length || 0;
   const canRefineSelection = canRewriteSelection(selectionLength);
   const isExplainerFormat = articleFormat === "video_explainer";
   const activeVideoSpec = videoSpec || createDefaultVideoSpec(item?.title || "", summary || "");
@@ -1082,6 +1210,31 @@ export default function ArtifactDetailPage({
     }
     return rows.join("\n");
   }, [activeVideoSpec.audience, activeVideoSpec.duration_seconds_target, activeVideoSpec.intent, activeVideoSpec.tone, isExplainerFormat, selectedVideoContextPack]);
+  const refinementAnchorStyle = useMemo(() => {
+    if (!refinementAnchorRect) return undefined;
+    const top = Math.max(16, refinementAnchorRect.top + refinementAnchorRect.height + 10);
+    const left = Math.max(12, refinementAnchorRect.left);
+    return {
+      position: "fixed" as const,
+      top,
+      left,
+    };
+  }, [refinementAnchorRect]);
+  const isMobileRefinement =
+    typeof window !== "undefined" && typeof window.matchMedia === "function"
+      ? window.matchMedia("(max-width: 960px)").matches
+      : false;
+  const refinementSelection =
+    refinementSurface === "script" ? scriptSelection : refinementSurface === "storyboard" ? storyboardSelection : editorSelection;
+  const refinementSelectedText = refinementSelection?.selectedText || null;
+  const refinementVideoContext = isExplainerFormat
+    ? {
+        intent: activeVideoSpec.intent || "",
+        audience: activeVideoSpec.audience || "",
+        tone: activeVideoSpec.tone || "",
+        duration: activeVideoSpec.duration_seconds_target || null,
+      }
+    : null;
 
   const collapsedPrimaryAction = useMemo(() => {
     if (!hasScriptDraft) {
@@ -1133,6 +1286,61 @@ export default function ArtifactDetailPage({
       return next;
     });
   }, []);
+
+  const openRefinement = useCallback(
+    (surface: RefinementSurface, anchor?: EditorSelection["anchorRect"] | null) => {
+      setRefinementSurface(surface);
+      setRefinementAnchorRect(anchor || null);
+      setRefinementOpen(true);
+    },
+    []
+  );
+
+  const applySurfaceRefinement = useCallback(() => {
+    if (!pendingSurfaceRefinement) return;
+    if (pendingSurfaceRefinement.surface === "script") {
+      setVideoSpec({
+        ...activeVideoSpec,
+        script: {
+          ...(activeVideoSpec.script || { draft: "", proposals: [] }),
+          draft: pendingSurfaceRefinement.nextText,
+        },
+      });
+      setVideoTab("script");
+    }
+    if (pendingSurfaceRefinement.surface === "storyboard") {
+      const sceneIndex = pendingSurfaceRefinement.storyboardSceneIndex ?? -1;
+      const field = pendingSurfaceRefinement.storyboardField;
+      if (sceneIndex >= 0 && field) {
+        const nextDraft = [...(activeVideoSpec.storyboard?.draft || [])];
+        const scene = nextDraft[sceneIndex];
+        if (scene) {
+          nextDraft[sceneIndex] = { ...scene, [field]: pendingSurfaceRefinement.nextText };
+          setVideoSpec({
+            ...activeVideoSpec,
+            storyboard: {
+              ...(activeVideoSpec.storyboard || { draft: [] }),
+              draft: nextDraft,
+            },
+          });
+          setSelectedStoryboardSceneIndex(sceneIndex);
+          setVideoTab("storyboard");
+        }
+      }
+    }
+    setPendingSurfaceRefinement(null);
+  }, [activeVideoSpec, pendingSurfaceRefinement]);
+
+  useEffect(() => {
+    const onKeydown = (event: KeyboardEvent) => {
+      const isShortcut = (event.metaKey || event.ctrlKey) && event.key.toLowerCase() === "k";
+      if (!isShortcut || !canRefineSelection) return;
+      event.preventDefault();
+      openRefinement(selectionSurface || "article", activeSelection?.anchorRect || null);
+    };
+    window.addEventListener("keydown", onKeydown);
+    return () => window.removeEventListener("keydown", onKeydown);
+  }, [activeSelection?.anchorRect, canRefineSelection, openRefinement, selectionSurface]);
 
   const executeAction = async (action: WorkflowAction) => {
     try {
@@ -1268,109 +1476,6 @@ export default function ArtifactDetailPage({
     </div>
   );
 
-  const aiPanel = (
-    <div className="stack activity-ai-panel">
-      <div className="card-header">
-        <h3>AI Assist</h3>
-      </div>
-      {isExplainerFormat && <p className="muted small">For overall video goals, use Intent in the Explainer Video panel.</p>}
-      <label>
-        {isExplainerFormat ? "Refinement agent" : "Documentation agent"}
-        <select value={selectedAgent} onChange={(event) => setSelectedAgent(event.target.value)}>
-          {!assistAgents.length && <option value="">{isExplainerFormat ? "No refinement agents found" : "No documentation agents found"}</option>}
-          {assistAgents.map((agent) => (
-            <option key={agent.id} value={agent.slug}>
-              {agent.name} ({agent.slug})
-            </option>
-          ))}
-        </select>
-      </label>
-      <label>
-        {isExplainerFormat ? "Refinement instruction (optional)" : "Idea / instruction"}
-        <textarea
-          className="input"
-          rows={isExplainerFormat ? 3 : 4}
-          value={assistInstruction}
-          placeholder={
-            isExplainerFormat
-              ? "Example: tighten clarity, simplify wording, keep tone confident."
-              : "What should the assistant do? e.g., tighten intro, add examples, change tone..."
-          }
-          onChange={(event) => setAssistInstruction(event.target.value)}
-        />
-      </label>
-      {isExplainerFormat && (
-        <p className="muted small">Applies only to selected text. Use Explainer Video → Intent for overall goals.</p>
-      )}
-      {selectionLength > 0 && <p className="muted small selection-chip">Selection: {selectionLength} chars</p>}
-      {isExplainerFormat && !canRefineSelection && (
-        <div className="activity-ai-helper-row">
-          <p className="muted small">Select text in the editor to enable refinement.</p>
-          <button
-            className="ghost sm"
-            type="button"
-            onClick={() => {
-              setEditorMode("edit");
-              setEditorFocusSignal((current) => current + 1);
-            }}
-          >
-            Open Article Editor
-          </button>
-          <button
-            className="ghost sm"
-            type="button"
-            onClick={() => {
-              setVideoTab("overview");
-              setVideoPanelCollapsed(false);
-              requestAnimationFrame(() => {
-                videoIntentFieldRef.current?.focus();
-                videoIntentFieldRef.current?.scrollIntoView({ behavior: "smooth", block: "center" });
-              });
-            }}
-          >
-            Edit video goals
-          </button>
-        </div>
-      )}
-      <div className="inline-actions ai-assist-actions">
-        <button
-          className="primary sm"
-          type="button"
-          onClick={() => void runAssist(isExplainerFormat ? "propose_edits" : primaryAssistAction)}
-          disabled={assistBusy || !selectedAgent || (isExplainerFormat && !canRefineSelection)}
-        >
-          {assistBusy ? "Thinking…" : isExplainerFormat ? "Suggest edits" : primaryAssistAction === "generate_draft" ? "Generate draft" : "Propose edits"}
-        </button>
-        {!isExplainerFormat && primaryAssistAction !== "propose_edits" && (
-          <button className="ghost sm" type="button" onClick={() => void runAssist("propose_edits")} disabled={assistBusy || !selectedAgent}>
-            Propose edits
-          </button>
-        )}
-        <button
-          className="ghost sm"
-          type="button"
-          title={canRefineSelection ? "Rewrite selected text" : "Select text in the article to enable"}
-          onClick={() => void runAssist("rewrite_selection")}
-          disabled={assistBusy || !selectedAgent || !canRefineSelection}
-        >
-          Rewrite selection
-        </button>
-      </div>
-      <p className="muted small">AI proposals never overwrite your article until you apply changes.</p>
-      {pendingAssist && (
-        <section className="diff-panel">
-          <h4>Latest proposal: ready</h4>
-          <p className="muted small">
-            {pendingAssist.agent_slug} · {pendingAssist.provider} {pendingAssist.model}
-          </p>
-          <button className="ghost sm" type="button" onClick={() => setEditorMode("review")}>
-            Review in editor
-          </button>
-        </section>
-      )}
-    </div>
-  );
-
   const aiConfigDirty =
     JSON.stringify(videoAiConfigDraft?.agents || {}) !== JSON.stringify(videoAiConfigOverrides?.agents || {}) ||
     JSON.stringify(videoAiConfigDraft?.context_packs || {}) !== JSON.stringify(videoAiConfigOverrides?.context_packs || {});
@@ -1492,7 +1597,6 @@ export default function ArtifactDetailPage({
         onChange={(next) => setActivityTab(next as ActivityTab)}
         tabs={
           [
-            { key: "ai", label: "AI Assist", icon: <Bot size={15} /> },
             { key: "revisions", label: "Revisions", icon: <History size={15} /> },
             ...(articleFormat === "video_explainer"
               ? [{ key: "ai_config", label: "AI Configuration", icon: <SlidersHorizontal size={15} /> }]
@@ -1507,7 +1611,6 @@ export default function ArtifactDetailPage({
         }
       />
       {activityTab === "revisions" && revisionPanel}
-      {activityTab === "ai" && aiPanel}
       {activityTab === "ai_config" && articleFormat === "video_explainer" && aiConfigPanel}
       {activityTab === "discussion" && discussionPanel}
     </div>
@@ -1605,7 +1708,7 @@ export default function ArtifactDetailPage({
             type="button"
             onClick={() => void summarizeWithAi()}
             disabled={summaryBusy || assistBusy || !selectedAgent || !bodyMarkdown.trim()}
-            title={selectedAgent ? "Generate and replace summary using the selected documentation agent." : "Select a documentation agent in AI Assist first."}
+            title={selectedAgent ? "Generate and replace summary using the selected refinement agent." : "Select a refinement agent with Refine first."}
           >
             {summaryBusy ? "Summarizing…" : "AI Summarize"}
           </button>
@@ -1792,7 +1895,9 @@ export default function ArtifactDetailPage({
             <textarea
               className="input"
               rows={10}
+              ref={scriptTextareaRef}
               value={activeVideoSpec.script?.draft || ""}
+              onSelect={(event) => handleScriptSelection(event.currentTarget)}
               onChange={(event) =>
                 setVideoSpec({
                   ...activeVideoSpec,
@@ -1804,10 +1909,41 @@ export default function ArtifactDetailPage({
               <button className="ghost sm" type="button" onClick={() => void persistVideoSpec(activeVideoSpec)} disabled={videoBusy === "save"}>
                 Save script draft
               </button>
+              <button
+                className="ghost sm"
+                type="button"
+                onClick={() => {
+                  const rect = scriptTextareaRef.current?.getBoundingClientRect();
+                  openRefinement("script", rect ? { top: rect.top + 8, left: rect.left + 16, width: rect.width, height: 1 } : null);
+                }}
+              >
+                <Sparkles size={14} /> Refine
+              </button>
               <button className="primary sm" type="button" onClick={() => void generateVideoScriptDraft()} disabled={videoBusy === "script"}>
                 {videoBusy === "script" ? "Generating…" : "Generate Script"}
               </button>
             </div>
+            {pendingSurfaceRefinement?.surface === "script" && (
+              <div className="diff-panel">
+                <p className="muted small">Suggestion ready: {pendingSurfaceRefinement.agent_slug || "agent"} · {pendingSurfaceRefinement.provider} {pendingSurfaceRefinement.model}</p>
+                <div className="line-diff article-review-diff">
+                  {(computeLineDiff(pendingSurfaceRefinement.baseText, pendingSurfaceRefinement.nextText).ops || []).map((op, idx) => (
+                    <pre key={`${idx}-${op.type}`} className={`line-diff-row ${op.type}`}>
+                      <span>{op.type === "add" ? "+" : op.type === "remove" ? "-" : " "}</span>
+                      {op.text}
+                    </pre>
+                  ))}
+                </div>
+                <div className="inline-actions">
+                  <button className="primary sm" type="button" onClick={applySurfaceRefinement}>
+                    Apply changes
+                  </button>
+                  <button className="ghost sm" type="button" onClick={() => setPendingSurfaceRefinement(null)}>
+                    Discard
+                  </button>
+                </div>
+              </div>
+            )}
             {scriptProposals.length > 0 && (
               <div className="stack">
                 <div className="card-header">
@@ -1867,6 +2003,7 @@ export default function ArtifactDetailPage({
                       className="input"
                       rows={3}
                       value={selectedStoryboardScene.on_screen_text || ""}
+                      onSelect={(event) => handleStoryboardSelection(event.currentTarget, "on_screen_text", selectedStoryboardSceneIndex)}
                       onChange={(event) => {
                         const nextDraft = [...(activeVideoSpec.storyboard?.draft || [])];
                         nextDraft[selectedStoryboardSceneIndex] = { ...selectedStoryboardScene, on_screen_text: event.target.value };
@@ -1883,6 +2020,7 @@ export default function ArtifactDetailPage({
                       className="input"
                       rows={4}
                       value={selectedStoryboardScene.visual_description || ""}
+                      onSelect={(event) => handleStoryboardSelection(event.currentTarget, "visual_description", selectedStoryboardSceneIndex)}
                       onChange={(event) => {
                         const nextDraft = [...(activeVideoSpec.storyboard?.draft || [])];
                         nextDraft[selectedStoryboardSceneIndex] = { ...selectedStoryboardScene, visual_description: event.target.value };
@@ -1899,6 +2037,7 @@ export default function ArtifactDetailPage({
                       className="input"
                       rows={4}
                       value={selectedStoryboardScene.narration || ""}
+                      onSelect={(event) => handleStoryboardSelection(event.currentTarget, "narration", selectedStoryboardSceneIndex)}
                       onChange={(event) => {
                         const nextDraft = [...(activeVideoSpec.storyboard?.draft || [])];
                         nextDraft[selectedStoryboardSceneIndex] = { ...selectedStoryboardScene, narration: event.target.value };
@@ -1916,6 +2055,16 @@ export default function ArtifactDetailPage({
                   Save storyboard
                 </button>
                 <button
+                  className="ghost sm"
+                  type="button"
+                  onClick={(event) => {
+                    const rect = (event.currentTarget as HTMLButtonElement).getBoundingClientRect();
+                    openRefinement("storyboard", { top: rect.top, left: rect.left, width: rect.width, height: rect.height });
+                  }}
+                >
+                  <Sparkles size={14} /> Refine
+                </button>
+                <button
                   className="primary sm"
                   type="button"
                   onClick={() => void generateVideoStoryboardDraft()}
@@ -1924,6 +2073,27 @@ export default function ArtifactDetailPage({
                   {videoBusy === "storyboard" ? "Generating…" : "Generate Storyboard"}
                 </button>
               </div>
+              {pendingSurfaceRefinement?.surface === "storyboard" && (
+                <div className="diff-panel">
+                  <p className="muted small">Suggestion ready: {pendingSurfaceRefinement.agent_slug || "agent"} · {pendingSurfaceRefinement.provider} {pendingSurfaceRefinement.model}</p>
+                  <div className="line-diff article-review-diff">
+                    {(computeLineDiff(pendingSurfaceRefinement.baseText, pendingSurfaceRefinement.nextText).ops || []).map((op, idx) => (
+                      <pre key={`${idx}-${op.type}`} className={`line-diff-row ${op.type}`}>
+                        <span>{op.type === "add" ? "+" : op.type === "remove" ? "-" : " "}</span>
+                        {op.text}
+                      </pre>
+                    ))}
+                  </div>
+                  <div className="inline-actions">
+                    <button className="primary sm" type="button" onClick={applySurfaceRefinement}>
+                      Apply changes
+                    </button>
+                    <button className="ghost sm" type="button" onClick={() => setPendingSurfaceRefinement(null)}>
+                      Discard
+                    </button>
+                  </div>
+                </div>
+              )}
               {storyboardProposals.length > 0 && (
                 <div className="diff-panel">
                   <p className="muted small">Storyboard proposals: {storyboardProposals.length}</p>
@@ -2022,6 +2192,16 @@ export default function ArtifactDetailPage({
               Back to edit
             </button>
           )}
+          <button
+            className="ghost sm"
+            type="button"
+            onClick={(event) => {
+              const rect = (event.currentTarget as HTMLButtonElement).getBoundingClientRect();
+              openRefinement("article", { top: rect.top, left: rect.left, width: rect.width, height: rect.height });
+            }}
+          >
+            <Sparkles size={14} /> Refine
+          </button>
           <label className="checkbox-row">
             <input type="checkbox" checked={showPreview} onChange={(event) => setShowPreview(event.target.checked)} />
             Preview
@@ -2123,9 +2303,47 @@ export default function ArtifactDetailPage({
     </div>
   );
 
+  const floatingRefineTrigger =
+    canRefineSelection && activeSelection?.anchorRect && !refinementOpen ? (
+      <button
+        className="floating-refine-trigger"
+        type="button"
+        style={{
+          top: activeSelection.anchorRect.top + activeSelection.anchorRect.height + 8,
+          left: activeSelection.anchorRect.left,
+        }}
+        onClick={() => openRefinement(selectionSurface || "article", activeSelection.anchorRect || null)}
+      >
+        <Sparkles size={14} /> Refine
+      </button>
+    ) : null;
+
   return (
     <>
       <EditorCentricLayout top={topSection} main={mainSection} inspector={inspectorPanel} activity={activityPanel} />
+      {floatingRefineTrigger}
+      <ContextRefinementTool
+        open={refinementOpen}
+        mobile={isMobileRefinement}
+        activeSurface={refinementSurface}
+        selectedText={refinementSelectedText}
+        videoSpecContext={refinementVideoContext}
+        agentOptions={assistAgents}
+        selectedAgent={selectedAgent}
+        instruction={assistInstruction}
+        busy={assistBusy}
+        anchorStyle={refinementAnchorStyle}
+        onSelectAgent={setSelectedAgent}
+        onChangeInstruction={setAssistInstruction}
+        onRewrite={() => void runAssist("rewrite_selection", refinementSurface)}
+        onSuggest={() =>
+          void runAssist(
+            refinementSurface === "article" && !isExplainerFormat ? fallbackAssistAction : "propose_edits",
+            refinementSurface
+          )
+        }
+        onClose={() => setRefinementOpen(false)}
+      />
       {confirmingAction?.confirmation && (
         <div className="modal-backdrop" onClick={() => setConfirmingAction(null)}>
           <section className="modal" onClick={(event) => event.stopPropagation()}>
