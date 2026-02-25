@@ -207,6 +207,7 @@ export async function getWhoAmI(): Promise<{ authenticated: boolean; username?: 
 export async function resolveXynIntent(payload: {
   message: string;
   context?: { artifact_id?: string | null; artifact_type?: string | null };
+  snapshot?: Record<string, unknown>;
 }): Promise<XynIntentResolutionResult> {
   const apiBaseUrl = resolveApiBaseUrl();
   const response = await apiFetch(`${apiBaseUrl}/xyn/api/xyn/intent/resolve`, {

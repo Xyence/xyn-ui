@@ -39,6 +39,7 @@ import { useNotifications } from "../state/notificationsStore";
 import { useOperations } from "../state/operationRegistry";
 import { useXynConsole } from "../state/xynConsoleStore";
 import { canRewriteSelection, resolveAssistPrimaryAction } from "./articleAssistLogic";
+import { applyPatchToFormSnapshot, buildArticleDraftSnapshot } from "../utils/articleIntentForm";
 
 type ActivityTab = "revisions" | "ai_config" | "discussion";
 type RevisionMode = "list" | "view" | "diff";
@@ -140,6 +141,7 @@ export default function ArtifactDetailPage({
 }) {
   const { artifactId = "" } = useParams();
   const [item, setItem] = useState<ArticleDetail | null>(null);
+  const [title, setTitle] = useState("");
   const [revisions, setRevisions] = useState<ArticleRevision[]>([]);
   const [bodyMarkdown, setBodyMarkdown] = useState("");
   const [legacyBodyHtml, setLegacyBodyHtml] = useState("");
@@ -200,16 +202,32 @@ export default function ArtifactDetailPage({
   const [error, setError] = useState<string | null>(null);
   const { push } = useNotifications();
   const { startOperation, finishOperation } = useOperations();
-  const { setContext: setConsoleContext, clearContext: clearConsoleContext } = useXynConsole();
+  const {
+    session: consoleSession,
+    setContext: setConsoleContext,
+    clearContext: clearConsoleContext,
+    registerEditorBridge,
+    unregisterEditorBridge,
+  } = useXynConsole();
   const videoPanelRef = useRef<HTMLElement | null>(null);
   const videoIntentFieldRef = useRef<HTMLTextAreaElement | null>(null);
+  const videoDurationFieldRef = useRef<HTMLInputElement | null>(null);
   const scriptTextareaRef = useRef<HTMLTextAreaElement | null>(null);
+  const titleFieldRef = useRef<HTMLInputElement | null>(null);
+  const formatFieldRef = useRef<HTMLSelectElement | null>(null);
+  const categorySelectFieldRef = useRef<HTMLSelectElement | null>(null);
+  const categoryInputFieldRef = useRef<HTMLInputElement | null>(null);
+  const tagsFieldRef = useRef<HTMLInputElement | null>(null);
+  const summaryFieldRef = useRef<HTMLTextAreaElement | null>(null);
 
-  const parseCsv = (value: string): string[] =>
-    value
-      .split(",")
-      .map((entry) => entry.trim())
-      .filter(Boolean);
+  const parseCsv = useCallback(
+    (value: string): string[] =>
+      value
+        .split(",")
+        .map((entry) => entry.trim())
+        .filter(Boolean),
+    []
+  );
 
   useEffect(() => {
     if (!artifactId) return;
@@ -346,6 +364,7 @@ export default function ArtifactDetailPage({
       const initialBody = article.body_markdown || latestRevision?.body_markdown || "";
       const fallbackHtml = article.body_html || latestRevision?.body_html || "";
       setItem(article);
+      setTitle(article.title || "");
       setRevisions(nextRevisions);
       setBodyMarkdown(initialBody);
       setLegacyBodyHtml(fallbackHtml);
@@ -470,6 +489,7 @@ export default function ArtifactDetailPage({
     try {
       setError(null);
       await updateArticle(artifactId, {
+        title: title.trim(),
         format: articleFormat,
         category,
         visibility_type: visibilityType,
@@ -762,6 +782,7 @@ export default function ArtifactDetailPage({
       setError(null);
       const result = await initializeArticleVideo(artifactId);
       setItem(result.article);
+      setTitle(result.article.title || "");
       setArticleFormat(result.article.format);
       setVideoSpec((result.article.video_spec_json as VideoSpec) || createDefaultVideoSpec(result.article.title || "", result.article.summary || ""));
       setSelectedVideoContextPackId(result.article.video_context_pack_id || "");
@@ -833,6 +854,7 @@ export default function ArtifactDetailPage({
       setVideoAiConfigDraft(overrides);
       setVideoAiConfigEffective(result.effective || {});
       setItem(result.article || null);
+      setTitle(result.article?.title || "");
       push({
         level: "success",
         title: "AI config saved",
@@ -888,6 +910,7 @@ export default function ArtifactDetailPage({
         context_pack_id: selectedVideoContextPackId || null,
       });
       setItem(result.article);
+      setTitle(result.article.title || "");
       setVideoSpec((result.article.video_spec_json as VideoSpec) || null);
       setSelectedVideoContextPackId(result.article.video_context_pack_id || selectedVideoContextPackId || "");
       push({
@@ -915,6 +938,7 @@ export default function ArtifactDetailPage({
         context_pack_id: selectedVideoContextPackId || null,
       });
       setItem(result.article);
+      setTitle(result.article.title || "");
       setVideoSpec((result.article.video_spec_json as VideoSpec) || null);
       setSelectedVideoContextPackId(result.article.video_context_pack_id || selectedVideoContextPackId || "");
       push({
@@ -945,6 +969,7 @@ export default function ArtifactDetailPage({
       });
       setVideoRenders((prev) => [result.render, ...prev.filter((entry) => entry.id !== result.render.id)]);
       setItem(result.article);
+      setTitle(result.article.title || "");
       setSelectedVideoContextPackId(result.article.video_context_pack_id || selectedVideoContextPackId || "");
       push({
         level: "info",
@@ -1208,6 +1233,173 @@ export default function ArtifactDetailPage({
     }
     return rows.join("\n");
   }, [activeVideoSpec.audience, activeVideoSpec.duration_seconds_target, activeVideoSpec.intent, activeVideoSpec.tone, isExplainerFormat, selectedVideoContextPack]);
+  const missingConsoleFields = useMemo(
+    () => new Set((consoleSession.pendingMissingFields || []).map((field) => field.field)),
+    [consoleSession.pendingMissingFields]
+  );
+
+  const getFormSnapshot = useCallback(() => {
+    return buildArticleDraftSnapshot({
+      title,
+      category,
+      format: articleFormat,
+      intent: activeVideoSpec.intent || "",
+      duration: activeVideoSpec.duration_seconds_target || null,
+      tags: parseCsv(tagsText),
+      summary,
+      body: bodyMarkdown,
+    }) as Record<string, unknown>;
+  }, [activeVideoSpec.duration_seconds_target, activeVideoSpec.intent, articleFormat, bodyMarkdown, category, summary, tagsText, title]);
+
+  const applyConsolePatchToForm = useCallback(
+    (patch: Record<string, unknown>) => {
+      const current = buildArticleDraftSnapshot({
+        title,
+        category,
+        format: articleFormat,
+        intent: activeVideoSpec.intent || "",
+        duration: activeVideoSpec.duration_seconds_target || null,
+        tags: parseCsv(tagsText),
+        summary,
+        body: bodyMarkdown,
+      });
+      const result = applyPatchToFormSnapshot(current, patch || {});
+      const next = result.next;
+      if (next.title !== null) setTitle(next.title);
+      if (next.category !== null) setCategory(next.category);
+      if (next.format && next.format !== articleFormat) {
+        setArticleFormat(next.format as ArticleFormat);
+        if (next.format === "video_explainer") {
+          void ensureVideoInitialized();
+        }
+      }
+      setSummary(next.summary || "");
+      setBodyMarkdown(next.body || "");
+      setTagsText((next.tags || []).join(", "));
+      setVideoSpec((prev) => {
+        const base = prev || createDefaultVideoSpec(next.title || title, next.summary || "");
+        return {
+          ...base,
+          intent: next.intent || base.intent || "",
+          duration_seconds_target: next.duration || base.duration_seconds_target || 150,
+        };
+      });
+      return {
+        appliedFields: result.appliedFields,
+        ignoredFields: result.ignoredFields,
+      };
+    },
+    [activeVideoSpec.duration_seconds_target, activeVideoSpec.intent, articleFormat, bodyMarkdown, category, ensureVideoInitialized, parseCsv, summary, tagsText, title]
+  );
+
+  const focusConsoleField = useCallback(
+    (field: string): boolean => {
+      if (field === "title") {
+        titleFieldRef.current?.focus();
+        titleFieldRef.current?.scrollIntoView({ behavior: "smooth", block: "center" });
+        return true;
+      }
+      if (field === "format") {
+        formatFieldRef.current?.focus();
+        formatFieldRef.current?.scrollIntoView({ behavior: "smooth", block: "center" });
+        return true;
+      }
+      if (field === "category") {
+        const target = categorySelectFieldRef.current || categoryInputFieldRef.current;
+        target?.focus();
+        target?.scrollIntoView({ behavior: "smooth", block: "center" });
+        return true;
+      }
+      if (field === "tags") {
+        tagsFieldRef.current?.focus();
+        tagsFieldRef.current?.scrollIntoView({ behavior: "smooth", block: "center" });
+        return true;
+      }
+      if (field === "summary") {
+        summaryFieldRef.current?.focus();
+        summaryFieldRef.current?.scrollIntoView({ behavior: "smooth", block: "center" });
+        return true;
+      }
+      if (field === "intent") {
+        setArticleFormat("video_explainer");
+        setVideoTab("overview");
+        setVideoPanelCollapsed(false);
+        window.setTimeout(() => {
+          videoIntentFieldRef.current?.focus();
+          videoIntentFieldRef.current?.scrollIntoView({ behavior: "smooth", block: "center" });
+        }, 0);
+        return true;
+      }
+      if (field === "duration") {
+        setArticleFormat("video_explainer");
+        setVideoTab("overview");
+        setVideoPanelCollapsed(false);
+        window.setTimeout(() => {
+          videoDurationFieldRef.current?.focus();
+          videoDurationFieldRef.current?.scrollIntoView({ behavior: "smooth", block: "center" });
+        }, 0);
+        return true;
+      }
+      if (field === "body") {
+        setShowPreview(false);
+        setEditorFocusSignal((current) => current + 1);
+        return true;
+      }
+      return false;
+    },
+    []
+  );
+
+  const applyConsoleFieldValue = useCallback(
+    (field: string, value: unknown): boolean => {
+      if (field === "category") {
+        const next = String(value || "").trim();
+        if (!next) return false;
+        setCategory(next);
+        return true;
+      }
+      if (field === "format") {
+        const next = String(value || "").trim() as ArticleFormat;
+        if (!next) return false;
+        setArticleFormat(next);
+        if (next === "video_explainer") {
+          void ensureVideoInitialized();
+        }
+        return true;
+      }
+      if (field === "duration") {
+        const numeric = Number(value);
+        if (!Number.isFinite(numeric) || numeric <= 0) return false;
+        setArticleFormat("video_explainer");
+        setVideoSpec((prev) => {
+          const base = prev || createDefaultVideoSpec(title, summary);
+          return {
+            ...base,
+            duration_seconds_target: Math.round(numeric),
+          };
+        });
+        return true;
+      }
+      return false;
+    },
+    [ensureVideoInitialized, summary, title]
+  );
+
+  useEffect(() => {
+    if (!artifactId) return;
+    registerEditorBridge(
+      { artifact_id: artifactId, artifact_type: "ArticleDraft" },
+      {
+        getFormSnapshot,
+        applyPatchToForm: applyConsolePatchToForm,
+        focusField: focusConsoleField,
+        applyFieldValue: applyConsoleFieldValue,
+      }
+    );
+    return () => {
+      unregisterEditorBridge({ artifact_id: artifactId, artifact_type: "ArticleDraft" });
+    };
+  }, [artifactId, applyConsoleFieldValue, applyConsolePatchToForm, focusConsoleField, getFormSnapshot, registerEditorBridge, unregisterEditorBridge]);
   const refinementAnchorStyle = useMemo(() => {
     if (!refinementAnchorRect) return undefined;
     const top = Math.max(16, refinementAnchorRect.top + refinementAnchorRect.height + 10);
@@ -1620,11 +1812,25 @@ export default function ArtifactDetailPage({
         <h3>Inspector</h3>
       </div>
       <div className="field-group">
+        <label className="field-label" htmlFor="article-title">
+          Title
+        </label>
+        <input
+          id="article-title"
+          ref={titleFieldRef}
+          className={`input ${missingConsoleFields.has("title") ? "console-missing-field" : ""}`}
+          value={title}
+          onChange={(event) => setTitle(event.target.value)}
+        />
+      </div>
+      <div className="field-group">
         <label className="field-label" htmlFor="article-format">
           Format
         </label>
         <select
           id="article-format"
+          ref={formatFieldRef}
+          className={missingConsoleFields.has("format") ? "console-missing-field" : ""}
           value={articleFormat}
           onChange={(event) => {
             const next = event.target.value as ArticleFormat;
@@ -1644,11 +1850,23 @@ export default function ArtifactDetailPage({
         </label>
         {isDeprecatedCategory ? (
           <div className="stacked-field">
-            <input id="article-category" className="input" value={`${selectedCategoryMeta?.name || category} (${category})`} disabled />
+            <input
+              id="article-category"
+              ref={categoryInputFieldRef}
+              className={`input ${missingConsoleFields.has("category") ? "console-missing-field" : ""}`}
+              value={`${selectedCategoryMeta?.name || category} (${category})`}
+              disabled
+            />
             <span className="muted small">Deprecated category (read-only)</span>
           </div>
         ) : (
-          <select id="article-category" value={category} onChange={(event) => setCategory(event.target.value)}>
+          <select
+            id="article-category"
+            ref={categorySelectFieldRef}
+            className={missingConsoleFields.has("category") ? "console-missing-field" : ""}
+            value={category}
+            onChange={(event) => setCategory(event.target.value)}
+          >
             {categoryOptions.length === 0 && (
               <>
                 <option value="web">web</option>
@@ -1687,7 +1905,13 @@ export default function ArtifactDetailPage({
         <label className="field-label" htmlFor="article-tags">
           Tags (comma-separated)
         </label>
-        <input id="article-tags" className="input" value={tagsText} onChange={(event) => setTagsText(event.target.value)} />
+        <input
+          id="article-tags"
+          ref={tagsFieldRef}
+          className={`input ${missingConsoleFields.has("tags") ? "console-missing-field" : ""}`}
+          value={tagsText}
+          onChange={(event) => setTagsText(event.target.value)}
+        />
       </div>
       <div className="field-group">
         <label className="field-label" htmlFor="article-summary">
@@ -1695,7 +1919,8 @@ export default function ArtifactDetailPage({
         </label>
         <textarea
           id="article-summary"
-          className="input field-textarea"
+          ref={summaryFieldRef}
+          className={`input field-textarea ${missingConsoleFields.has("summary") ? "console-missing-field" : ""}`}
           rows={4}
           value={summary}
           onChange={(event) => setSummary(event.target.value)}
@@ -1758,7 +1983,7 @@ export default function ArtifactDetailPage({
     <div className="stack">
       <div className="page-header">
         <div>
-          <h2>{item?.title || "Artifact"}</h2>
+          <h2>{title || item?.title || "Artifact"}</h2>
           <p className="muted">Governed article workflow controls</p>
         </div>
       </div>
@@ -1846,9 +2071,10 @@ export default function ArtifactDetailPage({
             <label>
               Intent
               <textarea
-                className="input"
+                id="article-intent"
                 rows={3}
                 ref={videoIntentFieldRef}
+                className={`input ${missingConsoleFields.has("intent") ? "console-missing-field" : ""}`}
                 value={activeVideoSpec.intent || ""}
                 onChange={(event) => setVideoSpec({ ...activeVideoSpec, intent: event.target.value })}
               />
@@ -1868,7 +2094,9 @@ export default function ArtifactDetailPage({
             <label>
               Duration target (seconds)
               <input
-                className="input"
+                id="article-duration"
+                ref={videoDurationFieldRef}
+                className={`input ${missingConsoleFields.has("duration") ? "console-missing-field" : ""}`}
                 type="number"
                 min={10}
                 value={activeVideoSpec.duration_seconds_target || 150}
@@ -2281,7 +2509,7 @@ export default function ArtifactDetailPage({
           </div>
         </section>
       )}
-      <div className={`editor-body ${showPreview ? "split" : ""}`}>
+      <div className={`editor-body ${showPreview ? "split" : ""} ${missingConsoleFields.has("body") ? "console-missing-field" : ""}`}>
         <MarkdownWysiwygEditor
           value={bodyMarkdown}
           onChange={setBodyMarkdown}

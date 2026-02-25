@@ -21,3 +21,11 @@ Xyn Console is a non-chat collaboration layer for governed intent resolution.
 ## Extending renderers
 - Add new `ResolutionResult.status` render blocks in `XynConsolePanel.tsx`.
 - Keep rendering deterministic and action-centric.
+
+## Language-driven form loop
+- On artifact editor pages, Console receives `artifact_id`/`artifact_type` context and a live form snapshot.
+- `resolve` uses snapshot context to propose diffs against current unsaved form state.
+- `ProposedPatch` in editor context provides:
+  - `Apply to form` (local unsaved mutation only)
+  - `Apply & Save` (persist through `/xyn/api/xyn/intent/apply`)
+- Missing fields can be focused directly from Console (`Focus field`), and options can be applied directly to form fields when editor context is active.

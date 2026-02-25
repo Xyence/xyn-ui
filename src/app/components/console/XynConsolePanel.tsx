@@ -22,7 +22,7 @@ function StatusIcon({ status }: { status?: string }) {
 }
 
 function MissingFieldsCard() {
-  const { session, fetchOptions } = useXynConsole();
+  const { session, fetchOptions, focusMissingField } = useXynConsole();
   if (!session.pendingMissingFields.length) return null;
   return (
     <section className="xyn-console-card" aria-label="Missing fields">
@@ -38,6 +38,9 @@ function MissingFieldsCard() {
                 Show options
               </button>
             ) : null}
+            <button type="button" className="ghost sm" onClick={() => focusMissingField(field.field)}>
+              Focus field
+            </button>
           </li>
         ))}
       </ul>
@@ -46,7 +49,7 @@ function MissingFieldsCard() {
 }
 
 function OptionsCard() {
-  const { session, injectSuggestion } = useXynConsole();
+  const { session, injectSuggestion, applyOptionValue, hasEditorBridge } = useXynConsole();
   const entries = Object.entries(session.optionsByField);
   if (!entries.length) return null;
   return (
@@ -68,7 +71,11 @@ function OptionsCard() {
                   key={`${field}:${label}`}
                   type="button"
                   className="ghost sm"
-                  onClick={() => injectSuggestion(`${field}: ${label}`)}
+                  onClick={() =>
+                    hasEditorBridge
+                      ? applyOptionValue(field as "category" | "format" | "duration", option)
+                      : injectSuggestion(`${field}: ${label}`)
+                  }
                 >
                   {label}
                 </button>
@@ -82,7 +89,7 @@ function OptionsCard() {
 }
 
 function ProposedPatchCard() {
-  const { session, applyPendingProposal, cancelPendingProposal } = useXynConsole();
+  const { session, applyPendingProposalAndSave, applyPendingProposalToForm, cancelPendingProposal, hasEditorBridge } = useXynConsole();
   if (!session.pendingProposal) return null;
   return (
     <section className="xyn-console-card" aria-label="Proposed patch">
@@ -97,13 +104,22 @@ function ProposedPatchCard() {
         ))}
       </div>
       <div className="inline-actions">
-        <button type="button" className="primary sm" onClick={() => void applyPendingProposal()}>
-          Apply
+        {hasEditorBridge ? (
+          <button type="button" className="ghost sm" onClick={() => applyPendingProposalToForm()}>
+            Apply to form
+          </button>
+        ) : null}
+        <button type="button" className="primary sm" onClick={() => void applyPendingProposalAndSave()}>
+          {hasEditorBridge ? "Apply & Save" : "Apply"}
         </button>
         <button type="button" className="ghost sm" onClick={() => cancelPendingProposal()}>
           Cancel
         </button>
       </div>
+      {session.localMessage ? <p className="muted small">{session.localMessage}</p> : null}
+      {session.ignoredFields.length ? (
+        <p className="muted small">Ignored fields: {session.ignoredFields.join(", ")}</p>
+      ) : null}
     </section>
   );
 }
@@ -147,6 +163,7 @@ function ResolutionCard({ resolution }: { resolution: XynIntentResolutionResult 
           Revise
         </button>
       </div>
+      {session.localMessage ? <p className="muted small">{session.localMessage}</p> : null}
     </section>
   );
 }

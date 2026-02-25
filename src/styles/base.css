@@ -3595,6 +3595,11 @@ button.sm {
   gap: 8px;
 }
 
+.console-missing-field {
+  border-color: var(--warn) !important;
+  box-shadow: 0 0 0 1px color-mix(in srgb, var(--warn) 45%, transparent);
+}
+
 @media (max-width: 900px) {
   .xyn-console-anchor {
     top: auto;
