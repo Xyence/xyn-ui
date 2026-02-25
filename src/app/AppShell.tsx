@@ -307,7 +307,7 @@ export default function AppShell() {
     const root = document.documentElement;
     const updateHeaderHeightVar = () => {
       const height = Math.max(72, Math.round(headerRef.current?.offsetHeight || 88));
-      root.style.setProperty("--xyn-app-header-height", `${height}px`);
+      root.style.setProperty("--xyn-header-height", `${height}px`);
     };
     updateHeaderHeightVar();
     if (typeof ResizeObserver === "undefined") {

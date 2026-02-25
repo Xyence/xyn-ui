@@ -102,6 +102,16 @@
   --shadow: 0 18px 46px rgba(0, 0, 0, 0.62);
 }
 
+:root {
+  --xyn-header-height: 88px;
+  --xyn-header-top-offset: 10px;
+  --xyn-console-safe-top: 12px;
+  --xyn-console-safe-right: 16px;
+  --xyn-z-header: 1100;
+  --xyn-z-console: 1250;
+  --xyn-z-modal: 1400;
+}
+
 * {
   box-sizing: border-box;
 }
@@ -142,7 +152,7 @@ input {
 .app-header {
   position: sticky;
   top: 10px;
-  z-index: 1100;
+  z-index: var(--xyn-z-header);
   display: flex;
   flex-direction: row;
   justify-content: space-between;
@@ -3421,10 +3431,14 @@ button.sm {
 
 .xyn-console-anchor {
   position: fixed;
-  top: calc(var(--xyn-app-header-top, 10px) + var(--xyn-app-header-height, 88px) + var(--xyn-console-anchor-gap, 12px));
-  right: var(--xyn-console-anchor-right, 16px);
-  z-index: 1250;
+  top: calc(var(--xyn-header-top-offset) + var(--xyn-header-height) + var(--xyn-console-safe-top));
+  right: var(--xyn-console-safe-right);
+  z-index: var(--xyn-z-console);
   pointer-events: none;
+  display: flex;
+  flex-direction: column;
+  align-items: flex-end;
+  min-width: 0;
 }
 
 .xyn-console-node {
@@ -3437,15 +3451,17 @@ button.sm {
   background: var(--card-elevated);
   color: var(--ink);
   padding: 6px 12px;
+  min-height: 38px;
   opacity: 0.55;
-  transition: opacity 0.15s ease, border-color 0.2s ease, background 0.2s ease, color 0.2s ease;
+  transition: opacity 0.15s ease, box-shadow 0.2s ease, background 0.2s ease, color 0.2s ease;
+  will-change: opacity;
 }
 
 .xyn-console-node:hover,
 .xyn-console-node:focus-visible,
 .xyn-console-node.open {
   opacity: 1;
-  border-color: var(--border-strong);
+  box-shadow: 0 0 0 1px color-mix(in srgb, var(--border-strong) 75%, transparent);
 }
 
 .xyn-console-node .xyn-console-badge {
@@ -3457,15 +3473,21 @@ button.sm {
 
 .xyn-console-panel {
   pointer-events: auto;
-  margin-top: 10px;
+  position: absolute;
+  top: calc(100% + 8px);
+  right: 0;
   width: min(420px, calc(100vw - 20px));
-  max-height: min(72vh, 760px);
+  max-height: calc(100vh - var(--xyn-header-height) - var(--xyn-header-top-offset) - 24px);
   overflow: auto;
   border: 1px solid var(--border);
   border-radius: 14px;
   background: var(--card-elevated);
   box-shadow: var(--shadow);
   padding: 12px;
+  transform-origin: top right;
+  transition: opacity 0.14s ease, transform 0.14s ease;
+  opacity: 1;
+  transform: scale(1);
 }
 
 .xyn-console-core {
@@ -3681,5 +3703,14 @@ button.sm {
   .xyn-console-panel {
     width: 100%;
     max-height: min(65vh, 620px);
+    right: 0;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .xyn-console-node,
+  .xyn-console-panel {
+    transition: opacity 0.01s linear !important;
+    transform: none !important;
   }
 }
