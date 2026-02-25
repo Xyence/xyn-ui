@@ -3600,6 +3600,46 @@ button.sm {
   box-shadow: 0 0 0 1px color-mix(in srgb, var(--warn) 45%, transparent);
 }
 
+.xyn-console-recent-table {
+  display: grid;
+  gap: 6px;
+}
+
+.xyn-console-recent-head,
+.xyn-console-recent-row {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) 90px 70px;
+  gap: 8px;
+  align-items: center;
+}
+
+.xyn-console-recent-head {
+  font-size: 0.72rem;
+  color: var(--muted);
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+}
+
+.xyn-console-recent-row {
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  padding: 8px;
+  background: var(--surface-soft);
+  color: var(--ink);
+  text-align: left;
+}
+
+.xyn-console-recent-row:hover,
+.xyn-console-recent-row:focus-visible {
+  border-color: var(--border-strong);
+}
+
+.xyn-console-recent-title {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
 @media (max-width: 900px) {
   .xyn-console-anchor {
     top: auto;

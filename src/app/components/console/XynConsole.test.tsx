@@ -10,12 +10,14 @@ const apiMocks = vi.hoisted(() => ({
   resolveXynIntent: vi.fn(),
   applyXynIntent: vi.fn(),
   getXynIntentOptions: vi.fn(),
+  getRecentArtifacts: vi.fn(),
 }));
 
 vi.mock("../../../api/xyn", () => ({
   resolveXynIntent: apiMocks.resolveXynIntent,
   applyXynIntent: apiMocks.applyXynIntent,
   getXynIntentOptions: apiMocks.getXynIntentOptions,
+  getRecentArtifacts: apiMocks.getRecentArtifacts,
 }));
 
 function renderConsole() {
@@ -88,6 +90,18 @@ describe("XynConsole", () => {
   beforeEach(() => {
     vi.clearAllMocks();
     window.localStorage.clear();
+    apiMocks.getRecentArtifacts.mockResolvedValue({
+      items: [
+        {
+          artifact_id: "a-1",
+          artifact_type: "article",
+          artifact_state: "provisional",
+          title: "Recent Draft",
+          updated_at: new Date().toISOString(),
+          route: "/app/artifacts/a-1",
+        },
+      ],
+    });
   });
 
   it("opens with Cmd/Ctrl+K and focuses input", async () => {
@@ -95,6 +109,7 @@ describe("XynConsole", () => {
     fireEvent.keyDown(window, { key: "k", ctrlKey: true });
     const input = await screen.findByPlaceholderText("Describe a draft state transition.");
     await waitFor(() => expect(input).toHaveFocus());
+    await screen.findByText("Recent");
   });
 
   it("blocks close when a proposal is pending until cancel/apply", async () => {
@@ -191,6 +206,41 @@ describe("XynConsole", () => {
     await userEvent.click(guideOption);
 
     await waitFor(() => expect(screen.getByDisplayValue(/category: guide/i)).toBeInTheDocument());
+  });
+
+  it("hides recent section when user types input", async () => {
+    renderConsole();
+    fireEvent.keyDown(window, { key: "k", ctrlKey: true });
+    await screen.findByText("Recent");
+    const input = await screen.findByPlaceholderText("Describe a draft state transition.");
+    await userEvent.type(input, "create draft");
+    await waitFor(() => expect(screen.queryByText("Recent")).not.toBeInTheDocument());
+  });
+
+  it("shows clear action for global result and returns to recent", async () => {
+    apiMocks.resolveXynIntent.mockResolvedValue({
+      status: "UnsupportedIntent",
+      action_type: "ValidateDraft",
+      artifact_type: null,
+      artifact_id: null,
+      summary: "Could not parse intent proposal.",
+    });
+    renderConsole();
+    fireEvent.keyDown(window, { key: "k", ctrlKey: true });
+    const input = await screen.findByPlaceholderText("Describe a draft state transition.");
+    await userEvent.type(input, "???");
+    await userEvent.click(screen.getByRole("button", { name: "Submit" }));
+    await screen.findByText("Could not parse intent proposal.");
+    await userEvent.click(screen.getByRole("button", { name: "Clear" }));
+    await screen.findByText("Recent");
+  });
+
+  it("opens recent artifact row and closes panel", async () => {
+    renderConsole();
+    fireEvent.keyDown(window, { key: "k", ctrlKey: true });
+    await screen.findByText("Recent");
+    await userEvent.click(screen.getByRole("row", { name: /Recent Draft/i }));
+    await waitFor(() => expect(screen.queryByRole("dialog", { name: "Xyn Console" })).not.toBeInTheDocument());
   });
 
   it("applies proposed patch to local form without backend call", async () => {

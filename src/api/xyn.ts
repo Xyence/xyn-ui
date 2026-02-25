@@ -124,6 +124,8 @@ import type {
   AccessRoleDetailResponse,
   XynIntentResolutionResult,
   XynIntentOptionsResponse,
+  RecentArtifactItem,
+  RecentArtifactListResponse,
 } from "./types";
 import { authHeaders, resolveApiBaseUrl } from "./client";
 
@@ -248,6 +250,39 @@ export async function getXynIntentOptions(params: {
     headers: buildHeaders(),
   });
   return handle<XynIntentOptionsResponse>(response);
+}
+
+export async function getRecentArtifacts(limit = 6): Promise<RecentArtifactListResponse> {
+  const payload = await listArtifacts({ limit: Math.max(1, Math.min(limit, 50)), offset: 0 });
+  const toRoute = (item: UnifiedArtifact): string => {
+    const source = (item.source || {}) as Record<string, unknown>;
+    const sourceId = String(source.id || item.source_ref_id || "").trim();
+    const artifactId = String(item.artifact_id || item.id || "").trim();
+    if (item.artifact_type === "draft_session" && sourceId) return `/app/drafts/${sourceId}`;
+    if (item.artifact_type === "blueprint" && sourceId) return `/app/blueprints/${sourceId}`;
+    if (item.artifact_type === "article" && artifactId) return `/app/artifacts/${artifactId}`;
+    if (item.artifact_type === "workflow") return `/app/artifacts/workflows${sourceId ? `?workflow=${encodeURIComponent(sourceId)}` : ""}`;
+    if (item.artifact_type === "module") return "/app/modules";
+    if (item.artifact_type === "context_pack") return "/app/context-packs";
+    return "/app/artifacts/all";
+  };
+
+  const sorted = [...(payload.artifacts || [])].sort((a, b) => {
+    const aTime = Date.parse(a.updated_at || a.created_at || "");
+    const bTime = Date.parse(b.updated_at || b.created_at || "");
+    return (Number.isFinite(bTime) ? bTime : 0) - (Number.isFinite(aTime) ? aTime : 0);
+  });
+
+  const items: RecentArtifactItem[] = sorted.slice(0, limit).map((item) => ({
+    artifact_id: item.artifact_id || item.id,
+    artifact_type: String(item.artifact_type || ""),
+    artifact_state: item.artifact_state || null,
+    title: item.title || "Untitled artifact",
+    updated_at: item.updated_at || item.created_at || undefined,
+    route: toRoute(item),
+  }));
+
+  return { items };
 }
 
 export async function getMe(): Promise<{

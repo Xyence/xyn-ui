@@ -3,6 +3,7 @@ import { applyXynIntent, getXynIntentOptions, resolveXynIntent } from "../../api
 import type { XynIntentOptionsResponse, XynIntentResolutionResult, XynIntentStatus } from "../../api/types";
 
 const STORAGE_KEY = "xyn.console.v1.sessions";
+const HINT_STORAGE_KEY = "xyn.console.v1.lastArtifactHint";
 
 export type XynConsoleContextRef = {
   artifact_id?: string | null;
@@ -29,6 +30,15 @@ type ConsoleSessionState = {
 type PersistedSessions = Record<string, ConsoleSessionState>;
 
 type ProcessingStep = "resolving" | "classifying" | "validating";
+
+export type ConsoleArtifactHint = {
+  artifact_id: string;
+  artifact_type: string;
+  artifact_state?: string | null;
+  title?: string;
+  route?: string;
+  updated_at?: string;
+};
 
 type ConsoleEditorBridge = {
   getFormSnapshot: () => Record<string, unknown>;
@@ -90,6 +100,28 @@ function resolutionNeedsBadge(status?: XynIntentStatus): boolean {
   return status === "MissingFields" || status === "ProposedPatch" || status === "ValidationError" || status === "UnsupportedIntent";
 }
 
+function readArtifactHint(): ConsoleArtifactHint | null {
+  if (typeof window === "undefined") return null;
+  try {
+    const raw = window.localStorage.getItem(HINT_STORAGE_KEY);
+    if (!raw) return null;
+    const parsed = JSON.parse(raw) as ConsoleArtifactHint;
+    if (!parsed?.artifact_id || !parsed?.artifact_type) return null;
+    return parsed;
+  } catch {
+    return null;
+  }
+}
+
+function writeArtifactHint(hint: ConsoleArtifactHint | null) {
+  if (typeof window === "undefined") return;
+  if (!hint) {
+    window.localStorage.removeItem(HINT_STORAGE_KEY);
+    return;
+  }
+  window.localStorage.setItem(HINT_STORAGE_KEY, JSON.stringify(hint));
+}
+
 function extractOptionValue(field: "category" | "format" | "duration", option: unknown): string {
   if (typeof option === "string" || typeof option === "number") return String(option);
   if (typeof option === "object" && option) {
@@ -129,6 +161,9 @@ type XynConsoleContextValue = {
   focusMissingField: (field: string) => void;
   registerEditorBridge: (context: XynConsoleContextRef, bridge: ConsoleEditorBridge) => void;
   unregisterEditorBridge: (context: XynConsoleContextRef) => void;
+  clearSessionResolution: () => void;
+  lastArtifactHint: ConsoleArtifactHint | null;
+  setLastArtifactHint: (hint: ConsoleArtifactHint | null) => void;
 };
 
 const XynConsoleContext = createContext<XynConsoleContextValue | null>(null);
@@ -140,6 +175,7 @@ export function XynConsoleProvider({ children }: { children: ReactNode }) {
   const [processing, setProcessing] = useState(false);
   const [processingStep, setProcessingStep] = useState<ProcessingStep | null>(null);
   const [pendingCloseBlock, setPendingCloseBlock] = useState(false);
+  const [lastArtifactHint, setLastArtifactHintState] = useState<ConsoleArtifactHint | null>(() => readArtifactHint());
   const editorBridgesRef = useRef<Record<string, ConsoleEditorBridge>>({});
 
   const contextKey = useMemo(() => toContextKey(context), [context]);
@@ -149,6 +185,10 @@ export function XynConsoleProvider({ children }: { children: ReactNode }) {
   useEffect(() => {
     writeSessionsToStorage(sessions);
   }, [sessions]);
+
+  useEffect(() => {
+    writeArtifactHint(lastArtifactHint);
+  }, [lastArtifactHint]);
 
   useEffect(() => {
     const onKeyDown = (event: KeyboardEvent) => {
@@ -417,10 +457,22 @@ export function XynConsoleProvider({ children }: { children: ReactNode }) {
   );
 
   const setContext = useCallback((next: XynConsoleContextRef) => {
+    const artifactId = next.artifact_id || null;
+    const artifactType = next.artifact_type || null;
     setContextState({
-      artifact_id: next.artifact_id || null,
-      artifact_type: next.artifact_type || null,
+      artifact_id: artifactId,
+      artifact_type: artifactType,
     });
+    if (artifactId && artifactType) {
+      setLastArtifactHintState((current) => ({
+        artifact_id: artifactId,
+        artifact_type: artifactType,
+        artifact_state: current?.artifact_state || null,
+        title: current?.artifact_id === artifactId ? current.title : current?.title,
+        route: current?.artifact_id === artifactId ? current.route : current?.route,
+        updated_at: current?.artifact_id === artifactId ? current.updated_at : current?.updated_at,
+      }));
+    }
   }, []);
 
   const clearContext = useCallback(() => {
@@ -433,6 +485,23 @@ export function XynConsoleProvider({ children }: { children: ReactNode }) {
 
   const unregisterEditorBridge = useCallback((bridgeContext: XynConsoleContextRef) => {
     delete editorBridgesRef.current[toContextKey(bridgeContext)];
+  }, []);
+
+  const clearSessionResolution = useCallback(() => {
+    updateSession((current) => ({
+      ...current,
+      lastResolution: null,
+      pendingProposal: null,
+      pendingMissingFields: [],
+      optionsByField: {},
+      localMessage: "",
+      ignoredFields: [],
+    }));
+    setPendingCloseBlock(false);
+  }, [updateSession]);
+
+  const setLastArtifactHint = useCallback((hint: ConsoleArtifactHint | null) => {
+    setLastArtifactHintState(hint);
   }, []);
 
   const badgeActive = useMemo(() => {
@@ -468,6 +537,9 @@ export function XynConsoleProvider({ children }: { children: ReactNode }) {
       focusMissingField,
       registerEditorBridge,
       unregisterEditorBridge,
+      clearSessionResolution,
+      lastArtifactHint,
+      setLastArtifactHint,
     }),
     [
       open,
@@ -494,6 +566,9 @@ export function XynConsoleProvider({ children }: { children: ReactNode }) {
       focusMissingField,
       registerEditorBridge,
       unregisterEditorBridge,
+      clearSessionResolution,
+      lastArtifactHint,
+      setLastArtifactHint,
     ]
   );
 

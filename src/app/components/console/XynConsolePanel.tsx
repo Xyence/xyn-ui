@@ -1,8 +1,10 @@
-import { useEffect, useMemo, useRef } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { AlertTriangle, CheckCircle2, CircleHelp, Wrench } from "lucide-react";
-import type { XynIntentResolutionResult } from "../../../api/types";
+import { getRecentArtifacts } from "../../../api/xyn";
+import type { RecentArtifactItem, XynIntentResolutionResult } from "../../../api/types";
 import { useXynConsole } from "../../state/xynConsoleStore";
+import RecentArtifactsMiniTable from "./RecentArtifactsMiniTable";
 
 function stringifyValue(value: unknown): string {
   if (value == null) return "";
@@ -169,6 +171,7 @@ function ResolutionCard({ resolution }: { resolution: XynIntentResolutionResult 
 }
 
 export default function XynConsolePanel() {
+  const navigate = useNavigate();
   const {
     open,
     setOpen,
@@ -180,9 +183,17 @@ export default function XynConsolePanel() {
     session,
     submitResolve,
     pendingCloseBlock,
+    clearSessionResolution,
+    lastArtifactHint,
+    setLastArtifactHint,
+    injectSuggestion,
   } = useXynConsole();
   const panelRef = useRef<HTMLElement | null>(null);
   const inputRef = useRef<HTMLTextAreaElement | null>(null);
+  const [recentItems, setRecentItems] = useState<RecentArtifactItem[]>([]);
+  const [recentLoading, setRecentLoading] = useState(false);
+  const [recentFetchedAt, setRecentFetchedAt] = useState(0);
+  const isGlobalContext = !context.artifact_id;
 
   useEffect(() => {
     if (!open) return;
@@ -208,6 +219,46 @@ export default function XynConsolePanel() {
     return "Validating required fields...";
   }, [processingStep]);
 
+  const shouldShowRecent =
+    open &&
+    isGlobalContext &&
+    !processing &&
+    !session.pendingProposal &&
+    !session.lastResolution &&
+    !inputText.trim();
+
+  useEffect(() => {
+    if (!shouldShowRecent) return;
+    const now = Date.now();
+    if (recentItems.length && now - recentFetchedAt < 60_000) return;
+    let active = true;
+    (async () => {
+      try {
+        setRecentLoading(true);
+        const payload = await getRecentArtifacts(6);
+        if (!active) return;
+        setRecentItems(payload.items || []);
+        setRecentFetchedAt(Date.now());
+        if ((payload.items || []).length && !lastArtifactHint) {
+          const first = payload.items[0];
+          setLastArtifactHint({
+            artifact_id: first.artifact_id,
+            artifact_type: first.artifact_type,
+            artifact_state: first.artifact_state || null,
+            title: first.title,
+            route: first.route,
+            updated_at: first.updated_at,
+          });
+        }
+      } finally {
+        if (active) setRecentLoading(false);
+      }
+    })();
+    return () => {
+      active = false;
+    };
+  }, [isGlobalContext, lastArtifactHint, recentFetchedAt, recentItems.length, setLastArtifactHint, shouldShowRecent]);
+
   if (!open) return null;
 
   return (
@@ -218,6 +269,11 @@ export default function XynConsolePanel() {
           <p className="muted small">
             Context: {context.artifact_type || "none"} / {context.artifact_id || "none"}
           </p>
+          {isGlobalContext && lastArtifactHint ? (
+            <p className="muted small">
+              Working on: {lastArtifactHint.title || lastArtifactHint.artifact_type} {lastArtifactHint.artifact_state ? `• ${lastArtifactHint.artifact_state}` : ""}
+            </p>
+          ) : null}
         </div>
         <button type="button" className="ghost sm" onClick={() => setOpen(false)} disabled={Boolean(session.pendingProposal)}>
           Close
@@ -237,10 +293,55 @@ export default function XynConsolePanel() {
       </div>
       {processing ? <div className="xyn-console-processing muted small">{statusLine}</div> : null}
       {pendingCloseBlock ? <div className="xyn-console-warning">You have a pending proposal. Apply or cancel.</div> : null}
-      {session.lastResolution ? <ResolutionCard resolution={session.lastResolution} /> : null}
+      {session.lastResolution ? (
+        <>
+          <ResolutionCard resolution={session.lastResolution} />
+          {isGlobalContext ? (
+            <div className="inline-actions">
+              <button
+                type="button"
+                className="ghost sm"
+                onClick={() => {
+                  clearSessionResolution();
+                  setInputText("");
+                }}
+              >
+                Clear
+              </button>
+            </div>
+          ) : null}
+        </>
+      ) : null}
       <ProposedPatchCard />
       <MissingFieldsCard />
       <OptionsCard />
+      {shouldShowRecent ? (
+        <RecentArtifactsMiniTable
+          items={recentItems}
+          loading={recentLoading}
+          onRefresh={() => {
+            setRecentFetchedAt(0);
+            setRecentItems([]);
+          }}
+          onOpen={(item) => {
+            setLastArtifactHint({
+              artifact_id: item.artifact_id,
+              artifact_type: item.artifact_type,
+              artifact_state: item.artifact_state || null,
+              title: item.title,
+              route: item.route,
+              updated_at: item.updated_at,
+            });
+            navigate(item.route);
+            setOpen(false);
+          }}
+          onShowMore={() => {
+            navigate("/app/artifacts/all");
+            setOpen(false);
+          }}
+          onInsertSuggestion={injectSuggestion}
+        />
+      ) : null}
       <footer className="xyn-console-footer muted small">
         <span>Esc to collapse (unless proposal pending)</span>
         <span>⌘K / Ctrl+K</span>

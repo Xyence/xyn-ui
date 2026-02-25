@@ -2150,3 +2150,16 @@ export type XynIntentOptionsResponse = {
   field: "category" | "format" | "duration";
   options: unknown[];
 };
+
+export type RecentArtifactItem = {
+  artifact_id: string;
+  artifact_type: string;
+  artifact_state?: string | null;
+  title: string;
+  updated_at?: string;
+  route: string;
+};
+
+export type RecentArtifactListResponse = {
+  items: RecentArtifactItem[];
+};
