@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
-import { Link } from "react-router-dom";
+import { Link, useNavigate, useParams } from "react-router-dom";
 import InlineMessage from "../../components/InlineMessage";
 import {
   archiveBlueprint,
@@ -40,6 +40,8 @@ const emptyForm: BlueprintCreatePayload = {
 };
 
 export default function BlueprintsPage() {
+  const navigate = useNavigate();
+  const { blueprintId } = useParams();
   const [items, setItems] = useState<BlueprintSummary[]>([]);
   const [selectedId, setSelectedId] = useState<string | null>(null);
   const [selected, setSelected] = useState<BlueprintDetail | null>(null);
@@ -220,17 +222,30 @@ export default function BlueprintsPage() {
       setError(null);
       const data = await listBlueprints();
       setItems(data.blueprints);
+      if (blueprintId) {
+        const explicit = data.blueprints.find((item) => item.id === blueprintId);
+        if (explicit) {
+          setSelectedId(explicit.id);
+          return;
+        }
+      }
       if (!selectedId && data.blueprints[0]) {
         setSelectedId(data.blueprints[0].id);
       }
     } catch (err) {
       setError((err as Error).message);
     }
-  }, [selectedId]);
+  }, [blueprintId, selectedId]);
 
   useEffect(() => {
     load();
   }, [load]);
+
+  useEffect(() => {
+    if (!blueprintId) return;
+    if (selectedId === blueprintId) return;
+    setSelectedId(blueprintId);
+  }, [blueprintId, selectedId]);
 
   useEffect(() => {
     if (!selectedId) {
@@ -624,11 +639,15 @@ export default function BlueprintsPage() {
                   className={`instance-row ${selectedId === item.id ? "active" : ""}`}
                   role="button"
                   tabIndex={0}
-                  onClick={() => setSelectedId(item.id)}
+                  onClick={() => {
+                    setSelectedId(item.id);
+                    navigate(`/app/blueprints/${item.id}`);
+                  }}
                   onKeyDown={(event) => {
                     if (event.key === "Enter" || event.key === " ") {
                       event.preventDefault();
                       setSelectedId(item.id);
+                      navigate(`/app/blueprints/${item.id}`);
                     }
                   }}
                 >
@@ -698,6 +717,14 @@ export default function BlueprintsPage() {
           {selected && (
             <div className="card-subsection">
               <h4>Lifecycle</h4>
+              {selected.derived_from_artifact_id && (
+                <p className="muted small">
+                  Derived from{" "}
+                  <Link to={`/app/artifacts/${selected.derived_from_artifact_id}`}>
+                    {selected.derived_from_artifact_id}
+                  </Link>
+                </p>
+              )}
               <p className="muted small">
                 Status: <strong>{selected.status ?? "active"}</strong>
                 {selected.deprovision_last_run_id ? ` • Last deprovision run ${selected.deprovision_last_run_id}` : ""}

@@ -411,6 +411,35 @@ export async function createBlueprintArtifact(payload: {
   return handle<{ artifact_id: string; blueprint_id: string }>(response);
 }
 
+export async function canonizeDraftArtifactToBlueprint(
+  artifactId: string,
+  payload: {
+    title?: string;
+    name?: string;
+    namespace?: string;
+    description?: string;
+  } = {}
+): Promise<{
+  blueprint_id: string;
+  blueprint_artifact_id: string;
+  parent_artifact_id: string;
+  lineage_root_id?: string | null;
+}> {
+  const apiBaseUrl = resolveApiBaseUrl();
+  const response = await apiFetch(`${apiBaseUrl}/xyn/api/artifacts/${artifactId}/canonize-to-blueprint`, {
+    method: "POST",
+    headers: buildHeaders(),
+    credentials: "include",
+    body: JSON.stringify(payload),
+  });
+  return handle<{
+    blueprint_id: string;
+    blueprint_artifact_id: string;
+    parent_artifact_id: string;
+    lineage_root_id?: string | null;
+  }>(response);
+}
+
 export async function updateWorkspaceArtifact(
   workspaceId: string,
   artifactId: string,
@@ -1815,6 +1844,7 @@ function mapArtifactToBlueprintSummary(artifact: UnifiedArtifact): BlueprintSumm
   const source = (artifact.source || {}) as Record<string, unknown>;
   return {
     id: String(source.id || artifact.source_ref_id || artifact.id),
+    artifact_id: artifact.artifact_id,
     name: String(source.name || artifact.title || "Untitled blueprint"),
     namespace: String(source.namespace || "core"),
     status: (source.status as BlueprintSummary["status"]) || "active",
@@ -1828,6 +1858,7 @@ function mapArtifactToDraftSessionSummary(artifact: UnifiedArtifact): BlueprintD
   const source = (artifact.source || {}) as Record<string, unknown>;
   return {
     id: String(source.id || artifact.source_ref_id || artifact.id),
+    artifact_id: artifact.artifact_id,
     name: String(source.name || artifact.title || "Untitled draft"),
     title: String(source.title || artifact.title || "Untitled draft"),
     kind: (source.kind as BlueprintDraftSession["kind"]) || "blueprint",

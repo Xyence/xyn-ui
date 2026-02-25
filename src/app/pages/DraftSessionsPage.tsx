@@ -2,7 +2,8 @@ import { type ChangeEvent, useCallback, useEffect, useMemo, useRef, useState } f
 import { Link, useLocation, useNavigate, useParams, useSearchParams } from "react-router-dom";
 import InlineMessage from "../../components/InlineMessage";
 import {
-  createDraftSession,
+  canonizeDraftArtifactToBlueprint,
+  createDraftSessionArtifact,
   deleteDraftSession,
   enqueueDraftGeneration,
   enqueueDraftRevision,
@@ -101,6 +102,7 @@ export default function DraftSessionsPage() {
 
   const [loading, setLoading] = useState(false);
   const [creatingSession, setCreatingSession] = useState(false);
+  const [canonizing, setCanonizing] = useState(false);
   const [uploading, setUploading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const { push } = useNotifications();
@@ -454,37 +456,80 @@ export default function DraftSessionsPage() {
     try {
       setCreatingSession(true);
       setError(null);
-      const created = await createDraftSession({
+      const created = await createDraftSessionArtifact({
         title: newSessionTitle.trim() || NEW_DRAFT_DEFAULT_TITLE,
         kind: newSessionKind,
         namespace: newSessionNamespace.trim() || undefined,
         project_key: newSessionProjectKey.trim() || undefined,
-        generate_code: newSessionGenerateCode,
         initial_prompt: newSessionPrompt.trim(),
         selected_context_pack_ids:
           selectedCreateContextPackIds.length > 0 ? selectedCreateContextPackIds : undefined,
-        source_artifacts: newSessionTranscript.trim()
-          ? [{ type: "audio_transcript", content: newSessionTranscript.trim() }]
-          : undefined,
       });
+      const sessionId = created.session_id;
+      if (newSessionTranscript.trim()) {
+        await updateDraftSession(sessionId, {
+          source_artifacts: [{ type: "audio_transcript", content: newSessionTranscript.trim() }],
+        });
+      }
       await refreshSessions();
-      setSelectedSessionId(created.session_id);
+      setSelectedSessionId(sessionId);
+      navigate(`/app/drafts/${sessionId}`);
       setShowCreateModal(false);
       push({
         level: "success",
         title: "Draft session created",
-        message: created.session_id,
+        message: sessionId,
         entityType: "draft_session",
-        entityId: created.session_id,
+        entityId: sessionId,
         status: "succeeded",
         action: "draft.create",
-        href: `/app/drafts/${created.session_id}`,
-        dedupeKey: `draft.create:${created.session_id}`,
+        href: `/app/drafts/${sessionId}`,
+        dedupeKey: `draft.create:${sessionId}`,
       });
     } catch (err) {
       setError((err as Error).message);
     } finally {
       setCreatingSession(false);
+    }
+  };
+
+  const handleCanonizeToBlueprint = async () => {
+    if (!selectedSession?.artifact_id) {
+      setError("Draft artifact is missing. Save/reload the draft and try again.");
+      return;
+    }
+    try {
+      setCanonizing(true);
+      setError(null);
+      const result = await canonizeDraftArtifactToBlueprint(selectedSession.artifact_id, {
+        title: selectedSession.title || selectedSession.id,
+        namespace: selectedSession.namespace || undefined,
+        description: selectedSession.requirements_summary || undefined,
+      });
+      notifySucceeded(push, {
+        action: "draft.canonize",
+        entityType: "draft_session",
+        entityId: selectedSession.id,
+        title: "Canonized as Blueprint",
+        message: result.blueprint_id,
+        href: `/app/blueprints/${result.blueprint_id}`,
+        dedupeKey: `draft.canonize:${selectedSession.id}`,
+      });
+      navigate(`/app/blueprints/${result.blueprint_id}`);
+    } catch (err) {
+      const message = (err as Error).message;
+      setError(message);
+      notifyFailed(push, {
+        action: "draft.canonize",
+        entityType: "draft_session",
+        entityId: selectedSession.id,
+        title: "Canonization failed",
+        message,
+        href: `/app/drafts/${selectedSession.id}`,
+        dedupeKey: `draft.canonize:${selectedSession.id}`,
+      });
+    } finally {
+      setCanonizing(false);
     }
   };
 
@@ -906,6 +951,11 @@ export default function DraftSessionsPage() {
           <p className="muted">Create and iterate blueprint/solution drafts independently from blueprint browsing.</p>
         </div>
         <div className="inline-actions">
+          {selectedSession?.artifact_id && (
+            <button className="primary" onClick={handleCanonizeToBlueprint} disabled={loading || canonizing}>
+              {canonizing ? "Canonizing..." : "Canonize → Create Blueprint"}
+            </button>
+          )}
           <button className="ghost" onClick={() => refreshSessions()} disabled={loading}>
             Refresh
           </button>
@@ -1222,7 +1272,7 @@ export default function DraftSessionsPage() {
                     Generate draft
                   </button>
                   <button
-                    className="primary"
+                    className="ghost"
                     data-tour="draft-promote"
                     data-testid="draft-promote"
                     onClick={openSubmitModal}

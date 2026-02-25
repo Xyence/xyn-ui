@@ -82,6 +82,7 @@ export type PaginatedResponse<T, K extends string> = {
 
 export type BlueprintSummary = {
   id: string;
+  artifact_id?: string | null;
   name: string;
   namespace: string;
   status?: "active" | "archived" | "deprovisioning" | "deprovisioned";
@@ -99,6 +100,7 @@ export type BlueprintSummary = {
 
 export type BlueprintDetail = BlueprintSummary & {
   spec_json?: Record<string, unknown> | null;
+  derived_from_artifact_id?: string | null;
 };
 
 export type BlueprintDeprovisionStep = {
@@ -189,6 +191,7 @@ export type BlueprintCreatePayload = {
 
 export type BlueprintDraftSession = {
   id: string;
+  artifact_id?: string | null;
   name: string;
   title?: string;
   kind?: "blueprint" | "solution";
@@ -204,6 +207,7 @@ export type BlueprintDraftSession = {
 
 export type BlueprintDraftSessionDetail = {
   id: string;
+  artifact_id?: string | null;
   title?: string;
   kind?: "blueprint" | "solution";
   blueprint_kind: string;
