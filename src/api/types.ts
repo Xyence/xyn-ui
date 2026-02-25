@@ -83,6 +83,9 @@ export type PaginatedResponse<T, K extends string> = {
 export type BlueprintSummary = {
   id: string;
   artifact_id?: string | null;
+  artifact_state?: UnifiedArtifactState | string | null;
+  family_id?: string;
+  parent_artifact_id?: string | null;
   name: string;
   namespace: string;
   status?: "active" | "archived" | "deprovisioning" | "deprovisioned";
@@ -966,6 +969,7 @@ export type UnifiedArtifact = {
   } | null;
   source_ref_type?: string;
   source_ref_id?: string;
+  family_id?: string;
   parent_artifact_id?: string | null;
   lineage_root_id?: string | null;
   tags?: string[];

@@ -1602,7 +1602,17 @@ export async function getActionReceipts(actionId: string): Promise<{ receipts: E
 
 export async function listBlueprints(query = ""): Promise<BlueprintListResponse> {
   const payload = await listUnifiedArtifacts({ type: "blueprint", query, limit: 200, offset: 0 });
-  const blueprints = payload.artifacts.map((artifact) => mapArtifactToBlueprintSummary(artifact));
+  const order: Record<string, number> = { canonical: 0, provisional: 1, deprecated: 2 };
+  const blueprints = payload.artifacts
+    .map((artifact) => mapArtifactToBlueprintSummary(artifact))
+    .sort((a, b) => {
+      const rankA = order[String(a.artifact_state || "").toLowerCase()] ?? 99;
+      const rankB = order[String(b.artifact_state || "").toLowerCase()] ?? 99;
+      if (rankA !== rankB) return rankA - rankB;
+      const aUpdated = Date.parse(String(a.updated_at || "")) || 0;
+      const bUpdated = Date.parse(String(b.updated_at || "")) || 0;
+      return bUpdated - aUpdated;
+    });
   return {
     blueprints,
     count: blueprints.length,
@@ -1617,6 +1627,48 @@ export async function getBlueprint(id: string): Promise<BlueprintDetail> {
     credentials: "include",
   });
   return handle<BlueprintDetail>(response);
+}
+
+export async function reviseBlueprintArtifact(
+  artifactId: string
+): Promise<{ artifact_id: string; blueprint_id: string; family_id: string; parent_artifact_id: string }> {
+  const apiBaseUrl = resolveApiBaseUrl();
+  const response = await apiFetch(`${apiBaseUrl}/xyn/api/blueprints/${artifactId}/revise`, {
+    method: "POST",
+    headers: buildHeaders(),
+    credentials: "include",
+    body: JSON.stringify({}),
+  });
+  return handle<{ artifact_id: string; blueprint_id: string; family_id: string; parent_artifact_id: string }>(response);
+}
+
+export async function publishBlueprintArtifact(
+  artifactId: string
+): Promise<{ artifact_id: string; artifact_state: string; family_id: string; superseded_artifact_id?: string | null }> {
+  const apiBaseUrl = resolveApiBaseUrl();
+  const response = await apiFetch(`${apiBaseUrl}/xyn/api/blueprints/${artifactId}/publish`, {
+    method: "POST",
+    headers: buildHeaders(),
+    credentials: "include",
+    body: JSON.stringify({}),
+  });
+  return handle<{ artifact_id: string; artifact_state: string; family_id: string; superseded_artifact_id?: string | null }>(
+    response
+  );
+}
+
+export async function updateArtifactRecord(
+  artifactId: string,
+  payload: Record<string, unknown>
+): Promise<UnifiedArtifact> {
+  const apiBaseUrl = resolveApiBaseUrl();
+  const response = await apiFetch(`${apiBaseUrl}/xyn/api/artifacts/${artifactId}`, {
+    method: "PATCH",
+    headers: buildHeaders(),
+    credentials: "include",
+    body: JSON.stringify(payload),
+  });
+  return handle<UnifiedArtifact>(response);
 }
 
 export async function createBlueprint(payload: BlueprintCreatePayload): Promise<{ id: string }> {
@@ -1845,7 +1897,10 @@ function mapArtifactToBlueprintSummary(artifact: UnifiedArtifact): BlueprintSumm
   return {
     id: String(source.id || artifact.source_ref_id || artifact.id),
     artifact_id: artifact.artifact_id,
-    name: String(source.name || artifact.title || "Untitled blueprint"),
+    artifact_state: artifact.artifact_state,
+    family_id: artifact.family_id || "",
+    parent_artifact_id: artifact.parent_artifact_id ?? null,
+    name: String(artifact.title || source.name || "Untitled blueprint"),
     namespace: String(source.namespace || "core"),
     status: (source.status as BlueprintSummary["status"]) || "active",
     description: String(source.description || artifact.summary || ""),

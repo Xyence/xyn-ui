@@ -7,12 +7,15 @@ import {
   deprovisionBlueprint,
   getBlueprint,
   getBlueprintDeprovisionPlan,
+  publishBlueprintArtifact,
   getRun,
   listBlueprintDevTasks,
   listBlueprints,
+  reviseBlueprintArtifact,
   runDevTask,
   submitBlueprint,
   submitBlueprintWithDevTasks,
+  updateArtifactRecord,
   updateBlueprint,
   listReleaseTargets,
   createReleaseTarget,
@@ -385,6 +388,86 @@ export default function BlueprintsPage() {
     }
   };
 
+  const handleRevise = async () => {
+    if (!selected?.artifact_id) return;
+    try {
+      setLoading(true);
+      setError(null);
+      const result = await reviseBlueprintArtifact(selected.artifact_id);
+      await load();
+      setSelectedId(result.blueprint_id);
+      navigate(`/app/blueprints/${result.blueprint_id}`);
+      notifySucceeded(push, {
+        action: "blueprint.revise",
+        entityType: "blueprint",
+        entityId: result.blueprint_id,
+        title: "Provisional revision created",
+        dedupeKey: `blueprint.revise:${selected.artifact_id}`,
+      });
+    } catch (err) {
+      setError((err as Error).message);
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const handlePublishVersion = async () => {
+    if (!selected?.artifact_id) return;
+    if (!confirm("Publish this provisional blueprint version?")) return;
+    try {
+      setLoading(true);
+      setError(null);
+      await publishBlueprintArtifact(selected.artifact_id);
+      await load();
+      if (selectedId) {
+        const detail = await getBlueprint(selectedId);
+        setSelected(detail);
+      }
+      notifySucceeded(push, {
+        action: "blueprint.publish_version",
+        entityType: "blueprint",
+        entityId: selectedId ?? undefined,
+        title: "Blueprint version published",
+        dedupeKey: `blueprint.publish_version:${selected.artifact_id}`,
+      });
+    } catch (err) {
+      setError((err as Error).message);
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const handleDiscardProvisional = async () => {
+    if (!selected?.artifact_id) return;
+    if (!confirm("Discard this provisional revision?")) return;
+    try {
+      setLoading(true);
+      setError(null);
+      await updateArtifactRecord(selected.artifact_id, {
+        artifact_state: "deprecated",
+        reason: "discarded_provisional_revision",
+      });
+      const data = await listBlueprints();
+      setItems(data.blueprints);
+      const next = data.blueprints.find((item) => item.family_id === selected.family_id && item.artifact_state === "canonical");
+      if (next) {
+        setSelectedId(next.id);
+        navigate(`/app/blueprints/${next.id}`);
+      }
+      notifySucceeded(push, {
+        action: "blueprint.discard_revision",
+        entityType: "blueprint",
+        entityId: selectedId ?? undefined,
+        title: "Provisional revision discarded",
+        dedupeKey: `blueprint.discard_revision:${selected.artifact_id}`,
+      });
+    } catch (err) {
+      setError((err as Error).message);
+    } finally {
+      setLoading(false);
+    }
+  };
+
   const handleUpdate = async () => {
     if (!selectedId) return;
     try {
@@ -655,6 +738,11 @@ export default function BlueprintsPage() {
                     <strong>{item.name}</strong>
                     <span className="muted small">{item.namespace}</span>
                     <span className="muted small">Rev {item.latest_revision ?? "—"}</span>
+                    {item.artifact_state && (
+                      <span className={`status-pill ${item.artifact_state === "provisional" ? "status-warn" : item.artifact_state === "canonical" ? "status-good" : ""}`}>
+                        {item.artifact_state}
+                      </span>
+                    )}
                     {item.status && <span className="muted small">Status {item.status}</span>}
                   </div>
                   <div className="inline-actions">
@@ -729,6 +817,14 @@ export default function BlueprintsPage() {
                 Status: <strong>{selected.status ?? "active"}</strong>
                 {selected.deprovision_last_run_id ? ` • Last deprovision run ${selected.deprovision_last_run_id}` : ""}
               </p>
+              {selected.artifact_state && (
+                <p className="muted small">
+                  Version state:{" "}
+                  <span className={`status-pill ${selected.artifact_state === "provisional" ? "status-warn" : selected.artifact_state === "canonical" ? "status-good" : ""}`}>
+                    {selected.artifact_state}
+                  </span>
+                </p>
+              )}
               <p className="muted small">
                 Archive hides and disables deploys. Deprovision stops runtime resources through auditable run steps.
               </p>
@@ -811,6 +907,21 @@ export default function BlueprintsPage() {
             </button>
             {selected && (
               <>
+                {selected.artifact_state === "canonical" && (
+                  <button className="ghost" onClick={handleRevise} disabled={loading || !selected.artifact_id}>
+                    Revise
+                  </button>
+                )}
+                {selected.artifact_state === "provisional" && (
+                  <>
+                    <button className="primary" onClick={handlePublishVersion} disabled={loading || !selected.artifact_id}>
+                      Publish
+                    </button>
+                    <button className="ghost" onClick={handleDiscardProvisional} disabled={loading || !selected.artifact_id}>
+                      Discard
+                    </button>
+                  </>
+                )}
                 <button className="ghost" onClick={handleSubmit} disabled={loading}>
                   Submit
                 </button>
