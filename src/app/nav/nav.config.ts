@@ -65,6 +65,7 @@ export const NAV_GROUPS: NavGroup[] = [
     icon: "BookOpen",
     items: [
       { id: "artifacts-articles", label: "Articles", path: "/app/artifacts/articles", icon: "BookOpen", keywords: ["article", "editor"] },
+      { id: "artifacts-workflows", label: "Workflows", path: "/app/artifacts/workflows", icon: "Route", keywords: ["workflow", "tour"] },
       { id: "artifacts-all", label: "All Artifacts", path: "/app/artifacts/all", icon: "Layers", keywords: ["registry", "types"] },
     ],
   },

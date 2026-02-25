@@ -31,6 +31,7 @@ import PlatformSettingsPage from "./pages/PlatformSettingsPage";
 import SeedPacksPage from "./pages/SeedPacksPage";
 import WorkspaceHomePage from "./pages/WorkspaceHomePage";
 import ArtifactsArticlesPage from "./pages/ArtifactsArticlesPage";
+import ArtifactsWorkflowsPage from "./pages/ArtifactsWorkflowsPage";
 import ArtifactsRegistryPage from "./pages/ArtifactsRegistryPage";
 import ArtifactDetailPage from "./pages/ArtifactDetailPage";
 import PeopleRolesPage from "./pages/PeopleRolesPage";
@@ -398,6 +399,10 @@ export default function AppShell() {
               path="artifacts/articles"
               element={<ArtifactsArticlesPage workspaceId={activeWorkspace?.id || ""} canCreate={isPlatformManager && !isPreviewReadOnly} />}
             />
+            <Route
+              path="artifacts/workflows"
+              element={<ArtifactsWorkflowsPage workspaceId={activeWorkspace?.id || ""} canCreate={isPlatformManager && !isPreviewReadOnly} />}
+            />
             <Route path="artifacts/all" element={<ArtifactsRegistryPage workspaceId={activeWorkspace?.id || ""} />} />
             <Route
               path="artifacts/:artifactId"
@@ -479,6 +484,7 @@ export default function AppShell() {
         currentPath={location.pathname}
         navigateTo={(path) => navigate(path)}
         onClose={() => setTourSlug(null)}
+        canRecord={isPlatformManager}
       />
       <ReportOverlay
         open={reportOpen}

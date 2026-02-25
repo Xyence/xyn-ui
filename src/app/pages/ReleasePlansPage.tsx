@@ -506,6 +506,7 @@ export default function ReleasePlansPage() {
             <button
               className="primary"
               data-tour="release-plan-create"
+              data-testid="release-plan-create"
               onClick={selected ? handleUpdate : handleCreate}
               disabled={loading || isDraftSelected || !form.environment_id}
             >
@@ -514,6 +515,7 @@ export default function ReleasePlansPage() {
             <button
               className="ghost"
               data-tour="release-plan-deploy"
+              data-testid="release-plan-deploy"
               onClick={handleDeploy}
               disabled={loading || !selected || !targetInstanceId || isDraftSelected || !isBuildReady}
             >
@@ -614,7 +616,7 @@ export default function ReleasePlansPage() {
             )}
           </div>
           {selected?.last_run && (
-            <div className="stack" data-tour="run-artifacts">
+            <div className="stack" data-tour="run-artifacts" data-testid="run-artifacts">
               <strong>Run artifacts</strong>
               {runArtifacts.length === 0 ? (
                 <span className="muted">No artifacts yet.</span>

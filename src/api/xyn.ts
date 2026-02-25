@@ -97,6 +97,13 @@ import type {
   WorkspaceMembershipSummary,
   DocPage,
   TourDefinition,
+  WorkflowActionCatalogResponse,
+  WorkflowActionExecuteResponse,
+  WorkflowCreatePayload,
+  WorkflowDetailResponse,
+  WorkflowListResponse,
+  WorkflowRun,
+  WorkflowSpec,
   AiPurpose,
   AiProvider,
   AiCredential,
@@ -916,6 +923,131 @@ export async function getTour(tourSlug: string): Promise<TourDefinition> {
   const apiBaseUrl = resolveApiBaseUrl();
   const response = await apiFetch(`${apiBaseUrl}/xyn/api/tours/${encodeURIComponent(tourSlug)}`, { credentials: "include" });
   return handle<TourDefinition>(response);
+}
+
+export async function listWorkflows(params: {
+  workspace_id?: string;
+  profile?: string;
+  category?: string;
+  status?: string;
+  include_unpublished?: boolean;
+  q?: string;
+} = {}): Promise<WorkflowListResponse> {
+  const apiBaseUrl = resolveApiBaseUrl();
+  const url = new URL(`${apiBaseUrl}/xyn/api/workflows`);
+  if (params.workspace_id) url.searchParams.set("workspace_id", params.workspace_id);
+  if (params.profile) url.searchParams.set("profile", params.profile);
+  if (params.category) url.searchParams.set("category", params.category);
+  if (params.status) url.searchParams.set("status", params.status);
+  if (params.include_unpublished !== undefined) url.searchParams.set("include_unpublished", params.include_unpublished ? "1" : "0");
+  if (params.q) url.searchParams.set("q", params.q);
+  const response = await apiFetch(url.toString(), { credentials: "include" });
+  return handle<WorkflowListResponse>(response);
+}
+
+export async function createWorkflow(payload: WorkflowCreatePayload): Promise<WorkflowDetailResponse> {
+  const apiBaseUrl = resolveApiBaseUrl();
+  const response = await apiFetch(`${apiBaseUrl}/xyn/api/workflows`, {
+    method: "POST",
+    credentials: "include",
+    headers: buildHeaders(),
+    body: JSON.stringify(payload),
+  });
+  return handle<WorkflowDetailResponse>(response);
+}
+
+export async function getWorkflow(id: string): Promise<WorkflowDetailResponse> {
+  const apiBaseUrl = resolveApiBaseUrl();
+  const response = await apiFetch(`${apiBaseUrl}/xyn/api/workflows/${encodeURIComponent(id)}`, { credentials: "include" });
+  return handle<WorkflowDetailResponse>(response);
+}
+
+export async function updateWorkflowSpec(
+  id: string,
+  payload: Partial<WorkflowCreatePayload> & { workflow_spec_json: WorkflowSpec }
+): Promise<WorkflowDetailResponse> {
+  const apiBaseUrl = resolveApiBaseUrl();
+  const response = await apiFetch(`${apiBaseUrl}/xyn/api/workflows/${encodeURIComponent(id)}/spec`, {
+    method: "PUT",
+    credentials: "include",
+    headers: buildHeaders(),
+    body: JSON.stringify(payload),
+  });
+  return handle<WorkflowDetailResponse>(response);
+}
+
+export async function transitionWorkflow(id: string, to_status: string): Promise<WorkflowDetailResponse> {
+  const apiBaseUrl = resolveApiBaseUrl();
+  const response = await apiFetch(`${apiBaseUrl}/xyn/api/workflows/${encodeURIComponent(id)}/transition`, {
+    method: "POST",
+    credentials: "include",
+    headers: buildHeaders(),
+    body: JSON.stringify({ to_status }),
+  });
+  return handle<WorkflowDetailResponse>(response);
+}
+
+export async function listWorkflowActions(): Promise<WorkflowActionCatalogResponse> {
+  const apiBaseUrl = resolveApiBaseUrl();
+  const response = await apiFetch(`${apiBaseUrl}/xyn/api/workflows/actions`, { credentials: "include" });
+  return handle<WorkflowActionCatalogResponse>(response);
+}
+
+export async function executeWorkflowAction(payload: {
+  action_id: string;
+  params?: Record<string, unknown>;
+  idempotency_key?: string;
+  dry_run?: boolean;
+}): Promise<WorkflowActionExecuteResponse> {
+  const apiBaseUrl = resolveApiBaseUrl();
+  const response = await apiFetch(`${apiBaseUrl}/xyn/api/workflows/actions/execute`, {
+    method: "POST",
+    credentials: "include",
+    headers: buildHeaders(),
+    body: JSON.stringify(payload),
+  });
+  return handle<WorkflowActionExecuteResponse>(response);
+}
+
+export async function startWorkflowRun(id: string): Promise<{ run: WorkflowRun }> {
+  const apiBaseUrl = resolveApiBaseUrl();
+  const response = await apiFetch(`${apiBaseUrl}/xyn/api/workflows/${encodeURIComponent(id)}/run/start`, {
+    method: "POST",
+    credentials: "include",
+    headers: buildHeaders(),
+    body: JSON.stringify({ started_from: "ui" }),
+  });
+  return handle<{ run: WorkflowRun }>(response);
+}
+
+export async function logWorkflowRunEvent(
+  id: string,
+  runId: string,
+  payload: { step_id?: string; type: string; payload_json?: Record<string, unknown> }
+): Promise<{ event_id: string }> {
+  const apiBaseUrl = resolveApiBaseUrl();
+  const response = await apiFetch(`${apiBaseUrl}/xyn/api/workflows/${encodeURIComponent(id)}/run/${encodeURIComponent(runId)}/event`, {
+    method: "POST",
+    credentials: "include",
+    headers: buildHeaders(),
+    body: JSON.stringify(payload),
+  });
+  return handle<{ event_id: string }>(response);
+}
+
+export async function completeWorkflowRun(
+  id: string,
+  runId: string,
+  status: "completed" | "failed" | "aborted"
+): Promise<{ run: WorkflowRun }> {
+  const apiBaseUrl = resolveApiBaseUrl();
+  const response = await apiFetch(`${apiBaseUrl}/xyn/api/workflows/${encodeURIComponent(id)}/run/${encodeURIComponent(runId)}/complete`, {
+    method: "POST",
+    credentials: "include",
+    headers: buildHeaders(),
+    body: JSON.stringify({ status }),
+  });
+  return handle<{ run: WorkflowRun }>(response);
 }
 
 export async function listAiPurposes(): Promise<{ purposes: AiPurpose[] }> {

@@ -1182,91 +1182,146 @@ export type DocPage = {
   updated_by_email?: string | null;
 };
 
-export type TourStepV1 = {
+export type WorkflowProfile = "tour";
+
+export type WorkflowSummary = {
   id: string;
-  route: string;
-  selector?: string;
-  text: string;
+  workspace_id: string;
+  type: "workflow";
+  format: "workflow";
+  profile: WorkflowProfile;
+  title: string;
+  slug: string;
+  description?: string;
+  status: "draft" | "reviewed" | "ratified" | "published" | "deprecated";
+  version: number;
+  visibility_type: "public" | "authenticated" | "role_based" | "private";
+  allowed_roles: string[];
+  category: string;
+  category_name?: string;
+  category_id?: string | null;
+  updated_at?: string;
+  published_at?: string | null;
 };
 
-export type TourDefinitionV1 = {
+export type WorkflowStepCheck = {
+  id: string;
+  kind: "entity_exists" | "field_nonempty" | "route_is" | "custom";
+  params?: Record<string, unknown>;
+};
+
+export type WorkflowStep = {
+  id: string;
+  type: "callout" | "modal" | "check" | "action" | "copy";
+  title: string;
+  body_md: string;
+  route?: string;
+  anchor?: {
+    selector?: string;
+    test_id?: string;
+    anchor_id?: string;
+    placement?: "top" | "right" | "bottom" | "left";
+  };
+  gating?: {
+    requires?: WorkflowStepCheck[];
+  };
+  next?: {
+    on_success?: string;
+    on_failure?: string;
+  };
+  ui?: {
+    highlight?: boolean;
+    block_interaction?: boolean;
+    allow_back?: boolean;
+  };
+  clipboard_text?: string;
+  toast_on_copy?: string;
+  action_id?: string;
+  params?: Record<string, unknown>;
+  idempotency_key_template?: string;
+  success_toast?: string;
+};
+
+export type WorkflowSpec = {
+  profile: WorkflowProfile;
+  schema_version: number;
+  title: string;
+  description?: string;
+  category_slug: string;
+  entry?: { route?: string };
+  settings?: {
+    allow_skip?: boolean;
+    show_progress?: boolean;
+  };
+  steps: WorkflowStep[];
+};
+
+export type WorkflowDetail = WorkflowSummary & {
+  workflow_profile: WorkflowProfile;
+  workflow_spec_json: WorkflowSpec;
+  workflow_state_schema_version?: number | null;
+  created_at?: string;
+  created_by?: string | null;
+};
+
+export type WorkflowListResponse = { workflows: WorkflowSummary[] };
+export type WorkflowDetailResponse = { workflow: WorkflowDetail };
+export type WorkflowCreatePayload = {
+  workspace_id: string;
+  title: string;
+  slug?: string;
+  profile?: WorkflowProfile;
+  category_slug?: string;
+  visibility_type?: "public" | "authenticated" | "role_based" | "private";
+  allowed_roles?: string[];
+  tags?: string[];
+  workflow_spec_json?: WorkflowSpec;
+};
+
+export type WorkflowActionCatalogItem = {
+  action_id: string;
+  name: string;
+  description: string;
+  params_schema_json: Record<string, unknown>;
+  required_permissions: string[];
+  supports_dry_run: boolean;
+  idempotent: boolean;
+};
+
+export type WorkflowActionCatalogResponse = { actions: WorkflowActionCatalogItem[] };
+export type WorkflowActionExecuteResponse = {
+  ok: boolean;
+  dry_run?: boolean;
+  action_id: string;
+  idempotency_key: string;
+  result?: Record<string, unknown>;
+};
+
+export type WorkflowRun = {
+  id: string;
+  workflow_id: string;
+  user_id?: string | null;
+  status: "running" | "completed" | "failed" | "aborted";
+  started_at?: string;
+  completed_at?: string | null;
+  metadata_json?: Record<string, unknown>;
+};
+
+export type TourDefinition = {
+  workflow_id: string;
   slug: string;
   title: string;
   description?: string;
-  steps: TourStepV1[];
+  schema_version: number;
+  profile: "tour";
+  category_slug: string;
+  settings?: {
+    allow_skip?: boolean;
+    show_progress?: boolean;
+  };
+  entry?: { route?: string };
+  steps: WorkflowStep[];
 };
-
-export type TourVariableDefinitionV2 =
-  | {
-      type: "generated";
-      format?: "base32";
-      length?: number;
-    }
-  | {
-      type: "template";
-      value: string;
-    }
-  | {
-      type: "static";
-      value: string;
-    };
-
-export type TourAttachV2 = {
-  selector?: string | null;
-  fallback?: "center";
-  wait_ms?: number;
-};
-
-export type TourActionV2 =
-  | {
-      type: "ui_hint";
-      text: string;
-      label?: string;
-    }
-  | {
-      type: "copy_to_clipboard";
-      label: string;
-      value_template: string;
-    }
-  | {
-      type: "set_context";
-      label: string;
-      key: string;
-      value_template: string;
-    }
-  | {
-      type: "ensure_resource";
-      label: string;
-      resource: string;
-      id_key: string;
-      create_via?: {
-        method: "POST";
-        path: string;
-        body_template?: Record<string, unknown>;
-      };
-      instructions?: string;
-    };
-
-export type TourStepV2 = {
-  id: string;
-  route: string;
-  attach?: TourAttachV2 | null;
-  title: string;
-  body: string;
-  actions?: TourActionV2[];
-  wait_for?: string | null;
-};
-
-export type TourDefinitionV2 = {
-  schema_version: 2;
-  slug: string;
-  title: string;
-  description?: string;
-  variables?: Record<string, TourVariableDefinitionV2>;
-  steps: TourStepV2[];
-};
-
-export type TourDefinition = TourDefinitionV1 | TourDefinitionV2;
 
 export type AiPurpose = {
   slug: string;
