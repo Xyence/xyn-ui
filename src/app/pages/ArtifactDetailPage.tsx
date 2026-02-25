@@ -350,7 +350,8 @@ export default function ArtifactDetailPage({
         await Promise.all([loadVideoAiConfig(), loadVideoAiConfigOptions()]);
         setVideoRenders(renderData.renders || []);
         setVideoContextPacks(packsData || []);
-        setSelectedVideoContextPackId(article.video_context_pack_id || "");
+        const fallbackDefaultPackId = (packsData || []).find((pack) => pack.is_default)?.id || "";
+        setSelectedVideoContextPackId(article.video_context_pack_id || fallbackDefaultPackId || "");
       } else {
         setVideoRenders([]);
         setVideoContextPacks([]);
