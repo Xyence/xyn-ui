@@ -8,6 +8,7 @@ import {
   updateModule,
 } from "../../api/xyn";
 import type { ModuleCreatePayload, ModuleDetail, ModuleSummary } from "../../api/types";
+import ArtifactCredibilityLayer from "../components/artifacts/ArtifactCredibilityLayer";
 
 const emptyForm: ModuleCreatePayload = {
   name: "",
@@ -167,6 +168,13 @@ export default function ModulesPage() {
           <div className="card-header">
             <h3>{selected ? "Module detail" : "Create module"}</h3>
           </div>
+          {selected?.artifact_id && (
+            <ArtifactCredibilityLayer
+              artifactId={selected.artifact_id}
+              titleFallback={selected.name}
+              busy={loading}
+            />
+          )}
           <div className="form-grid">
             <label>
               Name

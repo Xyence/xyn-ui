@@ -79,7 +79,9 @@ import type {
   SecretStoreListResponse,
   SecretRefListResponse,
   UnifiedArtifact,
+  UnifiedArtifactType,
   UnifiedArtifactListResponse,
+  LedgerEventSummary,
   ReportPayload,
   ReportRecord,
   PlatformConfig,
@@ -343,7 +345,7 @@ export async function getWorkspaceArtifact(workspaceId: string, artifactId: stri
 }
 
 export async function listArtifacts(params: {
-  type?: "blueprint" | "draft_session";
+  type?: UnifiedArtifactType;
   state?: "provisional" | "canonical" | "immutable" | "deprecated";
   query?: string;
   owner?: string;
@@ -368,6 +370,27 @@ export async function getArtifact(artifactId: string): Promise<UnifiedArtifact> 
     credentials: "include",
   });
   return handle<UnifiedArtifact>(response);
+}
+
+export async function listArtifactActivity(
+  artifactId: string,
+  params: {
+    limit?: number;
+    offset?: number;
+    action?: string;
+    since?: string;
+    until?: string;
+  } = {}
+): Promise<{ events: LedgerEventSummary[]; count: number; limit: number; offset: number }> {
+  const apiBaseUrl = resolveApiBaseUrl();
+  const url = new URL(`${apiBaseUrl}/xyn/api/artifacts/${artifactId}/activity`);
+  if (typeof params.limit === "number") url.searchParams.set("limit", String(params.limit));
+  if (typeof params.offset === "number") url.searchParams.set("offset", String(params.offset));
+  if (params.action) url.searchParams.set("action", params.action);
+  if (params.since) url.searchParams.set("since", params.since);
+  if (params.until) url.searchParams.set("until", params.until);
+  const response = await apiFetch(url.toString(), { credentials: "include" });
+  return handle<{ events: LedgerEventSummary[]; count: number; limit: number; offset: number }>(response);
 }
 
 export async function createDraftSessionArtifact(payload: {

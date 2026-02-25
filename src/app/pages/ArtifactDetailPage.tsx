@@ -32,6 +32,7 @@ import MarkdownWysiwygEditor, { type EditorSelectionPayload } from "../component
 import ContextRefinementTool from "../components/editor/ContextRefinementTool";
 import CompactPaneTabs, { type CompactPaneTab } from "../components/ui/CompactPaneTabs";
 import EditorCentricLayout from "../layouts/EditorCentricLayout";
+import ArtifactCredibilityLayer from "../components/artifacts/ArtifactCredibilityLayer";
 import { resolveArtifactWorkflowActions, type WorkflowAction, type WorkflowActionId } from "../workflows/artifactWorkflow";
 import { computeLineDiff } from "../utils/textDiff";
 import { useNotifications } from "../state/notificationsStore";
@@ -1752,6 +1753,7 @@ export default function ArtifactDetailPage({
         </div>
       </div>
       <ArtifactWorkflowActions workflow={workflow} busyActionId={busyActionId} onRunAction={handleAction} />
+      <ArtifactCredibilityLayer artifactId={artifactId} titleFallback={item?.title || "Artifact"} />
     </div>
   );
 

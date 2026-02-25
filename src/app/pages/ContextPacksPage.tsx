@@ -9,6 +9,7 @@ import {
   updateContextPack,
 } from "../../api/xyn";
 import type { ContextPackCreatePayload, ContextPackDetail, ContextPackSummary } from "../../api/types";
+import ArtifactCredibilityLayer from "../components/artifacts/ArtifactCredibilityLayer";
 
 const PURPOSE_OPTIONS = ["any", "planner", "coder", "deployer", "operator", "video_explainer"];
 const SCOPE_OPTIONS = ["global", "namespace", "project"];
@@ -212,6 +213,13 @@ export default function ContextPacksPage() {
           <div className="card-header">
             <h3>{selected ? "Context pack detail" : "Create context pack"}</h3>
           </div>
+          {selected?.artifact_id && (
+            <ArtifactCredibilityLayer
+              artifactId={selected.artifact_id}
+              titleFallback={selected.name}
+              busy={loading}
+            />
+          )}
           <div className="form-grid">
             <label>
               Name

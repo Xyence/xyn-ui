@@ -33,6 +33,7 @@ import type {
 import { extractBlueprintIntent } from "./blueprintIntent";
 import { useNotifications } from "../state/notificationsStore";
 import { notifyFailed, notifyQueued, notifySucceeded } from "../../lib/notifyFromJob";
+import ArtifactCredibilityLayer from "../components/artifacts/ArtifactCredibilityLayer";
 
 const emptyForm: BlueprintCreatePayload = {
   name: "",
@@ -835,6 +836,16 @@ export default function BlueprintsPage({ mode = "all" }: BlueprintsPageProps) {
                 />
               </label>
             </div>
+          {selected && (
+            <ArtifactCredibilityLayer
+              artifactId={selected.artifact_id || undefined}
+              titleFallback={selected.name}
+              onPublish={selected.artifact_state === "provisional" ? () => void handlePublishVersion() : undefined}
+              onDiscard={selected.artifact_state === "provisional" ? () => void handleDiscardProvisional() : undefined}
+              onRevise={selected.artifact_state === "canonical" ? () => void handleRevise() : undefined}
+              busy={loading}
+            />
+          )}
           {selected && (
             <div className="card-subsection">
               <h4>Lifecycle</h4>

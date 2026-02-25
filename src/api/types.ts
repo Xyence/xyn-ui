@@ -310,6 +310,7 @@ export type BlueprintListResponse = PaginatedResponse<BlueprintSummary, "bluepri
 
 export type ModuleSummary = {
   id: string;
+  artifact_id?: string;
   name: string;
   namespace: string;
   fqn: string;
@@ -951,7 +952,7 @@ export type ArtifactDetail = ArtifactSummary & {
   }>;
 };
 
-export type UnifiedArtifactType = "draft_session" | "blueprint";
+export type UnifiedArtifactType = "draft_session" | "blueprint" | "article" | "workflow" | "module" | "context_pack";
 export type UnifiedArtifactState = "provisional" | "canonical" | "immutable" | "deprecated";
 
 export type UnifiedArtifact = {
@@ -962,11 +963,16 @@ export type UnifiedArtifact = {
   title: string;
   summary?: string;
   schema_version?: string;
+  content_hash?: string;
+  validation_status?: "pass" | "fail" | "warning" | "unknown" | string;
+  validation_errors?: string[];
   owner?: {
     id: string;
     email?: string;
     display_name?: string;
   } | null;
+  created_via?: string;
+  last_touched_by_agent?: string | null;
   source_ref_type?: string;
   source_ref_id?: string;
   family_id?: string;
@@ -983,6 +989,22 @@ export type UnifiedArtifactListResponse = {
   count: number;
   limit: number;
   offset: number;
+};
+
+export type LedgerEventSummary = {
+  ledger_event_id: string;
+  created_at?: string;
+  action: string;
+  summary?: string;
+  artifact_id: string;
+  artifact_type?: string;
+  artifact_state?: string;
+  actor?: {
+    id: string;
+    email?: string;
+    display_name?: string;
+  } | null;
+  metadata_json?: Record<string, unknown>;
 };
 
 export type ArticleVisibilityType = "public" | "authenticated" | "role_based" | "private";
@@ -1227,6 +1249,7 @@ export type WorkflowProfile = "tour";
 
 export type WorkflowSummary = {
   id: string;
+  artifact_id?: string;
   workspace_id: string;
   type: "workflow";
   format: "workflow";
@@ -1674,6 +1697,7 @@ export type DevTaskCreatePayload = {
 
 export type ContextPackSummary = {
   id: string;
+  artifact_id?: string;
   name: string;
   purpose: string;
   scope: string;

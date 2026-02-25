@@ -11,6 +11,7 @@ import {
   updateWorkflowSpec,
 } from "../../api/xyn";
 import type { ArticleCategoryRecord, WorkflowActionCatalogItem, WorkflowDetail, WorkflowSpec, WorkflowStep, WorkflowSummary } from "../../api/types";
+import ArtifactCredibilityLayer from "../components/artifacts/ArtifactCredibilityLayer";
 
 const emptySpec = (title: string, category: string): WorkflowSpec => ({
   profile: "tour",
@@ -318,6 +319,11 @@ export default function ArtifactsWorkflowsPage({ workspaceId, canCreate }: { wor
                   <Link className="ghost sm" to="/app/tours">Open Tours</Link>
                 </div>
               </div>
+              <ArtifactCredibilityLayer
+                artifactId={selected.artifact_id || selected.id}
+                titleFallback={selected.title}
+                busy={saving}
+              />
               <div className="form-grid">
                 <label>
                   Title
