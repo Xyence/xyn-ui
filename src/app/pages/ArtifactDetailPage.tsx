@@ -37,6 +37,7 @@ import { resolveArtifactWorkflowActions, type WorkflowAction, type WorkflowActio
 import { computeLineDiff } from "../utils/textDiff";
 import { useNotifications } from "../state/notificationsStore";
 import { useOperations } from "../state/operationRegistry";
+import { useXynConsole } from "../state/xynConsoleStore";
 import { canRewriteSelection, resolveAssistPrimaryAction } from "./articleAssistLogic";
 
 type ActivityTab = "revisions" | "ai_config" | "discussion";
@@ -199,6 +200,7 @@ export default function ArtifactDetailPage({
   const [error, setError] = useState<string | null>(null);
   const { push } = useNotifications();
   const { startOperation, finishOperation } = useOperations();
+  const { setContext: setConsoleContext, clearContext: clearConsoleContext } = useXynConsole();
   const videoPanelRef = useRef<HTMLElement | null>(null);
   const videoIntentFieldRef = useRef<HTMLTextAreaElement | null>(null);
   const scriptTextareaRef = useRef<HTMLTextAreaElement | null>(null);
@@ -208,6 +210,14 @@ export default function ArtifactDetailPage({
       .split(",")
       .map((entry) => entry.trim())
       .filter(Boolean);
+
+  useEffect(() => {
+    if (!artifactId) return;
+    setConsoleContext({ artifact_id: artifactId, artifact_type: "ArticleDraft" });
+    return () => {
+      clearConsoleContext();
+    };
+  }, [artifactId, setConsoleContext, clearConsoleContext]);
 
   const handleEditorSelectionChange = useCallback((selection: EditorSelectionPayload) => {
     setEditorSelection(selection);

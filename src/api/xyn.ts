@@ -122,6 +122,8 @@ import type {
   AccessUserRolesResponse,
   AccessUserEffectiveResponse,
   AccessRoleDetailResponse,
+  XynIntentResolutionResult,
+  XynIntentOptionsResponse,
 } from "./types";
 import { authHeaders, resolveApiBaseUrl } from "./client";
 
@@ -200,6 +202,51 @@ export async function getWhoAmI(): Promise<{ authenticated: boolean; username?: 
     credentials: "include",
   });
   return handle<{ authenticated: boolean; username?: string; email?: string }>(response);
+}
+
+export async function resolveXynIntent(payload: {
+  message: string;
+  context?: { artifact_id?: string | null; artifact_type?: string | null };
+}): Promise<XynIntentResolutionResult> {
+  const apiBaseUrl = resolveApiBaseUrl();
+  const response = await apiFetch(`${apiBaseUrl}/xyn/api/xyn/intent/resolve`, {
+    method: "POST",
+    credentials: "include",
+    headers: buildHeaders(),
+    body: JSON.stringify(payload),
+  });
+  return handle<XynIntentResolutionResult>(response);
+}
+
+export async function applyXynIntent(payload: {
+  action_type: "CreateDraft" | "ApplyPatch";
+  artifact_type: "ArticleDraft";
+  artifact_id?: string | null;
+  payload: Record<string, unknown>;
+}): Promise<XynIntentResolutionResult> {
+  const apiBaseUrl = resolveApiBaseUrl();
+  const response = await apiFetch(`${apiBaseUrl}/xyn/api/xyn/intent/apply`, {
+    method: "POST",
+    credentials: "include",
+    headers: buildHeaders(),
+    body: JSON.stringify(payload),
+  });
+  return handle<XynIntentResolutionResult>(response);
+}
+
+export async function getXynIntentOptions(params: {
+  artifact_type: "ArticleDraft";
+  field: "category" | "format" | "duration";
+}): Promise<XynIntentOptionsResponse> {
+  const apiBaseUrl = resolveApiBaseUrl();
+  const url = new URL(`${apiBaseUrl}/xyn/api/xyn/intent/options`);
+  url.searchParams.set("artifact_type", params.artifact_type);
+  url.searchParams.set("field", params.field);
+  const response = await apiFetch(url.toString(), {
+    credentials: "include",
+    headers: buildHeaders(),
+  });
+  return handle<XynIntentOptionsResponse>(response);
 }
 
 export async function getMe(): Promise<{

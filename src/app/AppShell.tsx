@@ -52,6 +52,7 @@ import TourOverlay from "./components/help/TourOverlay";
 import { resolveRouteId } from "./help/routeHelp";
 import HeaderPreviewControl from "./components/preview/HeaderPreviewControl";
 import PreviewBanner from "./components/preview/PreviewBanner";
+import XynConsoleNode from "./components/console/XynConsoleNode";
 
 function RedirectLegacyAiRoute({ tab }: { tab: "credentials" | "model-configs" | "agents" | "purposes" }) {
   const location = useLocation();
@@ -538,6 +539,7 @@ export default function AppShell() {
         workspaceId={activeWorkspace?.id || ""}
         artifactId={artifactRouteId || undefined}
       />
+      <XynConsoleNode />
       <ToastHost />
     </div>
   );

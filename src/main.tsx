@@ -5,6 +5,7 @@ import App from "./App";
 import { NotificationsProvider } from "./app/state/notificationsStore";
 import { OperationsProvider } from "./app/state/operationRegistry";
 import { PreviewProvider } from "./app/state/previewStore";
+import { XynConsoleProvider } from "./app/state/xynConsoleStore";
 import { ThemeProvider } from "./theme/ThemeProvider";
 import "./styles/base.css";
 
@@ -23,9 +24,11 @@ ReactDOM.createRoot(document.getElementById("root")!).render(
       <OperationsProvider>
         <PreviewProvider>
           <NotificationsProvider>
-            <BrowserRouter>
-              <App />
-            </BrowserRouter>
+            <XynConsoleProvider>
+              <BrowserRouter>
+                <App />
+              </BrowserRouter>
+            </XynConsoleProvider>
           </NotificationsProvider>
         </PreviewProvider>
       </OperationsProvider>

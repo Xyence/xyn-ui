@@ -2105,3 +2105,48 @@ export type AccessRoleDetailResponse = {
     effect?: "allow" | "deny" | string;
   }>;
 };
+
+export type XynIntentActionType = "CreateDraft" | "ProposePatch" | "ShowOptions" | "ValidateDraft" | "ApplyPatch";
+export type XynIntentStatus = "DraftReady" | "MissingFields" | "ProposedPatch" | "ValidationError" | "UnsupportedIntent";
+
+export type XynIntentMissingField = {
+  field: string;
+  reason: string;
+  options_available: boolean;
+};
+
+export type XynIntentPatchChange = {
+  field: string;
+  from?: unknown;
+  to?: unknown;
+};
+
+export type XynIntentResolutionResult = {
+  status: XynIntentStatus;
+  action_type: XynIntentActionType;
+  artifact_type: string | null;
+  artifact_id: string | null;
+  summary: string;
+  missing_fields?: XynIntentMissingField[];
+  options?: unknown[];
+  proposed_patch?: {
+    changes: XynIntentPatchChange[];
+    patch_object: Record<string, unknown>;
+    requires_confirmation: boolean;
+  };
+  draft_payload?: Record<string, unknown>;
+  validation_errors?: string[];
+  next_actions?: Array<{ label: string; action: string; field?: string }>;
+  audit?: {
+    request_id?: string;
+    confidence?: number;
+    llm_model?: string;
+    timestamp?: string;
+  };
+};
+
+export type XynIntentOptionsResponse = {
+  artifact_type: "ArticleDraft";
+  field: "category" | "format" | "duration";
+  options: unknown[];
+};
