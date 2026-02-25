@@ -357,14 +357,17 @@ export default function ArtifactsWorkflowsPage({ workspaceId, canCreate }: { wor
 
               <div className="workflow-editor-grid">
                 <div className="workflow-step-list">
-                  <div className="inline-actions" style={{ marginBottom: 8 }}>
+                  <div className="inline-actions workflow-step-toolbar">
                     <button className="ghost sm" onClick={addStep}>Add step</button>
                     <button className="ghost sm" onClick={removeStep} disabled={!activeStep}>Delete</button>
                   </div>
-                  {(selected.workflow_spec_json.steps || []).map((step) => (
-                    <button key={step.id} className={`list-row ${activeStepId === step.id ? "active" : ""}`} onClick={() => setActiveStepId(step.id)}>
-                      <strong>{step.title || step.id}</strong>
-                      <span className="muted small">{step.type} · {step.route || "(no route)"}</span>
+                  {(selected.workflow_spec_json.steps || []).map((step, index) => (
+                    <button key={step.id} className={`list-row workflow-step-row ${activeStepId === step.id ? "active" : ""}`} onClick={() => setActiveStepId(step.id)}>
+                      <span className="workflow-step-index">{index + 1}</span>
+                      <span className="workflow-step-copy">
+                        <strong>{step.title || step.id}</strong>
+                        <span className="muted small">{step.type} · {step.route || "(no route)"}</span>
+                      </span>
                     </button>
                   ))}
                 </div>
