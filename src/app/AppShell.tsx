@@ -428,6 +428,7 @@ export default function AppShell() {
               }
             />
             <Route path="activity" element={<ActivityPage workspaceId={activeWorkspace?.id || ""} />} />
+            <Route path="govern/contributions" element={<ActivityPage workspaceId={activeWorkspace?.id || ""} defaultTab="contributions" />} />
             <Route
               path="people-roles"
               element={<PeopleRolesPage workspaceId={activeWorkspace?.id || ""} canAdmin={canWorkspaceAdmin && !isPreviewReadOnly} />}

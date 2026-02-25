@@ -82,6 +82,7 @@ import type {
   UnifiedArtifactType,
   UnifiedArtifactListResponse,
   LedgerEventSummary,
+  LedgerSummaryByUserRow,
   ReportPayload,
   ReportRecord,
   PlatformConfig,
@@ -391,6 +392,62 @@ export async function listArtifactActivity(
   if (params.until) url.searchParams.set("until", params.until);
   const response = await apiFetch(url.toString(), { credentials: "include" });
   return handle<{ events: LedgerEventSummary[]; count: number; limit: number; offset: number }>(response);
+}
+
+export async function listLedgerEvents(params: {
+  workspace?: string;
+  actor?: string;
+  artifact_type?: string;
+  action?: string;
+  artifact_id?: string;
+  since?: string;
+  until?: string;
+  limit?: number;
+  offset?: number;
+} = {}): Promise<{ events: LedgerEventSummary[]; count: number; limit: number; offset: number }> {
+  const apiBaseUrl = resolveApiBaseUrl();
+  const url = new URL(`${apiBaseUrl}/xyn/api/ledger`);
+  if (params.workspace) url.searchParams.set("workspace", params.workspace);
+  if (params.actor) url.searchParams.set("actor", params.actor);
+  if (params.artifact_type) url.searchParams.set("artifact_type", params.artifact_type);
+  if (params.action) url.searchParams.set("action", params.action);
+  if (params.artifact_id) url.searchParams.set("artifact_id", params.artifact_id);
+  if (params.since) url.searchParams.set("since", params.since);
+  if (params.until) url.searchParams.set("until", params.until);
+  if (typeof params.limit === "number") url.searchParams.set("limit", String(params.limit));
+  if (typeof params.offset === "number") url.searchParams.set("offset", String(params.offset));
+  const response = await apiFetch(url.toString(), { credentials: "include" });
+  return handle<{ events: LedgerEventSummary[]; count: number; limit: number; offset: number }>(response);
+}
+
+export async function getLedgerSummaryByUser(params: {
+  workspace?: string;
+  since?: string;
+  until?: string;
+} = {}): Promise<{ rows: LedgerSummaryByUserRow[] }> {
+  const apiBaseUrl = resolveApiBaseUrl();
+  const url = new URL(`${apiBaseUrl}/xyn/api/ledger/summary/by-user`);
+  if (params.workspace) url.searchParams.set("workspace", params.workspace);
+  if (params.since) url.searchParams.set("since", params.since);
+  if (params.until) url.searchParams.set("until", params.until);
+  const response = await apiFetch(url.toString(), { credentials: "include" });
+  return handle<{ rows: LedgerSummaryByUserRow[] }>(response);
+}
+
+export async function getLedgerSummaryByArtifact(artifactId: string): Promise<{
+  artifact_id: string;
+  counts: Array<{ action: string; count: number }>;
+  events: LedgerEventSummary[];
+}> {
+  const apiBaseUrl = resolveApiBaseUrl();
+  const url = new URL(`${apiBaseUrl}/xyn/api/ledger/summary/by-artifact`);
+  url.searchParams.set("artifact_id", artifactId);
+  const response = await apiFetch(url.toString(), { credentials: "include" });
+  return handle<{
+    artifact_id: string;
+    counts: Array<{ action: string; count: number }>;
+    events: LedgerEventSummary[];
+  }>(response);
 }
 
 export async function createDraftSessionArtifact(payload: {

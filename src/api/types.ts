@@ -994,17 +994,41 @@ export type UnifiedArtifactListResponse = {
 export type LedgerEventSummary = {
   ledger_event_id: string;
   created_at?: string;
+  actor_user_id?: string;
   action: string;
   summary?: string;
   artifact_id: string;
+  artifact_title?: string;
+  artifact_slug?: string;
+  artifact_workspace_id?: string;
   artifact_type?: string;
   artifact_state?: string;
+  source_ref_type?: string;
+  source_ref_id?: string;
   actor?: {
     id: string;
     email?: string;
     display_name?: string;
   } | null;
   metadata_json?: Record<string, unknown>;
+};
+
+export type LedgerSummaryByUserRow = {
+  actor_user_id: string;
+  email?: string;
+  display_name?: string;
+  create_count: number;
+  update_count: number;
+  publish_count: number;
+  canonize_count: number;
+  deprecate_count: number;
+  archive_count: number;
+  total_count: number;
+  top_artifacts: Array<{
+    artifact_id: string;
+    title: string;
+    count: number;
+  }>;
 };
 
 export type ArticleVisibilityType = "public" | "authenticated" | "role_based" | "private";
