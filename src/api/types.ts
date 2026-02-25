@@ -1395,6 +1395,36 @@ export type WorkflowRun = {
   metadata_json?: Record<string, unknown>;
 };
 
+export type IntentScriptScene = {
+  id: string;
+  title: string;
+  duration_hint?: string;
+  voiceover?: string;
+  on_screen?: string;
+  ui_route?: string;
+  highlights?: string[];
+  assets?: unknown[];
+  notes?: string;
+};
+
+export type IntentScript = {
+  intent_script_id: string;
+  title: string;
+  scope_type: "tour" | "artifact" | "manual";
+  scope_ref_id: string;
+  format_version: string;
+  script_json: {
+    scenes?: IntentScriptScene[];
+    metadata?: Record<string, unknown>;
+  };
+  script_text: string;
+  created_by?: string | null;
+  created_at?: string;
+  updated_at?: string;
+  status: "draft" | "final";
+  artifact_id?: string | null;
+};
+
 export type TourDefinition = {
   workflow_id: string;
   slug: string;

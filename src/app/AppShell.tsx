@@ -26,6 +26,7 @@ import PlatformBrandingPage from "./pages/PlatformBrandingPage";
 import ControlPlanePage from "./pages/ControlPlanePage";
 import GuidesPage from "./pages/GuidesPage";
 import ToursPage from "./pages/ToursPage";
+import TourDetailPage from "./pages/TourDetailPage";
 import XynMapPage from "./pages/XynMapPage";
 import PlatformSettingsPage from "./pages/PlatformSettingsPage";
 import SeedPacksPage from "./pages/SeedPacksPage";
@@ -436,6 +437,7 @@ export default function AppShell() {
             <Route path="devices" element={<DevicesPage />} />
             <Route path="guides" element={<GuidesPage roles={effectiveRoles} />} />
             <Route path="tours" element={<ToursPage />} />
+            <Route path="tours/:workflowId" element={<TourDetailPage />} />
             <Route path="map" element={<XynMapPage />} />
             <Route
               path="blueprints"

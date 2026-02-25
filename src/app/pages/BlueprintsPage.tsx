@@ -730,6 +730,13 @@ export default function BlueprintsPage({ mode = "all" }: BlueprintsPageProps) {
           </p>
         </div>
         <div className="inline-actions">
+          <button
+            className="ghost"
+            data-testid="blueprints-start-tour"
+            onClick={() => window.dispatchEvent(new CustomEvent("xyn:start-tour", { detail: { slug: "platform-build-tour" } }))}
+          >
+            Start Tour
+          </button>
           <Link className="ghost" to="/app/drafts">
             Start drafting
           </Link>

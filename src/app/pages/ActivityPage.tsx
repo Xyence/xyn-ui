@@ -272,7 +272,7 @@ export default function ActivityPage({
       </section>
 
       {activeTab === "feed" && (
-        <section className="card">
+        <section className="card" data-testid="activity-feed-card">
           <div className="instance-list">
             {events.map((event) => (
               <div className="instance-row" key={event.ledger_event_id}>

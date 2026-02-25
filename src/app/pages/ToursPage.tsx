@@ -1,5 +1,6 @@
 import { useEffect, useState } from "react";
 import { ChevronRight } from "lucide-react";
+import { Link } from "react-router-dom";
 import { listWorkflows } from "../../api/xyn";
 import type { WorkflowSummary } from "../../api/types";
 
@@ -49,21 +50,28 @@ export default function ToursPage() {
         {error && <p className="error-text">{error}</p>}
         {!loading && !items.length && <p className="muted">No tours found for this category.</p>}
         {items.map((item) => (
-          <button
-            key={item.id}
-            className="instance-row guides-tour-row"
-            onClick={() => {
-              window.dispatchEvent(new CustomEvent("xyn:start-tour", { detail: { slug: item.slug, workflowId: item.id } }));
-            }}
-          >
+          <div key={item.id} className="instance-row guides-tour-row">
             <div>
               <strong>{item.title}</strong>
               <span className="muted small">{item.description || "Guided workflow"}</span>
             </div>
-            <span className="guides-tour-arrow" aria-hidden="true">
-              <ChevronRight size={16} />
-            </span>
-          </button>
+            <div className="inline-actions">
+              <Link className="ghost sm" to={`/app/tours/${item.id}`}>
+                View
+              </Link>
+              <button
+                className="ghost sm"
+                onClick={() => {
+                  window.dispatchEvent(new CustomEvent("xyn:start-tour", { detail: { slug: item.slug, workflowId: item.id } }));
+                }}
+              >
+                Start
+              </button>
+              <span className="guides-tour-arrow" aria-hidden="true">
+                <ChevronRight size={16} />
+              </span>
+            </div>
+          </div>
         ))}
       </section>
     </>

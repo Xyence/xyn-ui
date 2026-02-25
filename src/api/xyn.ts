@@ -108,6 +108,7 @@ import type {
   WorkflowDetailResponse,
   WorkflowListResponse,
   WorkflowRun,
+  IntentScript,
   WorkflowSpec,
   AiPurpose,
   AiProvider,
@@ -1229,6 +1230,63 @@ export async function completeWorkflowRun(
     body: JSON.stringify({ status }),
   });
   return handle<{ run: WorkflowRun }>(response);
+}
+
+export async function generateIntentScript(payload: {
+  scope_type: "tour" | "artifact" | "manual";
+  scope_ref_id?: string;
+  audience?: string;
+  tone?: string;
+  length_target?: string;
+  title?: string;
+}): Promise<{ item: IntentScript }> {
+  const apiBaseUrl = resolveApiBaseUrl();
+  const response = await apiFetch(`${apiBaseUrl}/xyn/api/intent-scripts/generate`, {
+    method: "POST",
+    headers: buildHeaders(),
+    credentials: "include",
+    body: JSON.stringify(payload),
+  });
+  return handle<{ item: IntentScript }>(response);
+}
+
+export async function listIntentScripts(params: {
+  scope?: string;
+  scope_type?: "tour" | "artifact" | "manual";
+  scope_ref_id?: string;
+} = {}): Promise<{ items: IntentScript[] }> {
+  const apiBaseUrl = resolveApiBaseUrl();
+  const url = new URL(`${apiBaseUrl}/xyn/api/intent-scripts`);
+  if (params.scope) url.searchParams.set("scope", params.scope);
+  if (params.scope_type) url.searchParams.set("scope_type", params.scope_type);
+  if (params.scope_ref_id) url.searchParams.set("scope_ref_id", params.scope_ref_id);
+  const response = await apiFetch(url.toString(), { credentials: "include" });
+  return handle<{ items: IntentScript[] }>(response);
+}
+
+export async function getIntentScript(scriptId: string): Promise<{ item: IntentScript }> {
+  const apiBaseUrl = resolveApiBaseUrl();
+  const response = await apiFetch(`${apiBaseUrl}/xyn/api/intent-scripts/${scriptId}`, { credentials: "include" });
+  return handle<{ item: IntentScript }>(response);
+}
+
+export async function updateIntentScript(
+  scriptId: string,
+  payload: Partial<{
+    title: string;
+    status: "draft" | "final";
+    script_text: string;
+    script_json: Record<string, unknown>;
+  }>
+): Promise<{ item: IntentScript }> {
+  const apiBaseUrl = resolveApiBaseUrl();
+  const response = await apiFetch(`${apiBaseUrl}/xyn/api/intent-scripts/${scriptId}`, {
+    method: "PATCH",
+    headers: buildHeaders(),
+    credentials: "include",
+    body: JSON.stringify(payload),
+  });
+  return handle<{ item: IntentScript }>(response);
 }
 
 export async function listAiPurposes(): Promise<{ purposes: AiPurpose[] }> {

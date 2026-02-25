@@ -1,7 +1,8 @@
 import { useEffect, useMemo, useState } from "react";
 import { Link } from "react-router-dom";
-import { getArtifact, listArtifactActivity, listArtifacts } from "../../../api/xyn";
-import type { LedgerEventSummary, UnifiedArtifact } from "../../../api/types";
+import { generateIntentScript, getArtifact, listArtifactActivity, listArtifacts, updateIntentScript } from "../../../api/xyn";
+import type { IntentScript, LedgerEventSummary, UnifiedArtifact } from "../../../api/types";
+import IntentScriptModal from "./IntentScriptModal";
 
 type Props = {
   artifactId?: string | null;
@@ -24,6 +25,10 @@ export default function ArtifactCredibilityLayer({ artifactId, titleFallback, on
   const [activity, setActivity] = useState<LedgerEventSummary[]>([]);
   const [family, setFamily] = useState<UnifiedArtifact[]>([]);
   const [activeTab, setActiveTab] = useState<"header" | "activity">("header");
+  const [intentScript, setIntentScript] = useState<IntentScript | null>(null);
+  const [intentOpen, setIntentOpen] = useState(false);
+  const [intentSaving, setIntentSaving] = useState(false);
+  const [shareMessage, setShareMessage] = useState<string | null>(null);
 
   useEffect(() => {
     if (!artifactId) return;
@@ -70,6 +75,18 @@ export default function ArtifactCredibilityLayer({ artifactId, titleFallback, on
     const rows = Array.isArray(artifact?.validation_errors) ? artifact?.validation_errors : [];
     return rows.filter((row): row is string => typeof row === "string" && row.trim().length > 0);
   }, [artifact?.validation_errors]);
+
+  const permalink = useMemo(() => `${window.location.origin}/app/artifacts/${artifactId}`, [artifactId]);
+  const snapshotSummary = useMemo(
+    () =>
+      [
+        `type=${artifact?.artifact_type || "artifact"}`,
+        `state=${artifact?.artifact_state || "unknown"}`,
+        `hash=${artifact?.content_hash || "none"}`,
+        `validation=${artifact?.validation_status || "unknown"}`,
+      ].join(" | "),
+    [artifact?.artifact_type, artifact?.artifact_state, artifact?.content_hash, artifact?.validation_status]
+  );
 
   if (!artifactId) return null;
 
@@ -135,8 +152,40 @@ export default function ArtifactCredibilityLayer({ artifactId, titleFallback, on
             )}
           </div>
 
-          {(showPublish || showDiscard || showRevise) && (
+          <div className="stack">
+            <strong>Share</strong>
             <div className="inline-actions">
+              <input className="input" readOnly value={permalink} />
+              <button
+                className="ghost sm"
+                type="button"
+                onClick={async () => {
+                  await navigator.clipboard.writeText(permalink);
+                  setShareMessage("Permalink copied.");
+                  window.setTimeout(() => setShareMessage(null), 1500);
+                }}
+              >
+                Copy link
+              </button>
+            </div>
+            <div className="inline-actions">
+              <input className="input" readOnly value={snapshotSummary} />
+              <button
+                className="ghost sm"
+                type="button"
+                onClick={async () => {
+                  await navigator.clipboard.writeText(snapshotSummary);
+                  setShareMessage("Snapshot summary copied.");
+                  window.setTimeout(() => setShareMessage(null), 1500);
+                }}
+              >
+                Copy summary
+              </button>
+            </div>
+            {shareMessage && <span className="muted small">{shareMessage}</span>}
+          </div>
+
+          <div className="inline-actions">
               {showPublish && (
                 <button className="primary" type="button" onClick={onPublish} disabled={busy}>Publish</button>
               )}
@@ -146,8 +195,30 @@ export default function ArtifactCredibilityLayer({ artifactId, titleFallback, on
               {showRevise && (
                 <button className="ghost" type="button" onClick={onRevise} disabled={busy}>Revise</button>
               )}
-            </div>
-          )}
+              <button
+                className="ghost"
+                type="button"
+                disabled={busy || intentSaving}
+                onClick={async () => {
+                  if (!artifactId) return;
+                  setIntentSaving(true);
+                  try {
+                    const generated = await generateIntentScript({
+                      scope_type: "artifact",
+                      scope_ref_id: artifactId,
+                      audience: "developer",
+                      length_target: "short",
+                    });
+                    setIntentScript(generated.item);
+                    setIntentOpen(true);
+                  } finally {
+                    setIntentSaving(false);
+                  }
+                }}
+              >
+                Generate Intent Script
+              </button>
+          </div>
         </>
       )}
 
@@ -169,6 +240,26 @@ export default function ArtifactCredibilityLayer({ artifactId, titleFallback, on
           <Link to={`/app/activity?artifact=${artifactId}`}>View all activity for this artifact</Link>
         </div>
       )}
+      <IntentScriptModal
+        open={intentOpen}
+        script={intentScript}
+        saving={intentSaving}
+        onClose={() => setIntentOpen(false)}
+        onSave={async (next) => {
+          setIntentSaving(true);
+          try {
+            const saved = await updateIntentScript(next.intent_script_id, {
+              title: next.title,
+              status: next.status,
+              script_text: next.script_text,
+              script_json: next.script_json as Record<string, unknown>,
+            });
+            setIntentScript(saved.item);
+          } finally {
+            setIntentSaving(false);
+          }
+        }}
+      />
     </section>
   );
 }
