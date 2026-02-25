@@ -38,6 +38,7 @@ import ArtifactDetailPage from "./pages/ArtifactDetailPage";
 import PeopleRolesPage from "./pages/PeopleRolesPage";
 import WorkspaceSettingsPage from "./pages/WorkspaceSettingsPage";
 import DevicesPage from "./pages/DevicesPage";
+import InitiatePage from "./pages/InitiatePage";
 import { useGlobalHotkeys } from "./hooks/useGlobalHotkeys";
 import ReportOverlay from "./components/ReportOverlay";
 import UserMenu from "./components/common/UserMenu";
@@ -117,6 +118,7 @@ function RedirectLegacyTenantContactsDetailRoute() {
 export default function AppShell() {
   const location = useLocation();
   const navigate = useNavigate();
+  const headerRef = useRef<HTMLElement | null>(null);
   const contentRef = useRef<HTMLElement | null>(null);
   const [authed, setAuthed] = useState(false);
   const [roles, setRoles] = useState<string[]>([]);
@@ -301,6 +303,29 @@ export default function AppShell() {
   }, [location.pathname]);
 
   useEffect(() => {
+    if (typeof window === "undefined") return;
+    const root = document.documentElement;
+    const updateHeaderHeightVar = () => {
+      const height = Math.max(72, Math.round(headerRef.current?.offsetHeight || 88));
+      root.style.setProperty("--xyn-app-header-height", `${height}px`);
+    };
+    updateHeaderHeightVar();
+    if (typeof ResizeObserver === "undefined") {
+      window.addEventListener("resize", updateHeaderHeightVar);
+      return () => {
+        window.removeEventListener("resize", updateHeaderHeightVar);
+      };
+    }
+    const observer = new ResizeObserver(updateHeaderHeightVar);
+    if (headerRef.current) observer.observe(headerRef.current);
+    window.addEventListener("resize", updateHeaderHeightVar);
+    return () => {
+      observer.disconnect();
+      window.removeEventListener("resize", updateHeaderHeightVar);
+    };
+  }, []);
+
+  useEffect(() => {
     if (!authLoaded || authed) return;
     const returnTo = `${location.pathname}${location.search || ""}` || "/app";
     window.location.href = `/auth/login?appId=xyn-ui&returnTo=${encodeURIComponent(returnTo)}`;
@@ -340,7 +365,7 @@ export default function AppShell() {
 
   return (
     <div className="app-shell">
-      <header className="app-header">
+      <header className="app-header" ref={headerRef}>
         <div className="brand">
           <img className="brand-logo" src={brandLogo} alt="Xyence logo" />
           <div>
@@ -409,6 +434,7 @@ export default function AppShell() {
           <Routes>
             <Route path="/" element={<Navigate to="home" replace />} />
             <Route path="home" element={<WorkspaceHomePage workspaceName={activeWorkspace?.name || "Workspace"} />} />
+            <Route path="console" element={<InitiatePage />} />
             <Route path="artifacts" element={<Navigate to="/app/artifacts/all" replace />} />
             <Route
               path="artifacts/articles"

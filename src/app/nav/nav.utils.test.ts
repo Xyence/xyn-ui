@@ -17,24 +17,24 @@ describe("nav.utils", () => {
 
   it("finds active item and containing group/subgroup", () => {
     const match = findActiveItem("/app/artifacts/articles", NAV_GROUPS);
-    expect(match?.groupId).toBe("artifacts");
+    expect(match?.groupId).toBe("build");
     expect(match?.subgroupId).toBeUndefined();
-    expect(match?.item.id).toBe("artifacts-articles");
+    expect(match?.item.id).toBe("article");
   });
 
   it("builds breadcrumbs from nav config", () => {
     const crumbs = getBreadcrumbs("/app/activity", NAV_GROUPS);
-    expect(crumbs.map((entry) => entry.label)).toEqual(["Activity", "Activity"]);
+    expect(crumbs.map((entry) => entry.label)).toEqual(["Govern", "Activity"]);
   });
 
   it("persists and hydrates nav state", () => {
     persistNavState({
-      expandedGroupIds: ["home", "artifacts"],
+      expandedGroupIds: ["home", "build"],
       expandedSubgroupIds: [],
       collapsed: true,
     });
     const hydrated = hydrateNavState();
-    expect(hydrated.expandedGroupIds).toEqual(["home", "artifacts"]);
+    expect(hydrated.expandedGroupIds).toEqual(["home", "build"]);
     expect(hydrated.expandedSubgroupIds).toEqual([]);
     expect(hydrated.collapsed).toBe(true);
     expect(window.localStorage.getItem(NAV_STATE_STORAGE_KEY)).toContain("expandedGroupIds");
@@ -43,7 +43,7 @@ describe("nav.utils", () => {
   it("filters by label/keywords and returns matches", () => {
     const filtered = filterNav(NAV_GROUPS, "artifact");
     const labels = filtered.matches.map((entry) => entry.item.label);
-    expect(labels).toContain("All Artifacts");
+    expect(labels).toContain("Artifact Explorer");
     expect(filtered.groups.length).toBeGreaterThan(0);
   });
 

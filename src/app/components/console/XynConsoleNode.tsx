@@ -11,8 +11,8 @@ export default function XynConsoleNode() {
         type="button"
         className={`xyn-console-node ${open ? "open" : ""}`}
         onClick={() => setOpen(!open)}
-        aria-label="Xyn Console (⌘K / Ctrl+K)"
-        title="Xyn Console (⌘K / Ctrl+K)"
+        aria-label="Xyn (⌘K / Ctrl+K)"
+        title="Xyn (⌘K / Ctrl+K)"
       >
         <Sparkles size={14} />
         <span>Xyn</span>

@@ -41,6 +41,7 @@ import {
   Shield,
   ShieldCheck,
   SlidersHorizontal,
+  Sparkles,
   Terminal,
   Tag,
   UserCheck,
@@ -121,6 +122,7 @@ const ICONS: Record<string, (props: { size?: number }) => ReactNode> = {
   Blocks: ({ size = 18 }) => <Blocks size={size} />,
   Hammer: ({ size = 18 }) => <Hammer size={size} />,
   Scale: ({ size = 18 }) => <Scale size={size} />,
+  Sparkles: ({ size = 18 }) => <Sparkles size={size} />,
   Vault: ({ size = 18 }) => <Lock size={size} />,
 };
 

@@ -90,7 +90,10 @@ export const NAV_GROUPS: NavGroup[] = [
     id: "home",
     label: "Home",
     icon: "Compass",
-    items: [{ id: "home", label: "Home", path: "/app/home", icon: "Compass", keywords: ["overview", "workspace"] }],
+    items: [
+      { id: "initiate", label: "Initiate", path: "/app/console", icon: "Sparkles", keywords: ["console", "intent", "start"] },
+      { id: "home", label: "Home", path: "/app/home", icon: "Compass", keywords: ["overview", "workspace"] },
+    ],
   },
   {
     id: "build",

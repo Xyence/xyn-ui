@@ -3421,9 +3421,9 @@ button.sm {
 
 .xyn-console-anchor {
   position: fixed;
-  top: 96px;
-  right: 28px;
-  z-index: 1400;
+  top: calc(var(--xyn-app-header-top, 10px) + var(--xyn-app-header-height, 88px) + var(--xyn-console-anchor-gap, 12px));
+  right: var(--xyn-console-anchor-right, 16px);
+  z-index: 1250;
   pointer-events: none;
 }
 
@@ -3445,6 +3445,7 @@ button.sm {
 .xyn-console-node:focus-visible,
 .xyn-console-node.open {
   opacity: 1;
+  border-color: var(--border-strong);
 }
 
 .xyn-console-node .xyn-console-badge {
@@ -3465,9 +3466,16 @@ button.sm {
   background: var(--card-elevated);
   box-shadow: var(--shadow);
   padding: 12px;
+}
+
+.xyn-console-core {
   display: flex;
   flex-direction: column;
   gap: 10px;
+}
+
+.xyn-console-core.page {
+  gap: 12px;
 }
 
 .xyn-console-header {
@@ -3595,6 +3603,23 @@ button.sm {
   gap: 8px;
 }
 
+.xyn-initiate-card {
+  padding: 14px;
+}
+
+.xyn-happy-path-list {
+  margin: 0;
+  padding-left: 18px;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.xyn-happy-path-list code {
+  margin-left: 6px;
+  margin-right: 6px;
+}
+
 .console-missing-field {
   border-color: var(--warn) !important;
   box-shadow: 0 0 0 1px color-mix(in srgb, var(--warn) 45%, transparent);
@@ -3644,7 +3669,7 @@ button.sm {
   .xyn-console-anchor {
     top: auto;
     right: 12px;
-    left: 12px;
+    left: auto;
     bottom: 12px;
   }
 

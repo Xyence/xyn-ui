@@ -21,13 +21,12 @@ describe("Sidebar", () => {
   });
 
   it("renders groups and items from nav config", async () => {
-    const user = userEvent.setup();
-    renderSidebar("/app/home");
+    renderSidebar("/app/artifacts/articles");
+    expect(screen.getByRole("link", { name: /^Initiate$/i })).toBeInTheDocument();
     expect(screen.getByRole("link", { name: /^Home$/i })).toBeInTheDocument();
-    await user.click(screen.getByRole("button", { name: /^Artifacts$/i }));
     expect(screen.getByRole("link", { name: /^Articles$/i })).toBeInTheDocument();
-    expect(screen.getByRole("link", { name: /^All Artifacts$/i })).toBeInTheDocument();
-    expect(screen.getByRole("button", { name: /^Workspace Access$/i })).toBeInTheDocument();
+    expect(screen.getByRole("link", { name: /^Artifact Explorer$/i })).toBeInTheDocument();
+    expect(screen.getByRole("link", { name: /^Workspace Access$/i })).toBeInTheDocument();
   });
 
   it("auto-expands active route group/subgroup", () => {
@@ -50,14 +49,14 @@ describe("Sidebar", () => {
     const search = screen.getByRole("textbox", { name: "Search" });
     await user.type(search, "artifact");
 
-    expect(screen.getByRole("link", { name: /^All Artifacts$/i })).toBeInTheDocument();
+    expect(screen.getByRole("link", { name: /^Artifact Explorer$/i })).toBeInTheDocument();
     expect(screen.queryByRole("link", { name: /^Workspace Access$/i })).not.toBeInTheDocument();
   });
 
-  it("renders without role-gated sections", async () => {
+  it("keeps role-gated settings hidden for non-admin users", async () => {
     const user = userEvent.setup();
     renderSidebar("/app/home", []);
     await user.type(screen.getByRole("textbox", { name: "Search" }), "settings");
-    expect(screen.getByRole("link", { name: /^Settings$/i })).toBeInTheDocument();
+    expect(screen.queryByRole("link", { name: /^Platform Settings$/i })).not.toBeInTheDocument();
   });
 });
