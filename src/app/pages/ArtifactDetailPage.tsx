@@ -41,7 +41,7 @@ import { useXynConsole } from "../state/xynConsoleStore";
 import { canRewriteSelection, resolveAssistPrimaryAction } from "./articleAssistLogic";
 import { applyPatchToFormSnapshot, buildArticleDraftSnapshot } from "../utils/articleIntentForm";
 
-type ActivityTab = "revisions" | "ai_config" | "discussion";
+type ActivityTab = "overview" | "revisions" | "ai_config" | "discussion";
 type RevisionMode = "list" | "view" | "diff";
 type EditorMode = "edit" | "review";
 type VideoTab = "overview" | "script" | "storyboard" | "renders";
@@ -1821,6 +1821,23 @@ export default function ArtifactDetailPage({
     </div>
   );
 
+  const credibilityPanel = (
+    <ArtifactCredibilityLayer
+      artifactId={artifactId}
+      artifactType="article"
+      titleFallback={item?.title || "Artifact"}
+      onGoToBody={() => {
+        setEditorFocusSignal((prev) => prev + 1);
+        window.requestAnimationFrame(() => {
+          const editor = document.querySelector(".editor-body");
+          if (editor instanceof HTMLElement) {
+            editor.scrollIntoView({ behavior: "smooth", block: "center" });
+          }
+        });
+      }}
+    />
+  );
+
   const activityPanel = (
     <div className="stack">
       <CompactPaneTabs
@@ -1829,6 +1846,7 @@ export default function ArtifactDetailPage({
         onChange={(next) => setActivityTab(next as ActivityTab)}
         tabs={
           [
+            { key: "overview", label: "Overview", icon: <Sparkles size={15} /> },
             { key: "revisions", label: "Revisions", icon: <History size={15} /> },
             ...(articleFormat === "video_explainer"
               ? [{ key: "ai_config", label: "AI Configuration", icon: <SlidersHorizontal size={15} /> }]
@@ -1842,6 +1860,7 @@ export default function ArtifactDetailPage({
           ] satisfies CompactPaneTab[]
         }
       />
+      {activityTab === "overview" && credibilityPanel}
       {activityTab === "revisions" && revisionPanel}
       {activityTab === "ai_config" && articleFormat === "video_explainer" && aiConfigPanel}
       {activityTab === "discussion" && discussionPanel}
@@ -2022,7 +2041,7 @@ export default function ArtifactDetailPage({
   );
 
   const topSection = (
-    <div className="stack">
+    <div className="stack artifact-editor-top-section">
       <div className="page-header">
         <div>
           <h2>{title || item?.title || "Artifact"}</h2>
@@ -2030,20 +2049,6 @@ export default function ArtifactDetailPage({
         </div>
       </div>
       <ArtifactWorkflowActions workflow={workflow} busyActionId={busyActionId} onRunAction={handleAction} />
-      <ArtifactCredibilityLayer
-        artifactId={artifactId}
-        artifactType="article"
-        titleFallback={item?.title || "Artifact"}
-        onGoToBody={() => {
-          setEditorFocusSignal((prev) => prev + 1);
-          window.requestAnimationFrame(() => {
-            const editor = document.querySelector(".editor-body");
-            if (editor instanceof HTMLElement) {
-              editor.scrollIntoView({ behavior: "smooth", block: "center" });
-            }
-          });
-        }}
-      />
     </div>
   );
 

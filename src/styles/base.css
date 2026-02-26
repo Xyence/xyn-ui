@@ -1639,6 +1639,10 @@ button.sm {
   padding-bottom: 6px;
 }
 
+.artifact-editor-top-section {
+  gap: 8px;
+}
+
 .editor-centric-grid {
   display: grid;
   gap: 18px;
