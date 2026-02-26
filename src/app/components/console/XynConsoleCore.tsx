@@ -273,7 +273,11 @@ export default function XynConsoleCore({ mode, onRequestClose }: Props) {
     ? `Context: ${context.artifact_type} • ${shortArtifactId(String(context.artifact_id || ""))}`
     : "Context: Global";
 
-  const workingOnLine = isGlobalContext && lastArtifactHint?.title
+  const workingOnLine = isGlobalContext &&
+    !inputText.trim() &&
+    !processing &&
+    !session.lastResolution &&
+    lastArtifactHint?.title
     ? `Working on: ${lastArtifactHint.title}${lastArtifactHint.artifact_state ? ` • ${lastArtifactHint.artifact_state}` : ""}`
     : "";
 
