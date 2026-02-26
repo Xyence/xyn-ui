@@ -162,11 +162,18 @@ type XynConsoleContextValue = {
   registerEditorBridge: (context: XynConsoleContextRef, bridge: ConsoleEditorBridge) => void;
   unregisterEditorBridge: (context: XynConsoleContextRef) => void;
   clearSessionResolution: () => void;
+  handleRouteChange: (pathname: string) => void;
   lastArtifactHint: ConsoleArtifactHint | null;
   setLastArtifactHint: (hint: ConsoleArtifactHint | null) => void;
 };
 
 const XynConsoleContext = createContext<XynConsoleContextValue | null>(null);
+const INITIATE_PATHS = new Set(["/app/console", "/app/initiate"]);
+
+function isInitiatePath(pathname: string): boolean {
+  const normalized = String(pathname || "").trim().replace(/\/+$/, "") || "/";
+  return INITIATE_PATHS.has(normalized);
+}
 
 export function XynConsoleProvider({ children }: { children: ReactNode }) {
   const [open, setOpen] = useState(false);
@@ -517,6 +524,28 @@ export function XynConsoleProvider({ children }: { children: ReactNode }) {
     setPendingCloseBlock(false);
   }, [updateSession]);
 
+  const handleRouteChange = useCallback(
+    (pathname: string) => {
+      if (isInitiatePath(pathname)) return;
+      setSessions((current) => {
+        const active = current[contextKey];
+        if (!active || active.pendingProposal) return current;
+        const resolution = active.lastResolution;
+        const shouldReset =
+          resolution?.status === "DraftReady" &&
+          resolution?.action_type === "CreateDraft" &&
+          Boolean(resolution?.artifact_id);
+        if (!shouldReset) return current;
+        return {
+          ...current,
+          [contextKey]: cloneDefaultSession(),
+        };
+      });
+      setPendingCloseBlock(false);
+    },
+    [contextKey]
+  );
+
   const setLastArtifactHint = useCallback((hint: ConsoleArtifactHint | null) => {
     setLastArtifactHintState(hint);
   }, []);
@@ -555,6 +584,7 @@ export function XynConsoleProvider({ children }: { children: ReactNode }) {
       registerEditorBridge,
       unregisterEditorBridge,
       clearSessionResolution,
+      handleRouteChange,
       lastArtifactHint,
       setLastArtifactHint,
     }),
@@ -584,6 +614,7 @@ export function XynConsoleProvider({ children }: { children: ReactNode }) {
       registerEditorBridge,
       unregisterEditorBridge,
       clearSessionResolution,
+      handleRouteChange,
       lastArtifactHint,
       setLastArtifactHint,
     ]

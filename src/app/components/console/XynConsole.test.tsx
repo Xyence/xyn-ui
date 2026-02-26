@@ -60,6 +60,16 @@ function ConsoleBridgeHarness({
   return null;
 }
 
+function ConsoleRouteChangeHarness({ path }: { path: string }) {
+  const { handleRouteChange } = useXynConsole();
+
+  useEffect(() => {
+    handleRouteChange(path);
+  }, [handleRouteChange, path]);
+
+  return null;
+}
+
 function renderConsoleWithBridge({
   artifactId = "art-1",
   onApplyPatch,
@@ -365,5 +375,81 @@ describe("XynConsole", () => {
     await userEvent.click(await screen.findByRole("button", { name: "guide" }));
     expect(onApplyFieldValue).toHaveBeenCalledWith("category", "guide");
     await screen.findByText("Applied locally (unsaved): category.");
+  });
+
+  it("clears global ready create session after navigating away from initiate", async () => {
+    apiMocks.resolveXynIntent.mockResolvedValue({
+      status: "DraftReady",
+      action_type: "CreateDraft",
+      artifact_type: "ArticleDraft",
+      artifact_id: "art-123",
+      summary: "Draft created.",
+      next_actions: [{ label: "Open in Editor", action: "open_editor" }],
+    });
+
+    const view = render(
+      <MemoryRouter>
+        <XynConsoleProvider>
+          <ConsoleRouteChangeHarness path="/app/console" />
+          <XynConsoleNode />
+        </XynConsoleProvider>
+      </MemoryRouter>
+    );
+
+    fireEvent.keyDown(window, { key: "k", ctrlKey: true });
+    const input = await screen.findByPlaceholderText("Describe a draft state transition.");
+    await userEvent.type(input, "create explainer draft");
+    await userEvent.click(screen.getByRole("button", { name: "Submit" }));
+    await screen.findByText("Draft created.");
+
+    view.rerender(
+      <MemoryRouter>
+        <XynConsoleProvider>
+          <ConsoleRouteChangeHarness path="/app/artifacts/art-123" />
+          <XynConsoleNode />
+        </XynConsoleProvider>
+      </MemoryRouter>
+    );
+
+    await waitFor(() => expect(screen.queryByText("Draft created.")).not.toBeInTheDocument());
+    expect(screen.queryByText("Open in Editor")).not.toBeInTheDocument();
+  });
+
+  it("retains in-progress session when navigating away from initiate", async () => {
+    apiMocks.resolveXynIntent.mockResolvedValue({
+      status: "MissingFields",
+      action_type: "CreateDraft",
+      artifact_type: "ArticleDraft",
+      artifact_id: null,
+      summary: "Draft requires additional fields before it can proceed.",
+      missing_fields: [{ field: "category", reason: "required", options_available: true }],
+    });
+
+    const view = render(
+      <MemoryRouter>
+        <XynConsoleProvider>
+          <ConsoleRouteChangeHarness path="/app/console" />
+          <XynConsoleNode />
+        </XynConsoleProvider>
+      </MemoryRouter>
+    );
+
+    fireEvent.keyDown(window, { key: "k", ctrlKey: true });
+    const input = await screen.findByPlaceholderText("Describe a draft state transition.");
+    await userEvent.type(input, "create explainer draft");
+    await userEvent.click(screen.getByRole("button", { name: "Submit" }));
+    await screen.findByText("Draft requires additional fields before it can proceed.");
+
+    view.rerender(
+      <MemoryRouter>
+        <XynConsoleProvider>
+          <ConsoleRouteChangeHarness path="/app/artifacts/some-id" />
+          <XynConsoleNode />
+        </XynConsoleProvider>
+      </MemoryRouter>
+    );
+
+    await screen.findByText("Draft requires additional fields before it can proceed.");
+    expect(screen.getByDisplayValue("create explainer draft")).toBeInTheDocument();
   });
 });

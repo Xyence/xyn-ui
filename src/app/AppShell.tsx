@@ -54,6 +54,7 @@ import { resolveRouteId } from "./help/routeHelp";
 import HeaderPreviewControl from "./components/preview/HeaderPreviewControl";
 import PreviewBanner from "./components/preview/PreviewBanner";
 import XynConsoleNode from "./components/console/XynConsoleNode";
+import { useXynConsole } from "./state/xynConsoleStore";
 
 function RedirectLegacyAiRoute({ tab }: { tab: "credentials" | "model-configs" | "agents" | "purposes" }) {
   const location = useLocation();
@@ -138,6 +139,7 @@ export default function AppShell() {
   const { push } = useNotifications();
   const { runningAiCount } = useOperations();
   const { preview, disablePreviewMode } = usePreview();
+  const { handleRouteChange } = useXynConsole();
 
   useEffect(() => {
     let mounted = true;
@@ -301,6 +303,10 @@ export default function AppShell() {
       contentRef.current.scrollTop = 0;
     }
   }, [location.pathname]);
+
+  useEffect(() => {
+    handleRouteChange(location.pathname);
+  }, [handleRouteChange, location.pathname]);
 
   useEffect(() => {
     if (typeof window === "undefined") return;
