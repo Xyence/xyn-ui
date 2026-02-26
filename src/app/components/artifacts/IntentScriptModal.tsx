@@ -5,11 +5,37 @@ type Props = {
   open: boolean;
   script: IntentScript | null;
   saving?: boolean;
+  generationError?: string | null;
+  onGoToBody?: () => void;
   onClose: () => void;
   onSave: (next: IntentScript) => Promise<void> | void;
 };
 
-export default function IntentScriptModal({ open, script, saving = false, onClose, onSave }: Props) {
+function stripLegacyRouteLines(value: string): string {
+  return String(value || "")
+    .split("\n")
+    .filter((line) => !line.trim().toLowerCase().startsWith("route:"))
+    .join("\n");
+}
+
+function stripLegacyRouteFields(value: Record<string, unknown>): Record<string, unknown> {
+  const copy = { ...value };
+  const scenes = Array.isArray(copy.scenes) ? copy.scenes : [];
+  copy.scenes = scenes.map((scene) => {
+    if (!scene || typeof scene !== "object") return scene;
+    const row = { ...(scene as Record<string, unknown>) };
+    delete row.ui_route;
+    delete row.route;
+    delete row.highlights;
+    delete row.assets;
+    delete row.notes;
+    delete row.duration_hint;
+    return row;
+  });
+  return copy;
+}
+
+export default function IntentScriptModal({ open, script, saving = false, generationError = null, onGoToBody, onClose, onSave }: Props) {
   const [title, setTitle] = useState("");
   const [status, setStatus] = useState<"draft" | "final">("draft");
   const [scriptText, setScriptText] = useState("");
@@ -20,17 +46,36 @@ export default function IntentScriptModal({ open, script, saving = false, onClos
     if (!open || !script) return;
     setTitle(script.title || "");
     setStatus(script.status || "draft");
-    setScriptText(script.script_text || "");
-    setJsonText(JSON.stringify(script.script_json || {}, null, 2));
+    setScriptText(stripLegacyRouteLines(script.script_text || ""));
+    setJsonText(JSON.stringify(stripLegacyRouteFields((script.script_json || {}) as Record<string, unknown>), null, 2));
     setError(null);
   }, [open, script]);
 
-  if (!open || !script) return null;
+  if (!open) return null;
 
   return (
     <div className="modal-backdrop" role="presentation" onClick={() => !saving && onClose()}>
       <div className="modal-card" role="dialog" aria-modal="true" onClick={(event) => event.stopPropagation()}>
         <h3>Intent Script</h3>
+        <p className="muted small">Generated from article content (title/summary/body).</p>
+        {generationError && (
+          <div className="inline-message warn" style={{ marginTop: 8 }}>
+            <span>{generationError}</span>
+            {onGoToBody ? (
+              <button type="button" className="ghost sm" onClick={onGoToBody}>
+                Go to Body
+              </button>
+            ) : null}
+          </div>
+        )}
+        {!script ? (
+          <div className="inline-actions" style={{ marginTop: 12 }}>
+            <button className="ghost" disabled={saving} onClick={onClose}>
+              Close
+            </button>
+          </div>
+        ) : (
+          <>
         <div className="form-grid">
           <label>
             Title
@@ -82,6 +127,8 @@ export default function IntentScriptModal({ open, script, saving = false, onClos
             Close
           </button>
         </div>
+          </>
+        )}
       </div>
     </div>
   );

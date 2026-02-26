@@ -1564,6 +1564,19 @@ export default function ArtifactDetailPage({
         case "view_revisions":
           setActivityTab("revisions");
           setRevisionMode("list");
+          if (revisions.length === 0) {
+            push({
+              title: "Revision history",
+              message: "No revisions yet. Save a revision to populate history.",
+              level: "info",
+            });
+          } else {
+            push({
+              title: "Revision history",
+              message: `Showing ${revisions.length} revision${revisions.length === 1 ? "" : "s"}.`,
+              level: "info",
+            });
+          }
           break;
         default:
           break;
@@ -1988,7 +2001,20 @@ export default function ArtifactDetailPage({
         </div>
       </div>
       <ArtifactWorkflowActions workflow={workflow} busyActionId={busyActionId} onRunAction={handleAction} />
-      <ArtifactCredibilityLayer artifactId={artifactId} titleFallback={item?.title || "Artifact"} />
+      <ArtifactCredibilityLayer
+        artifactId={artifactId}
+        artifactType="article"
+        titleFallback={item?.title || "Artifact"}
+        onGoToBody={() => {
+          setEditorFocusSignal((prev) => prev + 1);
+          window.requestAnimationFrame(() => {
+            const editor = document.querySelector(".editor-body");
+            if (editor instanceof HTMLElement) {
+              editor.scrollIntoView({ behavior: "smooth", block: "center" });
+            }
+          });
+        }}
+      />
     </div>
   );
 

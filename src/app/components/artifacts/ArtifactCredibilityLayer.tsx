@@ -7,9 +7,11 @@ import IntentScriptModal from "./IntentScriptModal";
 type Props = {
   artifactId?: string | null;
   titleFallback?: string;
+  artifactType?: string;
   onPublish?: () => void;
   onDiscard?: () => void;
   onRevise?: () => void;
+  onGoToBody?: () => void;
   busy?: boolean;
 };
 
@@ -20,7 +22,16 @@ function fmt(value?: string) {
   return d.toLocaleString();
 }
 
-export default function ArtifactCredibilityLayer({ artifactId, titleFallback, onPublish, onDiscard, onRevise, busy = false }: Props) {
+export default function ArtifactCredibilityLayer({
+  artifactId,
+  titleFallback,
+  artifactType,
+  onPublish,
+  onDiscard,
+  onRevise,
+  onGoToBody,
+  busy = false,
+}: Props) {
   const [artifact, setArtifact] = useState<UnifiedArtifact | null>(null);
   const [activity, setActivity] = useState<LedgerEventSummary[]>([]);
   const [family, setFamily] = useState<UnifiedArtifact[]>([]);
@@ -28,6 +39,7 @@ export default function ArtifactCredibilityLayer({ artifactId, titleFallback, on
   const [intentScript, setIntentScript] = useState<IntentScript | null>(null);
   const [intentOpen, setIntentOpen] = useState(false);
   const [intentSaving, setIntentSaving] = useState(false);
+  const [intentError, setIntentError] = useState<string | null>(null);
   const [shareMessage, setShareMessage] = useState<string | null>(null);
 
   useEffect(() => {
@@ -202,6 +214,7 @@ export default function ArtifactCredibilityLayer({ artifactId, titleFallback, on
                 onClick={async () => {
                   if (!artifactId) return;
                   setIntentSaving(true);
+                  setIntentError(null);
                   try {
                     const generated = await generateIntentScript({
                       scope_type: "artifact",
@@ -210,6 +223,10 @@ export default function ArtifactCredibilityLayer({ artifactId, titleFallback, on
                       length_target: "short",
                     });
                     setIntentScript(generated.item);
+                    setIntentOpen(true);
+                  } catch (err) {
+                    const message = err instanceof Error ? err.message : "Unable to generate intent script.";
+                    setIntentError(message);
                     setIntentOpen(true);
                   } finally {
                     setIntentSaving(false);
@@ -244,7 +261,12 @@ export default function ArtifactCredibilityLayer({ artifactId, titleFallback, on
         open={intentOpen}
         script={intentScript}
         saving={intentSaving}
-        onClose={() => setIntentOpen(false)}
+        generationError={intentError}
+        onGoToBody={artifactType === "article" ? onGoToBody : undefined}
+        onClose={() => {
+          setIntentOpen(false);
+          setIntentError(null);
+        }}
         onSave={async (next) => {
           setIntentSaving(true);
           try {
