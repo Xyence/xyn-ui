@@ -5,6 +5,7 @@ type EditorCentricLayoutProps = {
   main: ReactNode;
   inspector: ReactNode;
   activity: ReactNode;
+  stickyTop?: boolean;
 };
 
 /**
@@ -12,10 +13,10 @@ type EditorCentricLayoutProps = {
  * Keep primary editor content centered while metadata and activity panels
  * remain accessible without forcing full-page vertical stacking.
  */
-export default function EditorCentricLayout({ top, main, inspector, activity }: EditorCentricLayoutProps) {
+export default function EditorCentricLayout({ top, main, inspector, activity, stickyTop = true }: EditorCentricLayoutProps) {
   return (
     <section className="editor-centric-layout">
-      <div className="editor-centric-top">{top}</div>
+      <div className={`editor-centric-top ${stickyTop ? "" : "is-static"}`.trim()}>{top}</div>
       <div className="editor-centric-grid">
         <aside className="editor-centric-activity card">{activity}</aside>
         <section className="editor-centric-main card">{main}</section>

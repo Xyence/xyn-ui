@@ -2602,7 +2602,13 @@ export default function ArtifactDetailPage({
 
   return (
     <>
-      <EditorCentricLayout top={topSection} main={mainSection} inspector={inspectorPanel} activity={activityPanel} />
+      <EditorCentricLayout
+        top={topSection}
+        main={mainSection}
+        inspector={inspectorPanel}
+        activity={activityPanel}
+        stickyTop={articleFormat !== "video_explainer"}
+      />
       {floatingRefineTrigger}
       <ContextRefinementTool
         open={refinementOpen}

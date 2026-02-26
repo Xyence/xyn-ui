@@ -1639,6 +1639,13 @@ button.sm {
   padding-bottom: 6px;
 }
 
+.editor-centric-top.is-static {
+  position: static;
+  top: auto;
+  z-index: auto;
+  padding-bottom: 0;
+}
+
 .artifact-editor-top-section {
   gap: 8px;
 }
