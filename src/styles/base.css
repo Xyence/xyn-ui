@@ -1651,11 +1651,13 @@ button.sm {
 }
 
 .artifact-draft-bar {
-  padding: 10px 12px;
+  padding: 8px 12px;
   display: flex;
+  flex-direction: row;
   align-items: center;
   justify-content: space-between;
   gap: 10px;
+  min-height: 0;
 }
 
 .artifact-draft-bar-main {
