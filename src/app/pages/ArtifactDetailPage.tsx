@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useParams } from "react-router-dom";
-import { ChevronDown, ChevronUp, History, MessageSquareMore, SlidersHorizontal, Sparkles } from "lucide-react";
+import { ChevronDown, ChevronUp, History, MessageSquareMore, Plus, SlidersHorizontal, Sparkles, Trash2 } from "lucide-react";
 import { renderMarkdown } from "../../public/markdown";
 import {
   commentOnWorkspaceArtifact,
@@ -11,7 +11,6 @@ import {
   invokeAi,
   convertArticleHtmlToMarkdown,
   createArticleRevision,
-  generateArticleVideoScript,
   generateArticleVideoStoryboard,
   getArticleVideoAiConfig,
   getArticle,
@@ -27,7 +26,6 @@ import {
   updateArticle,
 } from "../../api/xyn";
 import type { AiAgent, ArticleDetail, ArticleFormat, ArticleRevision, ContextPackSummary, VideoAiConfigEntry, VideoRender, VideoSpec } from "../../api/types";
-import ArtifactWorkflowActions from "../components/workflow/ArtifactWorkflowActions";
 import MarkdownWysiwygEditor, { type EditorSelectionPayload } from "../components/editor/MarkdownWysiwygEditor";
 import ContextRefinementTool from "../components/editor/ContextRefinementTool";
 import CompactPaneTabs, { type CompactPaneTab } from "../components/ui/CompactPaneTabs";
@@ -44,7 +42,7 @@ import { applyPatchToFormSnapshot, buildArticleDraftSnapshot } from "../utils/ar
 type ActivityTab = "overview" | "revisions" | "ai_config" | "discussion";
 type RevisionMode = "list" | "view" | "diff";
 type EditorMode = "edit" | "review";
-type VideoTab = "overview" | "script" | "storyboard" | "renders";
+type VideoTab = "scenes" | "script" | "storyboard" | "renders";
 const REVIEW_TOAST_ACTION = "article.ai.review";
 const EXPLAINER_PURPOSE_META = [
   { slug: "explainer_script", name: "Script", description: "Narration draft generation." },
@@ -130,6 +128,34 @@ function createDefaultVideoSpec(title: string, summaryText: string): VideoSpec {
   };
 }
 
+function buildSceneScaffold(title: string, intent: string, summaryText: string, sceneCount = 5): VideoSpec["scenes"] {
+  const normalizedCount = Math.max(3, Math.min(7, sceneCount || 5));
+  const core = (intent || summaryText || title || "Explainer").trim();
+  const prompts = [
+    { name: "Hook / Premise", onScreen: "What this is about", narration: `This explainer introduces ${core} in plain language.` },
+    { name: "Setup / Context", onScreen: "The setup", narration: `First, we establish the context and why ${core} matters.` },
+    { name: "Key Points", onScreen: "Key points", narration: `Next, we walk through the main points and concrete details.` },
+    { name: "Outcome / Takeaways", onScreen: "What it means", narration: `Then we summarize the outcomes and practical takeaways.` },
+    { name: "Close / Next Step", onScreen: "Closing thought", narration: `Finally, we close with the key next step for the audience.` },
+    { name: "Deep Dive", onScreen: "Further detail", narration: `We add supporting detail to strengthen understanding.` },
+    { name: "Wrap-up", onScreen: "Recap", narration: `We end with a concise recap of the full narrative.` },
+  ];
+  return Array.from({ length: normalizedCount }).map((_, index) => {
+    const seed = prompts[index] || prompts[prompts.length - 1];
+    return {
+      id: `s${index + 1}`,
+      name: seed.name,
+      duration_seconds: 8,
+      narration: seed.narration,
+      visual_prompt: `${title || "Explainer"} visual support`,
+      on_screen_text: seed.onScreen,
+      camera_motion: "",
+      style_constraints: [],
+      generated: { image_asset_url: null, video_clip_url: null },
+    };
+  });
+}
+
 export default function ArtifactDetailPage({
   workspaceId,
   workspaceRole,
@@ -169,7 +195,7 @@ export default function ArtifactDetailPage({
   const [baselineLabel, setBaselineLabel] = useState("latest saved revision");
   const [showPreview, setShowPreview] = useState(false);
   const [editorMode, setEditorMode] = useState<EditorMode>("edit");
-  const [videoTab, setVideoTab] = useState<VideoTab>("overview");
+  const [videoTab, setVideoTab] = useState<VideoTab>("scenes");
   const [videoPanelCollapsed, setVideoPanelCollapsed] = useState(false);
   const [videoSpec, setVideoSpec] = useState<VideoSpec | null>(null);
   const [videoRenders, setVideoRenders] = useState<VideoRender[]>([]);
@@ -188,6 +214,9 @@ export default function ArtifactDetailPage({
   const [videoPurposeContextPacks, setVideoPurposeContextPacks] = useState<Record<string, ContextPackSummary[]>>({});
   const [videoAiConfigBusy, setVideoAiConfigBusy] = useState(false);
   const [videoBusy, setVideoBusy] = useState<"init" | "save" | "script" | "storyboard" | "render" | "retry" | "cancel" | null>(null);
+  const [selectedVideoSceneIndex, setSelectedVideoSceneIndex] = useState(0);
+  const [sceneRegenerateOpen, setSceneRegenerateOpen] = useState(false);
+  const [sceneRegenerateProposal, setSceneRegenerateProposal] = useState<VideoSpec["scenes"]>([]);
   const [selectedStoryboardSceneIndex, setSelectedStoryboardSceneIndex] = useState(0);
   const [pendingAssist, setPendingAssist] = useState<PendingAssist | null>(null);
   const [pendingSurfaceRefinement, setPendingSurfaceRefinement] = useState<PendingSurfaceRefinement | null>(null);
@@ -212,7 +241,6 @@ export default function ArtifactDetailPage({
   const videoPanelRef = useRef<HTMLElement | null>(null);
   const videoIntentFieldRef = useRef<HTMLTextAreaElement | null>(null);
   const videoDurationFieldRef = useRef<HTMLInputElement | null>(null);
-  const scriptTextareaRef = useRef<HTMLTextAreaElement | null>(null);
   const titleFieldRef = useRef<HTMLInputElement | null>(null);
   const formatFieldRef = useRef<HTMLSelectElement | null>(null);
   const categorySelectFieldRef = useRef<HTMLSelectElement | null>(null);
@@ -284,18 +312,6 @@ export default function ArtifactDetailPage({
       },
     };
   }, []);
-
-  const handleScriptSelection = useCallback((element: HTMLTextAreaElement) => {
-    const selection = extractTextareaSelection(element);
-    setScriptSelection(selection);
-    if (selection?.selectedText?.trim()) {
-      setSelectionSurface("script");
-      setRefinementSurface("script");
-      setRefinementAnchorRect(selection.anchorRect || null);
-    } else if (selectionSurface === "script") {
-      setSelectionSurface(null);
-    }
-  }, [extractTextareaSelection, selectionSurface]);
 
   const handleStoryboardSelection = useCallback(
     (element: HTMLTextAreaElement, field: StoryboardFieldKey, sceneIndex: number) => {
@@ -901,34 +917,6 @@ export default function ArtifactDetailPage({
     }
   }, [artifactId]);
 
-  const generateVideoScriptDraft = async () => {
-    if (!artifactId) return;
-    try {
-      setVideoBusy("script");
-      setError(null);
-      const result = await generateArticleVideoScript(artifactId, {
-        context_pack_id: selectedVideoContextPackId || null,
-      });
-      setItem(result.article);
-      setTitle(result.article.title || "");
-      setVideoSpec((result.article.video_spec_json as VideoSpec) || null);
-      setSelectedVideoContextPackId(result.article.video_context_pack_id || selectedVideoContextPackId || "");
-      push({
-        level: "success",
-        title: "Script proposal ready",
-        message: "Generated outputs are provisional. Accept or refine.",
-        status: "succeeded",
-        action: "article.video.script",
-        entityType: "unknown",
-        entityId: artifactId,
-      });
-    } catch (err) {
-      setError((err as Error).message);
-    } finally {
-      setVideoBusy(null);
-    }
-  };
-
   const generateVideoStoryboardDraft = async () => {
     if (!artifactId) return;
     try {
@@ -956,6 +944,25 @@ export default function ArtifactDetailPage({
       setVideoBusy(null);
     }
   };
+
+  const openRegenerateScenesPreview = useCallback(() => {
+    const baseSpec = videoSpec || createDefaultVideoSpec(title, summary);
+    const nextScenes = buildSceneScaffold(title, baseSpec.intent || "", summary, (baseSpec.scenes || []).length || 5);
+    setSceneRegenerateProposal(nextScenes);
+    setSceneRegenerateOpen(true);
+  }, [summary, title, videoSpec]);
+
+  const applyRegeneratedScenes = useCallback(() => {
+    setVideoSpec((prev) => {
+      const base = prev || createDefaultVideoSpec(title, summary);
+      return {
+        ...base,
+        scenes: sceneRegenerateProposal,
+      };
+    });
+    setSelectedVideoSceneIndex(0);
+    setSceneRegenerateOpen(false);
+  }, [sceneRegenerateProposal, summary, title]);
 
   const requestVideoRender = async () => {
     if (!artifactId) return;
@@ -1202,20 +1209,24 @@ export default function ArtifactDetailPage({
   const canRefineSelection = canRewriteSelection(selectionLength);
   const isExplainerFormat = articleFormat === "video_explainer";
   const activeVideoSpec = videoSpec || createDefaultVideoSpec(item?.title || "", summary || "");
-  const scriptProposals = Array.isArray(activeVideoSpec.script?.proposals) ? activeVideoSpec.script.proposals : [];
   const storyboardProposals = Array.isArray(activeVideoSpec.storyboard?.proposals) ? activeVideoSpec.storyboard.proposals : [];
+  const videoScenes = Array.isArray(activeVideoSpec.scenes) ? activeVideoSpec.scenes : [];
+  const selectedVideoScene =
+    videoScenes.length > 0 ? videoScenes[Math.min(selectedVideoSceneIndex, videoScenes.length - 1)] : null;
   const selectedStoryboardScene =
     Array.isArray(activeVideoSpec.storyboard?.draft) && activeVideoSpec.storyboard.draft.length > 0
       ? activeVideoSpec.storyboard.draft[Math.min(selectedStoryboardSceneIndex, activeVideoSpec.storyboard.draft.length - 1)]
       : null;
   const scriptDraftText = String(activeVideoSpec.script?.draft || "").trim();
   const hasScriptDraft = scriptDraftText.length > 0;
+  const hasScenes = videoScenes.length > 0;
   const storyboardDraftCount = Array.isArray(activeVideoSpec.storyboard?.draft) ? activeVideoSpec.storyboard.draft.length : 0;
   const hasStoryboardDraft = storyboardDraftCount > 0;
   const latestVideoRender = videoRenders[0] || null;
   const isVideoOperationRunning = videoBusy === "script" || videoBusy === "storyboard" || videoBusy === "render" || (latestVideoRender?.status === "queued" || latestVideoRender?.status === "running");
   const videoSummaryRows = [
-    `Script: ${hasScriptDraft ? "draft ready" : "not generated"}`,
+    `Scenes: ${hasScenes ? `${videoScenes.length} scene${videoScenes.length === 1 ? "" : "s"}` : "not generated"}`,
+    `Script view: ${hasScenes ? "derived from scenes" : hasScriptDraft ? "draft ready" : "not generated"}`,
     `Storyboard: ${hasStoryboardDraft ? `${storyboardDraftCount} scene${storyboardDraftCount === 1 ? "" : "s"}` : "not generated"}`,
     `Last render: ${latestVideoRender?.status || "none"}`,
   ];
@@ -1351,7 +1362,7 @@ export default function ArtifactDetailPage({
       }
       if (field === "intent") {
         setArticleFormat("video_explainer");
-        setVideoTab("overview");
+        setVideoTab("scenes");
         setVideoPanelCollapsed(false);
         window.setTimeout(() => {
           videoIntentFieldRef.current?.focus();
@@ -1361,7 +1372,7 @@ export default function ArtifactDetailPage({
       }
       if (field === "duration") {
         setArticleFormat("video_explainer");
-        setVideoTab("overview");
+        setVideoTab("scenes");
         setVideoPanelCollapsed(false);
         window.setTimeout(() => {
           videoDurationFieldRef.current?.focus();
@@ -1456,11 +1467,11 @@ export default function ArtifactDetailPage({
     : null;
 
   const collapsedPrimaryAction = useMemo(() => {
-    if (!hasScriptDraft) {
+    if (!hasScenes) {
       return {
-        label: videoBusy === "script" ? "Generating script…" : "Generate script",
+        label: "Regenerate scenes…",
         disabled: Boolean(videoBusy),
-        run: () => void generateVideoScriptDraft(),
+        run: openRegenerateScenesPreview,
       };
     }
     if (!hasStoryboardDraft) {
@@ -1475,7 +1486,7 @@ export default function ArtifactDetailPage({
       disabled: Boolean(videoBusy),
       run: () => void requestVideoRender(),
     };
-  }, [generateVideoScriptDraft, generateVideoStoryboardDraft, hasScriptDraft, hasStoryboardDraft, requestVideoRender, videoBusy]);
+  }, [generateVideoStoryboardDraft, hasScenes, hasStoryboardDraft, openRegenerateScenesPreview, requestVideoRender, videoBusy]);
 
   const videoPanelStorageKey = artifactId ? `xyn.videoPanelCollapsed:${artifactId}` : "";
 
@@ -1826,6 +1837,7 @@ export default function ArtifactDetailPage({
       artifactId={artifactId}
       artifactType="article"
       titleFallback={item?.title || "Artifact"}
+      showIntentScriptAction={articleFormat !== "video_explainer"}
       onGoToBody={() => {
         setEditorFocusSignal((prev) => prev + 1);
         window.requestAnimationFrame(() => {
@@ -1998,6 +2010,68 @@ export default function ArtifactDetailPage({
           </button>
         </div>
       </div>
+      {articleFormat === "video_explainer" && (
+        <div className="stack explainer-inspector-settings">
+          <div className="card-header">
+            <h4>Explainer Settings</h4>
+          </div>
+          <label className="field-label">
+            Context pack
+            <select
+              className="input"
+              value={selectedVideoContextPackId}
+              onChange={(event) => setSelectedVideoContextPackId(event.target.value)}
+            >
+              <option value="">None</option>
+              {videoContextPacks.map((pack) => (
+                <option key={pack.id} value={pack.id}>
+                  {pack.name} · v{pack.version}
+                </option>
+              ))}
+            </select>
+          </label>
+          <label className="field-label" htmlFor="article-intent">
+            Intent
+            <textarea
+              id="article-intent"
+              rows={3}
+              ref={videoIntentFieldRef}
+              className={`input ${missingConsoleFields.has("intent") ? "console-missing-field" : ""}`}
+              value={activeVideoSpec.intent || ""}
+              onChange={(event) => setVideoSpec({ ...activeVideoSpec, intent: event.target.value })}
+            />
+          </label>
+          <label className="field-label">
+            Audience
+            <input
+              className="input"
+              value={activeVideoSpec.audience || ""}
+              onChange={(event) => setVideoSpec({ ...activeVideoSpec, audience: event.target.value })}
+            />
+          </label>
+          <label className="field-label">
+            Tone
+            <input className="input" value={activeVideoSpec.tone || ""} onChange={(event) => setVideoSpec({ ...activeVideoSpec, tone: event.target.value })} />
+          </label>
+          <label className="field-label" htmlFor="article-duration">
+            Duration target (seconds)
+            <input
+              id="article-duration"
+              ref={videoDurationFieldRef}
+              className={`input ${missingConsoleFields.has("duration") ? "console-missing-field" : ""}`}
+              type="number"
+              min={10}
+              value={activeVideoSpec.duration_seconds_target || 150}
+              onChange={(event) =>
+                setVideoSpec({ ...activeVideoSpec, duration_seconds_target: Number(event.target.value) || activeVideoSpec.duration_seconds_target })
+              }
+            />
+          </label>
+          <button className="ghost sm" type="button" onClick={() => void persistVideoSpec(activeVideoSpec)} disabled={videoBusy === "save"}>
+            {videoBusy === "save" ? "Saving…" : "Save explainer settings"}
+          </button>
+        </div>
+      )}
       <div className="inline-actions">
         <button className="primary" type="button" onClick={() => void save()}>
           Save revision
@@ -2042,13 +2116,42 @@ export default function ArtifactDetailPage({
 
   const topSection = (
     <div className="stack artifact-editor-top-section">
-      <div className="page-header">
-        <div>
-          <h2>{title || item?.title || "Artifact"}</h2>
-          <p className="muted">Governed article workflow controls</p>
+      <section className="card artifact-draft-bar">
+        <div className="artifact-draft-bar-main">
+          <input className="input artifact-draft-bar-title" value={title} onChange={(event) => setTitle(event.target.value)} aria-label="Draft title" />
+          <span className={`status-pill status-${workflow.statusTone}`}>{workflow.statusLabel}</span>
+          <span className="muted small">{workflow.nextStepLabel}</span>
+          {workflow.blockers.length > 0 && <span className="muted small">Blocking: {workflow.blockers[0]}</span>}
         </div>
-      </div>
-      <ArtifactWorkflowActions workflow={workflow} busyActionId={busyActionId} onRunAction={handleAction} />
+        <div className="inline-actions">
+          <button className="primary sm" type="button" onClick={() => void save()}>
+            Save
+          </button>
+          {workflow.primaryAction && (
+            <button
+              className={workflow.primaryAction.intent === "danger" ? "danger sm" : "primary sm"}
+              type="button"
+              onClick={() => handleAction(workflow.primaryAction as WorkflowAction)}
+              disabled={!workflow.primaryAction.enabled || busyActionId === workflow.primaryAction.id}
+              title={workflow.primaryAction.disabledReason || undefined}
+            >
+              {workflow.primaryAction.label}
+            </button>
+          )}
+          <button
+            className="ghost sm"
+            type="button"
+            onClick={() => {
+              const revisionsAction = workflow.secondaryActions.find((action) => action.id === "view_revisions");
+              if (revisionsAction?.enabled) {
+                handleAction(revisionsAction);
+              }
+            }}
+          >
+            Actions
+          </button>
+        </div>
+      </section>
     </div>
   );
 
@@ -2060,8 +2163,8 @@ export default function ArtifactDetailPage({
           <div className="inline-actions">
             {!videoPanelCollapsed && (
               <>
-                <button className={`ghost sm ${videoTab === "overview" ? "active" : ""}`} type="button" onClick={() => setVideoTab("overview")}>
-                  Overview
+                <button className={`ghost sm ${videoTab === "scenes" ? "active" : ""}`} type="button" onClick={() => setVideoTab("scenes")}>
+                  Scenes
                 </button>
                 <button className={`ghost sm ${videoTab === "script" ? "active" : ""}`} type="button" onClick={() => setVideoTab("script")}>
                   Script
@@ -2113,149 +2216,130 @@ export default function ArtifactDetailPage({
           <>
             <p className="muted small">Generated outputs are provisional. Accept or refine.</p>
             <p className="muted small">Scenes are scaffolded from title/topic at draft creation.</p>
-            {videoTab === "overview" && (
-          <div className="form-grid">
-            <label>
-              Context pack
-              <select
-                className="input"
-                value={selectedVideoContextPackId}
-                onChange={(event) => setSelectedVideoContextPackId(event.target.value)}
-              >
-                <option value="">None</option>
-                {videoContextPacks.map((pack) => (
-                  <option key={pack.id} value={pack.id}>
-                    {pack.name} · v{pack.version}
-                  </option>
-                ))}
-              </select>
-            </label>
-            <label>
-              Intent
-              <textarea
-                id="article-intent"
-                rows={3}
-                ref={videoIntentFieldRef}
-                className={`input ${missingConsoleFields.has("intent") ? "console-missing-field" : ""}`}
-                value={activeVideoSpec.intent || ""}
-                onChange={(event) => setVideoSpec({ ...activeVideoSpec, intent: event.target.value })}
-              />
-            </label>
-            <label>
-              Audience
-              <input
-                className="input"
-                value={activeVideoSpec.audience || ""}
-                onChange={(event) => setVideoSpec({ ...activeVideoSpec, audience: event.target.value })}
-              />
-            </label>
-            <label>
-              Tone
-              <input className="input" value={activeVideoSpec.tone || ""} onChange={(event) => setVideoSpec({ ...activeVideoSpec, tone: event.target.value })} />
-            </label>
-            <label>
-              Duration target (seconds)
-              <input
-                id="article-duration"
-                ref={videoDurationFieldRef}
-                className={`input ${missingConsoleFields.has("duration") ? "console-missing-field" : ""}`}
-                type="number"
-                min={10}
-                value={activeVideoSpec.duration_seconds_target || 150}
-                onChange={(event) =>
-                  setVideoSpec({ ...activeVideoSpec, duration_seconds_target: Number(event.target.value) || activeVideoSpec.duration_seconds_target })
-                }
-              />
-            </label>
-            <button className="ghost sm" type="button" onClick={() => void persistVideoSpec(activeVideoSpec)} disabled={videoBusy === "save"}>
-              {videoBusy === "save" ? "Saving…" : "Save video spec"}
-            </button>
+            {videoTab === "scenes" && (
+          <div className="editor-body split">
+            <div className="instance-list">
+              {videoScenes.map((scene, index) => (
+                <button
+                  type="button"
+                  key={`${scene.id || scene.name}-${index}`}
+                  className={`instance-row ${selectedVideoSceneIndex === index ? "active" : ""}`}
+                  onClick={() => setSelectedVideoSceneIndex(index)}
+                >
+                  <div>
+                    <strong>{scene.name || `Scene ${index + 1}`}</strong>
+                    <span className="muted small">{scene.id || `s${index + 1}`}</span>
+                  </div>
+                </button>
+              ))}
+              {videoScenes.length === 0 && <p className="muted small">No scenes yet.</p>}
+            </div>
+            <div className="stack">
+              {selectedVideoScene && (
+                <>
+                  <label>
+                    Scene title
+                    <input
+                      className="input"
+                      value={selectedVideoScene.name || ""}
+                      onChange={(event) => {
+                        const nextScenes = [...videoScenes];
+                        nextScenes[selectedVideoSceneIndex] = { ...selectedVideoScene, name: event.target.value };
+                        setVideoSpec({ ...activeVideoSpec, scenes: nextScenes });
+                      }}
+                    />
+                  </label>
+                  <label>
+                    Voiceover
+                    <textarea
+                      className="input"
+                      rows={5}
+                      value={selectedVideoScene.narration || ""}
+                      onChange={(event) => {
+                        const nextScenes = [...videoScenes];
+                        nextScenes[selectedVideoSceneIndex] = { ...selectedVideoScene, narration: event.target.value };
+                        setVideoSpec({ ...activeVideoSpec, scenes: nextScenes });
+                      }}
+                    />
+                  </label>
+                  <label>
+                    On-screen text
+                    <input
+                      className="input"
+                      value={selectedVideoScene.on_screen_text || ""}
+                      onChange={(event) => {
+                        const nextScenes = [...videoScenes];
+                        nextScenes[selectedVideoSceneIndex] = { ...selectedVideoScene, on_screen_text: event.target.value };
+                        setVideoSpec({ ...activeVideoSpec, scenes: nextScenes });
+                      }}
+                    />
+                  </label>
+                </>
+              )}
+              <div className="inline-actions">
+                <button
+                  className="ghost sm"
+                  type="button"
+                  onClick={() => {
+                    const next = [
+                      ...videoScenes,
+                      {
+                        id: `s${videoScenes.length + 1}`,
+                        name: `Scene ${videoScenes.length + 1}`,
+                        duration_seconds: 8,
+                        narration: "",
+                        visual_prompt: "",
+                        on_screen_text: "",
+                        camera_motion: "",
+                        style_constraints: [],
+                        generated: { image_asset_url: null, video_clip_url: null },
+                      },
+                    ];
+                    setVideoSpec({ ...activeVideoSpec, scenes: next });
+                    setSelectedVideoSceneIndex(next.length - 1);
+                  }}
+                >
+                  <Plus size={14} /> Add scene
+                </button>
+                <button
+                  className="ghost sm"
+                  type="button"
+                  onClick={() => {
+                    if (!selectedVideoScene) return;
+                    const next = videoScenes.filter((_, idx) => idx !== selectedVideoSceneIndex);
+                    setVideoSpec({ ...activeVideoSpec, scenes: next });
+                    setSelectedVideoSceneIndex((current) => Math.max(0, current - 1));
+                  }}
+                  disabled={!selectedVideoScene}
+                >
+                  <Trash2 size={14} /> Delete scene
+                </button>
+                <button className="ghost sm" type="button" onClick={openRegenerateScenesPreview}>
+                  Regenerate Scenes…
+                </button>
+                <button className="primary sm" type="button" onClick={() => void persistVideoSpec(activeVideoSpec)} disabled={videoBusy === "save"}>
+                  {videoBusy === "save" ? "Saving…" : "Save scenes"}
+                </button>
+              </div>
+            </div>
           </div>
             )}
             {videoTab === "script" && (
           <div className="stack">
-            <textarea
-              className="input"
-              rows={10}
-              ref={scriptTextareaRef}
-              value={activeVideoSpec.script?.draft || ""}
-              onSelect={(event) => handleScriptSelection(event.currentTarget)}
-              onChange={(event) =>
-                setVideoSpec({
-                  ...activeVideoSpec,
-                  script: { ...(activeVideoSpec.script || { draft: "", proposals: [] }), draft: event.target.value },
-                })
-              }
-            />
-            <div className="inline-actions">
-              <button className="ghost sm" type="button" onClick={() => void persistVideoSpec(activeVideoSpec)} disabled={videoBusy === "save"}>
-                Save script draft
-              </button>
-              <button
-                className="ghost sm"
-                type="button"
-                onClick={() => {
-                  const rect = scriptTextareaRef.current?.getBoundingClientRect();
-                  openRefinement("script", rect ? { top: rect.top + 8, left: rect.left + 16, width: rect.width, height: 1 } : null);
-                }}
-              >
-                <Sparkles size={14} /> Refine
-              </button>
-              <button className="primary sm" type="button" onClick={() => void generateVideoScriptDraft()} disabled={videoBusy === "script"}>
-                {videoBusy === "script" ? "Generating…" : "Generate Script"}
-              </button>
+            <p className="muted small">Script is derived from scenes.</p>
+            <div className="stack">
+              {videoScenes.length === 0 ? (
+                <p className="muted small">No scenes available to derive script.</p>
+              ) : (
+                videoScenes.map((scene, index) => (
+                  <section key={`${scene.id || scene.name}-${index}`} className="diff-panel">
+                    <h4>{scene.name || `Scene ${index + 1}`}</h4>
+                    <p className="muted small">{scene.on_screen_text || "On-screen text not set."}</p>
+                    <p>{scene.narration || "Voiceover not set."}</p>
+                  </section>
+                ))
+              )}
             </div>
-            {pendingSurfaceRefinement?.surface === "script" && (
-              <div className="diff-panel">
-                <p className="muted small">Suggestion ready: {pendingSurfaceRefinement.agent_slug || "agent"} · {pendingSurfaceRefinement.provider} {pendingSurfaceRefinement.model}</p>
-                <div className="line-diff article-review-diff">
-                  {(computeLineDiff(pendingSurfaceRefinement.baseText, pendingSurfaceRefinement.nextText).ops || []).map((op, idx) => (
-                    <pre key={`${idx}-${op.type}`} className={`line-diff-row ${op.type}`}>
-                      <span>{op.type === "add" ? "+" : op.type === "remove" ? "-" : " "}</span>
-                      {op.text}
-                    </pre>
-                  ))}
-                </div>
-                <div className="inline-actions">
-                  <button className="primary sm" type="button" onClick={applySurfaceRefinement}>
-                    Apply changes
-                  </button>
-                  <button className="ghost sm" type="button" onClick={() => setPendingSurfaceRefinement(null)}>
-                    Discard
-                  </button>
-                </div>
-              </div>
-            )}
-            {scriptProposals.length > 0 && (
-              <div className="stack">
-                <div className="card-header">
-                  <h4>Script proposals</h4>
-                </div>
-                {scriptProposals.slice(0, 3).map((proposal) => (
-                  <div className="diff-panel" key={proposal.id}>
-                    <p className="muted small">{proposal.created_at}</p>
-                    <pre className="code-block">{proposal.text}</pre>
-                    <div className="inline-actions">
-                      <button
-                        className="ghost sm"
-                        type="button"
-                        onClick={() =>
-                          setVideoSpec({
-                            ...activeVideoSpec,
-                            script: {
-                              ...(activeVideoSpec.script || { draft: "", proposals: [] }),
-                              draft: proposal.text,
-                            },
-                          })
-                        }
-                      >
-                        Accept proposal
-                      </button>
-                    </div>
-                  </div>
-                ))}
-              </div>
-            )}
           </div>
             )}
             {videoTab === "storyboard" && (
@@ -2632,6 +2716,32 @@ export default function ArtifactDetailPage({
         }
         onClose={() => setRefinementOpen(false)}
       />
+      {sceneRegenerateOpen && (
+        <div className="modal-backdrop" onClick={() => setSceneRegenerateOpen(false)}>
+          <section className="modal" onClick={(event) => event.stopPropagation()}>
+            <h3>Regenerate Scenes</h3>
+            <p className="muted small" style={{ marginTop: 8 }}>
+              Regenerating will replace current scenes. Review the diff before applying.
+            </p>
+            <div className="line-diff article-review-diff" style={{ marginTop: 12, maxHeight: "320px", overflowY: "auto" }}>
+              {(computeLineDiff(JSON.stringify(videoScenes, null, 2), JSON.stringify(sceneRegenerateProposal, null, 2)).ops || []).map((op, idx) => (
+                <pre key={`${idx}-${op.type}`} className={`line-diff-row ${op.type}`}>
+                  <span>{op.type === "add" ? "+" : op.type === "remove" ? "-" : " "}</span>
+                  {op.text}
+                </pre>
+              ))}
+            </div>
+            <div className="inline-actions" style={{ marginTop: 12 }}>
+              <button className="primary" type="button" onClick={applyRegeneratedScenes}>
+                Apply
+              </button>
+              <button className="ghost" type="button" onClick={() => setSceneRegenerateOpen(false)}>
+                Cancel
+              </button>
+            </div>
+          </section>
+        </div>
+      )}
       {confirmingAction?.confirmation && (
         <div className="modal-backdrop" onClick={() => setConfirmingAction(null)}>
           <section className="modal" onClick={(event) => event.stopPropagation()}>

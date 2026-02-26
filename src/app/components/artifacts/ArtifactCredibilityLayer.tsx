@@ -13,6 +13,7 @@ type Props = {
   onRevise?: () => void;
   onGoToBody?: () => void;
   busy?: boolean;
+  showIntentScriptAction?: boolean;
 };
 
 function fmt(value?: string) {
@@ -31,6 +32,7 @@ export default function ArtifactCredibilityLayer({
   onRevise,
   onGoToBody,
   busy = false,
+  showIntentScriptAction = true,
 }: Props) {
   const [artifact, setArtifact] = useState<UnifiedArtifact | null>(null);
   const [activity, setActivity] = useState<LedgerEventSummary[]>([]);
@@ -207,34 +209,36 @@ export default function ArtifactCredibilityLayer({
               {showRevise && (
                 <button className="ghost" type="button" onClick={onRevise} disabled={busy}>Revise</button>
               )}
-              <button
-                className="ghost"
-                type="button"
-                disabled={busy || intentSaving}
-                onClick={async () => {
-                  if (!artifactId) return;
-                  setIntentSaving(true);
-                  setIntentError(null);
-                  try {
-                    const generated = await generateIntentScript({
-                      scope_type: "artifact",
-                      scope_ref_id: artifactId,
-                      audience: "developer",
-                      length_target: "short",
-                    });
-                    setIntentScript(generated.item);
-                    setIntentOpen(true);
-                  } catch (err) {
-                    const message = err instanceof Error ? err.message : "Unable to generate intent script.";
-                    setIntentError(message);
-                    setIntentOpen(true);
-                  } finally {
-                    setIntentSaving(false);
-                  }
-                }}
-              >
-                Generate Intent Script
-              </button>
+              {showIntentScriptAction && (
+                <button
+                  className="ghost"
+                  type="button"
+                  disabled={busy || intentSaving}
+                  onClick={async () => {
+                    if (!artifactId) return;
+                    setIntentSaving(true);
+                    setIntentError(null);
+                    try {
+                      const generated = await generateIntentScript({
+                        scope_type: "artifact",
+                        scope_ref_id: artifactId,
+                        audience: "developer",
+                        length_target: "short",
+                      });
+                      setIntentScript(generated.item);
+                      setIntentOpen(true);
+                    } catch (err) {
+                      const message = err instanceof Error ? err.message : "Unable to generate intent script.";
+                      setIntentError(message);
+                      setIntentOpen(true);
+                    } finally {
+                      setIntentSaving(false);
+                    }
+                  }}
+                >
+                  Generate Intent Script
+                </button>
+              )}
           </div>
         </>
       )}
@@ -272,7 +276,6 @@ export default function ArtifactCredibilityLayer({
           try {
             const saved = await updateIntentScript(next.intent_script_id, {
               title: next.title,
-              status: next.status,
               script_text: next.script_text,
               script_json: next.script_json as Record<string, unknown>,
             });

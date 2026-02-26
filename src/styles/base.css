@@ -1650,6 +1650,33 @@ button.sm {
   gap: 8px;
 }
 
+.artifact-draft-bar {
+  padding: 10px 12px;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+}
+
+.artifact-draft-bar-main {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  min-width: 0;
+  flex: 1;
+}
+
+.artifact-draft-bar-title {
+  max-width: 380px;
+  min-width: 220px;
+  font-weight: 700;
+}
+
+.explainer-inspector-settings {
+  border-top: 1px solid var(--border);
+  padding-top: 8px;
+}
+
 .editor-centric-grid {
   display: grid;
   gap: 18px;

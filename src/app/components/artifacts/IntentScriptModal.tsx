@@ -37,7 +37,6 @@ function stripLegacyRouteFields(value: Record<string, unknown>): Record<string, 
 
 export default function IntentScriptModal({ open, script, saving = false, generationError = null, onGoToBody, onClose, onSave }: Props) {
   const [title, setTitle] = useState("");
-  const [status, setStatus] = useState<"draft" | "final">("draft");
   const [scriptText, setScriptText] = useState("");
   const [jsonText, setJsonText] = useState("{}");
   const [error, setError] = useState<string | null>(null);
@@ -45,7 +44,6 @@ export default function IntentScriptModal({ open, script, saving = false, genera
   useEffect(() => {
     if (!open || !script) return;
     setTitle(script.title || "");
-    setStatus(script.status || "draft");
     setScriptText(stripLegacyRouteLines(script.script_text || ""));
     setJsonText(JSON.stringify(stripLegacyRouteFields((script.script_json || {}) as Record<string, unknown>), null, 2));
     setError(null);
@@ -82,13 +80,6 @@ export default function IntentScriptModal({ open, script, saving = false, genera
             <input className="input" value={title} onChange={(event) => setTitle(event.target.value)} />
           </label>
           <label>
-            Status
-            <select className="input" value={status} onChange={(event) => setStatus(event.target.value as "draft" | "final")}>
-              <option value="draft">draft</option>
-              <option value="final">final</option>
-            </select>
-          </label>
-          <label>
             Script text
             <textarea className="input" rows={12} value={scriptText} onChange={(event) => setScriptText(event.target.value)} />
           </label>
@@ -114,7 +105,6 @@ export default function IntentScriptModal({ open, script, saving = false, genera
               const next: IntentScript = {
                 ...script,
                 title: title.trim() || script.title,
-                status,
                 script_text: scriptText,
                 script_json: parsed,
               };
