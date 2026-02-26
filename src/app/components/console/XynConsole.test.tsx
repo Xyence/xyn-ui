@@ -293,6 +293,26 @@ describe("XynConsole", () => {
     expect(onFocusField).toHaveBeenCalledWith("intent");
   });
 
+  it("adds missing field hint to prompt in global context", async () => {
+    apiMocks.resolveXynIntent.mockResolvedValue({
+      status: "MissingFields",
+      action_type: "CreateDraft",
+      artifact_type: "ArticleDraft",
+      artifact_id: null,
+      summary: "Need more fields.",
+      missing_fields: [{ field: "intent", reason: "required", options_available: false }],
+    });
+
+    renderConsole();
+    fireEvent.keyDown(window, { key: "k", ctrlKey: true });
+    const input = await screen.findByPlaceholderText("Describe a draft state transition.");
+    await userEvent.type(input, "create explainer video");
+    await userEvent.click(screen.getByRole("button", { name: "Submit" }));
+    await screen.findByText("Missing fields");
+    await userEvent.click(screen.getByRole("button", { name: "Add to prompt" }));
+    await waitFor(() => expect(screen.getByDisplayValue(/intent:\s*$/i)).toBeInTheDocument());
+  });
+
   it("applies option directly to form in editor context", async () => {
     const onApplyPatch = vi.fn().mockReturnValue({ appliedFields: [], ignoredFields: [] });
     const onApplyFieldValue = vi.fn().mockReturnValue(true);

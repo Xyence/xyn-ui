@@ -158,7 +158,7 @@ type XynConsoleContextValue = {
   fetchOptions: (field: "category" | "format" | "duration") => Promise<void>;
   injectSuggestion: (snippet: string) => void;
   applyOptionValue: (field: "category" | "format" | "duration", option: unknown) => void;
-  focusMissingField: (field: string) => void;
+  focusMissingField: (field: string) => boolean;
   registerEditorBridge: (context: XynConsoleContextRef, bridge: ConsoleEditorBridge) => void;
   unregisterEditorBridge: (context: XynConsoleContextRef) => void;
   clearSessionResolution: () => void;
@@ -451,9 +451,26 @@ export function XynConsoleProvider({ children }: { children: ReactNode }) {
 
   const focusMissingField = useCallback(
     (field: string) => {
-      activeEditorBridge?.focusField(field);
+      const targetField = String(field || "").trim();
+      if (!targetField) return false;
+      if (activeEditorBridge?.focusField(targetField)) {
+        updateSession((current) => ({
+          ...current,
+          localMessage: `Focused field: ${targetField}.`,
+        }));
+        return true;
+      }
+      updateSession((current) => {
+        const prefix = current.inputText?.trim() ? `${current.inputText.trim()}; ` : "";
+        return {
+          ...current,
+          inputText: `${prefix}${targetField}: `,
+          localMessage: `Added field prompt: ${targetField}.`,
+        };
+      });
+      return false;
     },
-    [activeEditorBridge]
+    [activeEditorBridge, updateSession]
   );
 
   const setContext = useCallback((next: XynConsoleContextRef) => {

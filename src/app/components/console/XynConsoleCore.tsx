@@ -36,7 +36,7 @@ function StatusIcon({ status }: { status?: string }) {
 }
 
 function MissingFieldsCard() {
-  const { session, fetchOptions, focusMissingField } = useXynConsole();
+  const { session, fetchOptions, focusMissingField, hasEditorBridge } = useXynConsole();
   if (!session.pendingMissingFields.length) return null;
   return (
     <section className="xyn-console-card" aria-label="Missing fields">
@@ -53,7 +53,7 @@ function MissingFieldsCard() {
               </button>
             ) : null}
             <button type="button" className="ghost sm" onClick={() => focusMissingField(field.field)}>
-              Focus field
+              {hasEditorBridge ? "Focus field" : "Add to prompt"}
             </button>
           </li>
         ))}
@@ -138,7 +138,7 @@ function ProposedPatchCard() {
   );
 }
 
-function ResolutionCard({ resolution }: { resolution: XynIntentResolutionResult }) {
+function ResolutionCard({ resolution, onRevise }: { resolution: XynIntentResolutionResult; onRevise: () => void }) {
   const { applyDraftPayload, setInputText, session } = useXynConsole();
   const navigate = useNavigate();
   const canCreate = resolution.status === "DraftReady" && resolution.action_type === "CreateDraft" && !!resolution.draft_payload;
@@ -172,7 +172,12 @@ function ResolutionCard({ resolution }: { resolution: XynIntentResolutionResult 
         <button
           type="button"
           className="ghost sm"
-          onClick={() => setInputText(session.inputText ? session.inputText : "revise:")}
+          onClick={() => {
+            if (!session.inputText && session.lastMessage) {
+              setInputText(session.lastMessage);
+            }
+            onRevise();
+          }}
         >
           Revise
         </button>
@@ -281,6 +286,14 @@ export default function XynConsoleCore({ mode, onRequestClose }: Props) {
     ? `Working on: ${lastArtifactHint.title}${lastArtifactHint.artifact_state ? ` • ${lastArtifactHint.artifact_state}` : ""}`
     : "";
 
+  const handleRevise = () => {
+    const target = inputRef.current;
+    if (!target) return;
+    target.focus();
+    const end = target.value.length;
+    target.setSelectionRange(end, end);
+  };
+
   return (
     <div className={`xyn-console-core ${isOverlay ? "overlay" : "page"}`}>
       <header className="xyn-console-header">
@@ -319,7 +332,7 @@ export default function XynConsoleCore({ mode, onRequestClose }: Props) {
       {pendingCloseBlock ? <div className="xyn-console-warning">You have a pending proposal. Apply or cancel.</div> : null}
       {session.lastResolution ? (
         <>
-          <ResolutionCard resolution={session.lastResolution} />
+          <ResolutionCard resolution={session.lastResolution} onRevise={handleRevise} />
           {isGlobalContext ? (
             <div className="inline-actions">
               <button
