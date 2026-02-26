@@ -2116,7 +2116,7 @@ export default function ArtifactDetailPage({
 
   const topSection = (
     <div className="stack artifact-editor-top-section">
-      <section className="card artifact-draft-bar">
+      <section className="artifact-draft-bar">
         <div className="artifact-draft-bar-main">
           <input className="input artifact-draft-bar-title" value={title} onChange={(event) => setTitle(event.target.value)} aria-label="Draft title" />
           <span className={`status-pill status-${workflow.statusTone}`}>{workflow.statusLabel}</span>

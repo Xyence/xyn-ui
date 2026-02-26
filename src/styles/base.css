@@ -1651,26 +1651,28 @@ button.sm {
 }
 
 .artifact-draft-bar {
-  padding: 8px 12px;
-  display: flex;
-  flex-direction: row;
+  background: var(--card);
+  border: 1px solid var(--border);
+  border-radius: 14px;
+  box-shadow: var(--shadow);
+  padding: 6px 10px;
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
   align-items: center;
-  justify-content: space-between;
-  gap: 10px;
-  min-height: 0;
+  gap: 8px;
 }
 
 .artifact-draft-bar-main {
   display: flex;
   align-items: center;
-  gap: 10px;
+  gap: 8px;
   min-width: 0;
-  flex: 1;
+  flex-wrap: wrap;
 }
 
 .artifact-draft-bar-title {
-  max-width: 380px;
-  min-width: 220px;
+  max-width: 360px;
+  min-width: 200px;
   font-weight: 700;
 }
 
