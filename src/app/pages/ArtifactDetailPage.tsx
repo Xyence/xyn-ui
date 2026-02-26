@@ -1245,6 +1245,7 @@ export default function ArtifactDetailPage({
       format: articleFormat,
       intent: activeVideoSpec.intent || "",
       duration: activeVideoSpec.duration_seconds_target || null,
+      scenes: Array.isArray(activeVideoSpec.scenes) ? activeVideoSpec.scenes : [],
       tags: parseCsv(tagsText),
       summary,
       body: bodyMarkdown,
@@ -1259,6 +1260,7 @@ export default function ArtifactDetailPage({
         format: articleFormat,
         intent: activeVideoSpec.intent || "",
         duration: activeVideoSpec.duration_seconds_target || null,
+        scenes: Array.isArray(activeVideoSpec.scenes) ? activeVideoSpec.scenes : [],
         tags: parseCsv(tagsText),
         summary,
         body: bodyMarkdown,
@@ -1278,10 +1280,37 @@ export default function ArtifactDetailPage({
       setTagsText((next.tags || []).join(", "));
       setVideoSpec((prev) => {
         const base = prev || createDefaultVideoSpec(next.title || title, next.summary || "");
+        const mappedScenes =
+          Array.isArray(next.scenes) && next.scenes.length > 0
+            ? next.scenes.map((scene, index) => {
+                const row = scene as Record<string, unknown>;
+                const id = String(row.id || `s${index + 1}`).trim() || `s${index + 1}`;
+                const name = String(row.name || row.title || `Scene ${index + 1}`).trim() || `Scene ${index + 1}`;
+                const narration = String(row.narration || row.voiceover || "").trim();
+                const onScreen = String(row.on_screen_text || row.on_screen || "").trim();
+                const visualPrompt = String(row.visual_prompt || row.visual_description || name).trim();
+                return {
+                  id,
+                  name,
+                  duration_seconds: Number(row.duration_seconds) || 8,
+                  narration,
+                  visual_prompt: visualPrompt,
+                  on_screen_text: onScreen,
+                  camera_motion: String(row.camera_motion || "").trim(),
+                  style_constraints: Array.isArray(row.style_constraints)
+                    ? row.style_constraints.map((value) => String(value || "").trim()).filter(Boolean)
+                    : [],
+                  generated: row.generated && typeof row.generated === "object"
+                    ? (row.generated as { image_asset_url?: string | null; video_clip_url?: string | null })
+                    : { image_asset_url: null, video_clip_url: null },
+                };
+              })
+            : base.scenes || [];
         return {
           ...base,
           intent: next.intent || base.intent || "",
           duration_seconds_target: next.duration || base.duration_seconds_target || 150,
+          scenes: mappedScenes,
         };
       });
       return {
@@ -1289,7 +1318,7 @@ export default function ArtifactDetailPage({
         ignoredFields: result.ignoredFields,
       };
     },
-    [activeVideoSpec.duration_seconds_target, activeVideoSpec.intent, articleFormat, bodyMarkdown, category, ensureVideoInitialized, parseCsv, summary, tagsText, title]
+    [activeVideoSpec.duration_seconds_target, activeVideoSpec.intent, activeVideoSpec.scenes, articleFormat, bodyMarkdown, category, ensureVideoInitialized, parseCsv, summary, tagsText, title]
   );
 
   const focusConsoleField = useCallback(
@@ -2054,6 +2083,7 @@ export default function ArtifactDetailPage({
         {videoPanelCollapsed ? (
           <div className="video-panel-summary">
             <p className="muted small">Generated outputs are provisional. Accept or refine.</p>
+            <p className="muted small">Scenes are scaffolded from title/topic at draft creation.</p>
             <div className="video-panel-summary-grid">
               {videoSummaryRows.map((row) => (
                 <span key={row} className="muted small">
@@ -2077,6 +2107,7 @@ export default function ArtifactDetailPage({
         ) : (
           <>
             <p className="muted small">Generated outputs are provisional. Accept or refine.</p>
+            <p className="muted small">Scenes are scaffolded from title/topic at draft creation.</p>
             {videoTab === "overview" && (
           <div className="form-grid">
             <label>

@@ -4,12 +4,13 @@ export type ArticleDraftSnapshot = {
   format: string | null;
   intent: string | null;
   duration: number | null;
+  scenes: Array<Record<string, unknown>>;
   tags: string[];
   summary: string | null;
   body: string | null;
 };
 
-export const ARTICLE_PATCHABLE_FIELDS = ["title", "category", "format", "intent", "duration", "tags", "summary", "body"] as const;
+export const ARTICLE_PATCHABLE_FIELDS = ["title", "category", "format", "intent", "duration", "scenes", "tags", "summary", "body"] as const;
 
 type PatchableField = (typeof ARTICLE_PATCHABLE_FIELDS)[number];
 
@@ -47,6 +48,28 @@ function normalizeDuration(value: unknown): number | null {
   return Math.round(numeric);
 }
 
+function normalizeScenes(value: unknown): ArticleDraftSnapshot["scenes"] {
+  if (!Array.isArray(value)) return [];
+  return value
+    .map((entry, index) => {
+      if (!entry || typeof entry !== "object") return null;
+      const row = entry as Record<string, unknown>;
+      return {
+        id: String(row.id || `s${index + 1}`).trim() || `s${index + 1}`,
+        name: String(row.name || row.title || `Scene ${index + 1}`).trim() || `Scene ${index + 1}`,
+        narration: String(row.narration || row.voiceover || "").trim(),
+        on_screen_text: String(row.on_screen_text || row.on_screen || "").trim(),
+        visual_prompt: String(row.visual_prompt || row.visual_description || "").trim(),
+        duration_seconds: Number(row.duration_seconds) || 8,
+        camera_motion: String(row.camera_motion || "").trim(),
+        style_constraints: Array.isArray(row.style_constraints)
+          ? row.style_constraints.map((value) => String(value || "").trim()).filter(Boolean)
+          : [],
+      };
+    })
+    .filter((entry): entry is NonNullable<typeof entry> => Boolean(entry));
+}
+
 export function buildArticleDraftSnapshot(input: Partial<ArticleDraftSnapshot>): ArticleDraftSnapshot {
   return {
     title: normalizeText(input.title),
@@ -54,6 +77,7 @@ export function buildArticleDraftSnapshot(input: Partial<ArticleDraftSnapshot>):
     format: normalizeText(input.format),
     intent: normalizeText(input.intent),
     duration: normalizeDuration(input.duration),
+    scenes: normalizeScenes(input.scenes),
     tags: normalizeTags(input.tags),
     summary: normalizeText(input.summary),
     body: normalizeText(input.body),
@@ -84,6 +108,14 @@ export function applyPatchToFormSnapshot(current: ArticleDraftSnapshot, patch: R
       const duration = normalizeDuration(rawValue);
       if (duration !== next.duration) {
         next.duration = duration;
+        appliedFields.push(field);
+      }
+      continue;
+    }
+    if (field === "scenes") {
+      const scenes = normalizeScenes(rawValue);
+      if (JSON.stringify(scenes) !== JSON.stringify(next.scenes)) {
+        next.scenes = scenes;
         appliedFields.push(field);
       }
       continue;

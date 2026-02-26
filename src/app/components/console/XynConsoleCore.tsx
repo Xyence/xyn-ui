@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useRef, useState } from "react";
+import { useEffect, useMemo, useRef, useState, type KeyboardEvent as ReactKeyboardEvent } from "react";
 import { useNavigate } from "react-router-dom";
 import { AlertTriangle, CheckCircle2, CircleHelp, Wrench } from "lucide-react";
 import { getRecentArtifacts } from "../../../api/xyn";
@@ -294,6 +294,17 @@ export default function XynConsoleCore({ mode, onRequestClose }: Props) {
     target.setSelectionRange(end, end);
   };
 
+  const canSubmit = Boolean(inputText.trim()) && !processing;
+  const handleInputKeyDown = (event: ReactKeyboardEvent<HTMLTextAreaElement>) => {
+    if (event.key !== "Enter") return;
+    if (event.altKey) return;
+    const submitByHotkey = event.shiftKey || event.metaKey || event.ctrlKey;
+    if (!submitByHotkey) return;
+    event.preventDefault();
+    if (!canSubmit) return;
+    void submitResolve();
+  };
+
   return (
     <div className={`xyn-console-core ${isOverlay ? "overlay" : "page"}`}>
       <header className="xyn-console-header">
@@ -322,9 +333,10 @@ export default function XynConsoleCore({ mode, onRequestClose }: Props) {
           rows={3}
           value={inputText}
           onChange={(event) => setInputText(event.target.value)}
+          onKeyDown={handleInputKeyDown}
           placeholder="Describe a draft state transition."
         />
-        <button type="button" className="primary sm" onClick={() => void submitResolve()} disabled={processing || !inputText.trim()}>
+        <button type="button" className="primary sm" onClick={() => void submitResolve()} disabled={!canSubmit}>
           Submit
         </button>
       </div>
@@ -388,6 +400,7 @@ export default function XynConsoleCore({ mode, onRequestClose }: Props) {
       {isOverlay ? (
         <footer className="xyn-console-footer muted small">
           <span>Esc to collapse (unless proposal pending)</span>
+          <span>Submit: Shift+Enter or ⌘/Ctrl+Enter</span>
           <span>⌘K / Ctrl+K</span>
         </footer>
       ) : null}

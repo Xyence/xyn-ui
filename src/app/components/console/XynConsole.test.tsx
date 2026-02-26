@@ -112,6 +112,31 @@ describe("XynConsole", () => {
     await screen.findByText("Recent");
   });
 
+  it("submits intent with Shift+Enter from the textarea", async () => {
+    apiMocks.resolveXynIntent.mockResolvedValue({
+      status: "UnsupportedIntent",
+      action_type: "ValidateDraft",
+      artifact_type: null,
+      artifact_id: null,
+      summary: "Could not parse intent proposal.",
+    });
+    renderConsole();
+    fireEvent.keyDown(window, { key: "k", ctrlKey: true });
+    const input = await screen.findByPlaceholderText("Describe a draft state transition.");
+    await userEvent.type(input, "create explainer draft");
+    fireEvent.keyDown(input, { key: "Enter", shiftKey: true });
+    await waitFor(() => expect(apiMocks.resolveXynIntent).toHaveBeenCalledTimes(1));
+  });
+
+  it("keeps plain Enter as newline and does not submit", async () => {
+    renderConsole();
+    fireEvent.keyDown(window, { key: "k", ctrlKey: true });
+    const input = await screen.findByPlaceholderText("Describe a draft state transition.");
+    await userEvent.type(input, "line one");
+    fireEvent.keyDown(input, { key: "Enter" });
+    expect(apiMocks.resolveXynIntent).not.toHaveBeenCalled();
+  });
+
   it("blocks close when a proposal is pending until cancel/apply", async () => {
     apiMocks.resolveXynIntent.mockResolvedValue({
       status: "ProposedPatch",
