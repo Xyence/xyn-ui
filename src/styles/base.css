@@ -1680,8 +1680,8 @@ button.sm {
 .editor-centric-grid {
   display: grid;
   gap: 18px;
-  grid-template-columns: 320px minmax(560px, 1fr) 340px;
-  grid-template-areas: "activity main inspector";
+  grid-template-columns: var(--editor-left-col, 320px) 10px minmax(560px, 1fr) 10px var(--editor-right-col, 340px);
+  grid-template-areas: "activity split-left main split-right inspector";
   align-items: start;
 }
 
@@ -1697,6 +1697,42 @@ button.sm {
 .editor-centric-main {
   grid-area: main;
   padding: 16px 18px;
+}
+
+.editor-centric-splitter {
+  border: 0;
+  background: transparent;
+  border-radius: 6px;
+  cursor: col-resize;
+  position: relative;
+  padding: 0;
+}
+
+.editor-centric-splitter::before {
+  content: "";
+  position: absolute;
+  inset: 0;
+  border-radius: 6px;
+  border: 1px solid transparent;
+}
+
+.editor-centric-splitter:hover::before,
+.editor-centric-splitter:focus-visible::before {
+  border-color: var(--border);
+  background: rgba(31, 122, 224, 0.08);
+}
+
+.editor-centric-splitter-left {
+  grid-area: split-left;
+}
+
+.editor-centric-splitter-right {
+  grid-area: split-right;
+}
+
+.editor-layout-resizing {
+  cursor: col-resize;
+  user-select: none;
 }
 
 .editor-centric-inspector,
@@ -2405,6 +2441,10 @@ button.sm {
       "activity inspector";
   }
 
+  .editor-centric-splitter {
+    display: none;
+  }
+
   .editor-centric-inspector {
     max-height: calc(100vh - 240px);
   }
@@ -2458,6 +2498,10 @@ button.sm {
       "main"
       "activity"
       "inspector";
+  }
+
+  .editor-centric-splitter {
+    display: none;
   }
 
   .editor-centric-main,
