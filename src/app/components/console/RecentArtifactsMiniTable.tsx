@@ -34,16 +34,24 @@ function formatRelativeTime(value?: string): string {
 export default function RecentArtifactsMiniTable({
   items,
   loading,
+  compact,
+  maxItems,
+  showDeprecatedArticles,
   onOpen,
   onShowMore,
   onRefresh,
+  onToggleShowDeprecatedArticles,
   onInsertSuggestion,
 }: {
   items: RecentArtifactItem[];
   loading: boolean;
+  compact?: boolean;
+  maxItems?: number;
+  showDeprecatedArticles: boolean;
   onOpen: (item: RecentArtifactItem) => void;
   onShowMore: () => void;
   onRefresh: () => void;
+  onToggleShowDeprecatedArticles: (checked: boolean) => void;
   onInsertSuggestion: (text: string) => void;
 }) {
   const handleRowKey = (event: KeyboardEvent<HTMLButtonElement>, item: RecentArtifactItem) => {
@@ -53,38 +61,49 @@ export default function RecentArtifactsMiniTable({
     }
   };
 
+  const targetSize = typeof maxItems === "number" ? maxItems : compact ? 3 : 8;
+  const visibleItems = items.slice(0, Math.max(1, targetSize));
+
   return (
-    <section className="xyn-console-card xyn-console-recent" aria-label="Recent artifacts">
+    <section className={`xyn-console-card xyn-console-recent ${compact ? "compact" : ""}`} aria-label="Recent artifacts">
       <div className="xyn-console-card-head">
         <strong>Recent</strong>
-        <button type="button" className="ghost sm" onClick={onRefresh} disabled={loading}>
-          {loading ? "…" : "Refresh"}
-        </button>
+        <div className="inline-actions">
+          <label className="muted small xyn-console-recent-toggle">
+            <input
+              type="checkbox"
+              checked={showDeprecatedArticles}
+              onChange={(event) => onToggleShowDeprecatedArticles(event.target.checked)}
+            />{" "}
+            Show deprecated
+          </label>
+          <button type="button" className="ghost sm" onClick={onShowMore}>
+            Show more
+          </button>
+          <button type="button" className="ghost sm" onClick={onRefresh} disabled={loading}>
+            {loading ? "…" : "Refresh"}
+          </button>
+        </div>
       </div>
-      {items.length ? (
-        <div className="xyn-console-recent-table" role="table" aria-label="Recent artifacts">
-          <div className="xyn-console-recent-head" role="row">
-            <span role="columnheader">Title</span>
-            <span role="columnheader">Type</span>
-            <span role="columnheader">Updated</span>
-          </div>
-          {items.map((item) => (
+      {visibleItems.length ? (
+        <div className="xyn-console-recent-list" role="list" aria-label="Recent artifacts">
+          {visibleItems.map((item) => (
             <button
               key={`${item.artifact_id}:${item.updated_at || ""}`}
               type="button"
-              role="row"
+              role="listitem"
               className="xyn-console-recent-row"
               onClick={() => onOpen(item)}
               onKeyDown={(event) => handleRowKey(event, item)}
               title={item.title}
             >
-              <span role="cell" className="xyn-console-recent-title">
+              <span className="xyn-console-recent-title">
                 {item.title}
               </span>
-              <span role="cell" className="muted small">
+              <span className="xyn-console-recent-type muted small">
                 {formatType(item.artifact_type)}
               </span>
-              <span role="cell" className="muted small" title={item.updated_at ? new Date(item.updated_at).toLocaleString() : ""}>
+              <span className="xyn-console-recent-updated muted small" title={item.updated_at ? new Date(item.updated_at).toLocaleString() : ""}>
                 {formatRelativeTime(item.updated_at)}
               </span>
             </button>
@@ -106,11 +125,6 @@ export default function RecentArtifactsMiniTable({
           </div>
         </div>
       )}
-      <div className="inline-actions">
-        <button type="button" className="ghost sm" onClick={onShowMore}>
-          Show more
-        </button>
-      </div>
     </section>
   );
 }

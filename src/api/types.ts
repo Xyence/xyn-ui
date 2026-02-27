@@ -1037,10 +1037,13 @@ export type ArticleFormat = "standard" | "video_explainer";
 
 export type VideoSpecScene = {
   id: string;
+  title?: string;
   name: string;
   duration_seconds: number;
+  voiceover?: string;
   narration: string;
   visual_prompt: string;
+  on_screen?: string;
   on_screen_text: string;
   camera_motion: string;
   style_constraints: string[];
@@ -1516,6 +1519,20 @@ export type AiAgent = {
   name: string;
   model_config_id: string;
   model_config?: AiModelConfig;
+  override_prompt_text?: string;
+  default_context_pack_refs_json?: unknown[];
+  default_context_packs?: Array<{
+    id: string;
+    slug: string;
+    name: string;
+    purpose: string;
+    scope: string;
+    version: string;
+    content_hash?: string;
+    state?: "canonical" | "deprecated";
+    is_active?: boolean;
+  }>;
+  // Backward-compatible aliases.
   system_prompt_text?: string;
   context_pack_refs_json?: unknown[];
   is_default?: boolean;
@@ -1573,6 +1590,17 @@ export type VideoAiConfigEntry = {
     content_hash?: string;
   }>;
   context_pack_hash?: string;
+  effective_model_config_id?: string | null;
+  context_pack_override_mode?: "extend" | "replace" | string;
+  effective_context_pack_refs?: Array<{
+    id: string;
+    name: string;
+    purpose?: string;
+    scope?: string;
+    version?: string;
+    content_hash?: string;
+    source?: "agent_default" | "override" | string;
+  }>;
   source?: string;
   agent_source?: string;
   context_source?: string;
@@ -2146,7 +2174,7 @@ export type XynIntentResolutionResult = {
 };
 
 export type XynIntentOptionsResponse = {
-  artifact_type: "ArticleDraft";
+  artifact_type: "ArticleDraft" | "ContextPack";
   field: "category" | "format" | "duration";
   options: unknown[];
 };

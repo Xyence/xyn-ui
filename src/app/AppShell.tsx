@@ -21,6 +21,7 @@ import RunsPage from "./pages/RunsPage";
 import ActivityPage from "./pages/ActivityPage";
 import DevTasksPage from "./pages/DevTasksPage";
 import ContextPacksPage from "./pages/ContextPacksPage";
+import ContextPackDraftEditorPage from "./pages/ContextPackDraftEditorPage";
 import PlatformTenantsPage from "./pages/PlatformTenantsPage";
 import PlatformBrandingPage from "./pages/PlatformBrandingPage";
 import ControlPlanePage from "./pages/ControlPlanePage";
@@ -140,6 +141,7 @@ export default function AppShell() {
   const { runningAiCount } = useOperations();
   const { preview, disablePreviewMode } = usePreview();
   const { handleRouteChange } = useXynConsole();
+  const hideFloatingConsoleNode = location.pathname === "/app/console" || location.pathname === "/app/initiate";
 
   useEffect(() => {
     let mounted = true;
@@ -497,6 +499,7 @@ export default function AppShell() {
             <Route path="environments" element={<EnvironmentsPage />} />
             <Route path="registries" element={<RegistriesPage />} />
             <Route path="context-packs" element={<ContextPacksPage />} />
+            <Route path="context-packs/drafts/:draftId" element={<ContextPackDraftEditorPage />} />
             <Route path="my-tenants" element={<RedirectLegacyTenantsRoute view="my" />} />
             <Route path="control-plane" element={<ControlPlanePage />} />
             <Route path="platform/tenants" element={<PlatformTenantsPage />} />
@@ -571,7 +574,7 @@ export default function AppShell() {
         workspaceId={activeWorkspace?.id || ""}
         artifactId={artifactRouteId || undefined}
       />
-      <XynConsoleNode />
+      {!hideFloatingConsoleNode ? <XynConsoleNode /> : null}
       <ToastHost />
     </div>
   );

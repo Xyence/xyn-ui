@@ -223,7 +223,7 @@ export async function resolveXynIntent(payload: {
 
 export async function applyXynIntent(payload: {
   action_type: "CreateDraft" | "ApplyPatch";
-  artifact_type: "ArticleDraft";
+  artifact_type: "ArticleDraft" | "ContextPack";
   artifact_id?: string | null;
   payload: Record<string, unknown>;
 }): Promise<XynIntentResolutionResult> {
@@ -238,7 +238,7 @@ export async function applyXynIntent(payload: {
 }
 
 export async function getXynIntentOptions(params: {
-  artifact_type: "ArticleDraft";
+  artifact_type: "ArticleDraft" | "ContextPack";
   field: "category" | "format" | "duration";
 }): Promise<XynIntentOptionsResponse> {
   const apiBaseUrl = resolveApiBaseUrl();
@@ -253,7 +253,8 @@ export async function getXynIntentOptions(params: {
 }
 
 export async function getRecentArtifacts(limit = 6): Promise<RecentArtifactListResponse> {
-  const payload = await listArtifacts({ limit: Math.max(1, Math.min(limit, 50)), offset: 0 });
+  const requested = Math.max(1, Math.min(limit, 50));
+  const payload = await listArtifacts({ limit: Math.max(50, Math.min(500, requested * 8)), offset: 0 });
   const toRoute = (item: UnifiedArtifact): string => {
     const source = (item.source || {}) as Record<string, unknown>;
     const sourceId = String(source.id || item.source_ref_id || "").trim();
@@ -263,7 +264,10 @@ export async function getRecentArtifacts(limit = 6): Promise<RecentArtifactListR
     if (item.artifact_type === "article" && artifactId) return `/app/artifacts/${artifactId}`;
     if (item.artifact_type === "workflow") return `/app/artifacts/workflows${sourceId ? `?workflow=${encodeURIComponent(sourceId)}` : ""}`;
     if (item.artifact_type === "module") return "/app/modules";
-    if (item.artifact_type === "context_pack") return "/app/context-packs";
+    if (item.artifact_type === "context_pack") {
+      if (sourceId) return `/app/context-packs?pack=${encodeURIComponent(sourceId)}`;
+      return "/app/context-packs";
+    }
     return "/app/artifacts/all";
   };
 
@@ -273,7 +277,31 @@ export async function getRecentArtifacts(limit = 6): Promise<RecentArtifactListR
     return (Number.isFinite(bTime) ? bTime : 0) - (Number.isFinite(aTime) ? aTime : 0);
   });
 
-  const items: RecentArtifactItem[] = sorted.slice(0, limit).map((item) => ({
+  const perTypeCap = Math.max(2, Math.ceil(requested / 2));
+  const selected: UnifiedArtifact[] = [];
+  const byTypeCount = new Map<string, number>();
+  const seenIds = new Set<string>();
+
+  for (const item of sorted) {
+    const id = String(item.artifact_id || item.id || "").trim();
+    if (!id || seenIds.has(id)) continue;
+    const key = String(item.artifact_type || "artifact");
+    const count = byTypeCount.get(key) || 0;
+    if (count >= perTypeCap) continue;
+    selected.push(item);
+    seenIds.add(id);
+    byTypeCount.set(key, count + 1);
+  }
+
+  for (const item of sorted) {
+    if (selected.length >= Math.max(24, requested * 4)) break;
+    const id = String(item.artifact_id || item.id || "").trim();
+    if (!id || seenIds.has(id)) continue;
+    selected.push(item);
+    seenIds.add(id);
+  }
+
+  const items: RecentArtifactItem[] = selected.map((item) => ({
     artifact_id: item.artifact_id || item.id,
     artifact_type: String(item.artifact_type || ""),
     artifact_state: item.artifact_state || null,
@@ -757,7 +785,10 @@ export async function generateArticleVideoStoryboard(
 }
 
 export async function getArticleVideoAiConfig(articleId: string): Promise<{
-  overrides: { agents: Record<string, string>; context_packs: Record<string, unknown> };
+  overrides: {
+    agents: Record<string, string>;
+    context_packs: Record<string, { mode?: string; context_pack_refs?: unknown[] } | unknown>;
+  };
   effective: Record<string, VideoAiConfigEntry>;
 }> {
   const apiBaseUrl = resolveApiBaseUrl();
@@ -765,7 +796,10 @@ export async function getArticleVideoAiConfig(articleId: string): Promise<{
     credentials: "include",
   });
   return handle<{
-    overrides: { agents: Record<string, string>; context_packs: Record<string, unknown> };
+    overrides: {
+      agents: Record<string, string>;
+      context_packs: Record<string, { mode?: string; context_pack_refs?: unknown[] } | unknown>;
+    };
     effective: Record<string, VideoAiConfigEntry>;
   }>(response);
 }
@@ -775,10 +809,13 @@ export async function updateArticleVideoAiConfig(
   payload: {
     reset_all?: boolean;
     agents?: Record<string, string | null>;
-    context_packs?: Record<string, unknown>;
+    context_packs?: Record<string, { mode?: "extend" | "replace"; context_pack_refs?: unknown[] } | unknown>;
   }
 ): Promise<{
-  overrides: { agents: Record<string, string>; context_packs: Record<string, unknown> };
+  overrides: {
+    agents: Record<string, string>;
+    context_packs: Record<string, { mode?: string; context_pack_refs?: unknown[] } | unknown>;
+  };
   effective: Record<string, VideoAiConfigEntry>;
   article: ArticleDetail;
 }> {
@@ -790,7 +827,10 @@ export async function updateArticleVideoAiConfig(
     body: JSON.stringify(payload),
   });
   return handle<{
-    overrides: { agents: Record<string, string>; context_packs: Record<string, unknown> };
+    overrides: {
+      agents: Record<string, string>;
+      context_packs: Record<string, { mode?: string; context_pack_refs?: unknown[] } | unknown>;
+    };
     effective: Record<string, VideoAiConfigEntry>;
     article: ArticleDetail;
   }>(response);
@@ -1544,7 +1584,11 @@ export async function createAiAgent(payload: {
   slug: string;
   name: string;
   model_config_id: string;
+  override_prompt_text?: string;
+  default_context_pack_refs_json?: unknown[];
+  // Backward-compatible aliases.
   system_prompt_text?: string;
+  context_pack_refs_json?: unknown[];
   is_default?: boolean;
   enabled?: boolean;
   purposes?: string[];
@@ -1565,7 +1609,11 @@ export async function updateAiAgent(
     slug: string;
     name: string;
     model_config_id: string;
+    override_prompt_text: string;
+    default_context_pack_refs_json: unknown[];
+    // Backward-compatible aliases.
     system_prompt_text: string;
+    context_pack_refs_json: unknown[];
     is_default: boolean;
     enabled: boolean;
     purposes: string[];

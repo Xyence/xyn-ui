@@ -16,12 +16,13 @@ import {
   listAiModelConfigs,
   listAiProviders,
   listAiPurposes,
+  listContextPacks,
   updateAiAgent,
   updateAiCredential,
   updateAiModelConfig,
   updateAiPurpose,
 } from "../../api/xyn";
-import type { AiAgent, AiCredential, AiModelConfig, AiProvider, AiPurpose } from "../../api/types";
+import type { AiAgent, AiCredential, AiModelConfig, AiProvider, AiPurpose, ContextPackSummary } from "../../api/types";
 import { useNotifications } from "../state/notificationsStore";
 
 type AiConfigTab = "credentials" | "model-configs" | "agents" | "purposes";
@@ -62,7 +63,8 @@ type AgentEditForm = {
   slug: string;
   name: string;
   model_config_id: string;
-  system_prompt_text: string;
+  override_prompt_text: string;
+  default_context_pack_refs_json: Array<{ id: string }>;
   purposes: string[];
   enabled: boolean;
   is_default: boolean;
@@ -108,6 +110,7 @@ export default function AIConfigPage() {
   const [credentials, setCredentials] = useState<AiCredential[]>([]);
   const [modelConfigs, setModelConfigs] = useState<AiModelConfig[]>([]);
   const [purposes, setPurposes] = useState<AiPurpose[]>([]);
+  const [contextPacks, setContextPacks] = useState<ContextPackSummary[]>([]);
   const [agents, setAgents] = useState<AiAgent[]>([]);
 
   const [filterPurpose, setFilterPurpose] = useState("all");
@@ -143,7 +146,8 @@ export default function AIConfigPage() {
     slug: "",
     model_config_id: "",
     purposes: [] as string[],
-    system_prompt_text: "",
+    default_context_pack_refs_json: [] as Array<{ id: string }>,
+    override_prompt_text: "",
   });
   const [agentSlugEdited, setAgentSlugEdited] = useState(false);
   const [createPurposeForm, setCreatePurposeForm] = useState({
@@ -205,15 +209,17 @@ export default function AIConfigPage() {
   }, []);
 
   const loadAgents = useCallback(async () => {
-    const [purposeRes, modelRes, agentRes] = await Promise.all([
+    const [purposeRes, modelRes, agentRes, packRes] = await Promise.all([
       listAiPurposes(),
       listAiModelConfigs(),
       listAiAgents(filterPurpose !== "all" ? { purpose: filterPurpose } : undefined),
+      listContextPacks(),
     ]);
     const normalizedPurposes = (purposeRes.purposes || []).map((item) => ({ ...item, status: item.status || (item.enabled ? "active" : "deprecated") }));
     setPurposes(normalizedPurposes);
     setModelConfigs(modelRes.model_configs || []);
     setAgents(agentRes.agents || []);
+    setContextPacks(packRes.context_packs || []);
   }, [filterPurpose]);
 
   const loadPurposes = useCallback(async () => {
@@ -276,7 +282,20 @@ export default function AIConfigPage() {
       slug: selected.slug,
       name: selected.name,
       model_config_id: selected.model_config_id,
-      system_prompt_text: selected.system_prompt_text || "",
+      override_prompt_text: selected.override_prompt_text || selected.system_prompt_text || "",
+      default_context_pack_refs_json: (
+        Array.isArray(selected.default_context_pack_refs_json)
+          ? selected.default_context_pack_refs_json
+          : Array.isArray(selected.context_pack_refs_json)
+            ? selected.context_pack_refs_json
+            : []
+      )
+        .map((entry) => {
+          if (!entry || typeof entry !== "object") return null;
+          const id = String((entry as { id?: string }).id || "").trim();
+          return id ? { id } : null;
+        })
+        .filter((entry): entry is { id: string } => Boolean(entry?.id)),
       purposes: selected.purposes || [],
       enabled: selected.enabled,
       is_default: Boolean(selected.is_default),
@@ -375,13 +394,20 @@ export default function AIConfigPage() {
         name: createAgentForm.name.trim(),
         model_config_id: createAgentForm.model_config_id,
         purposes: createAgentForm.purposes,
-        system_prompt_text: createAgentForm.system_prompt_text,
+        default_context_pack_refs_json: createAgentForm.default_context_pack_refs_json,
+        override_prompt_text: createAgentForm.override_prompt_text,
         enabled: true,
       });
       await loadAgents();
       setSelectedAgentId(result.agent.id);
       push({ level: "success", title: "Agent created", message: result.agent.name });
-      setCreateAgentForm((prev) => ({ ...prev, name: "", slug: "", system_prompt_text: "" }));
+      setCreateAgentForm((prev) => ({
+        ...prev,
+        name: "",
+        slug: "",
+        override_prompt_text: "",
+        default_context_pack_refs_json: [],
+      }));
       setAgentSlugEdited(false);
       closeCreateModal();
     } catch (err) {
@@ -564,7 +590,9 @@ export default function AIConfigPage() {
             <button key={item.id} type="button" className={`instance-row ${selectedAgentId === item.id ? "selected" : ""}`} onClick={() => setSelectedAgentId(item.id)}>
               <div>
                 <strong>{item.name}</strong>
-                <span className="muted small">{item.slug} · {item.model_config?.provider}:{item.model_config?.model_name} · {(item.purposes || []).join(", ") || "no purposes"}</span>
+                <span className="muted small">
+                  {item.slug} · {item.model_config?.provider}:{item.model_config?.model_name} · {(item.purposes || []).join(", ") || "no purposes"} · defaults {(item.default_context_packs || []).length}
+                </span>
               </div>
               <span className="muted">{item.enabled ? "enabled" : "disabled"}</span>
             </button>
@@ -611,8 +639,27 @@ export default function AIConfigPage() {
                   <option value="no">No</option>
                 </select>
               </label>
-              <label>System prompt
-                <textarea className="input" rows={12} value={agentEdit.system_prompt_text} onChange={(event) => setAgentEdit({ ...agentEdit, system_prompt_text: event.target.value })} />
+              <label>Default context packs
+                <select
+                  multiple
+                  className="input"
+                  value={agentEdit.default_context_pack_refs_json.map((entry) => entry.id)}
+                  onChange={(event) =>
+                    setAgentEdit({
+                      ...agentEdit,
+                      default_context_pack_refs_json: Array.from(event.target.selectedOptions).map((option) => ({ id: option.value })),
+                    })
+                  }
+                >
+                  {contextPacks.map((pack) => (
+                    <option key={pack.id} value={pack.id}>
+                      {pack.name} · v{pack.version} · {pack.is_active ? "canonical" : "deprecated"}
+                    </option>
+                  ))}
+                </select>
+              </label>
+              <label>Override prompt (advanced / not recommended)
+                <textarea className="input" rows={8} value={agentEdit.override_prompt_text} onChange={(event) => setAgentEdit({ ...agentEdit, override_prompt_text: event.target.value })} />
               </label>
             </div>
             <div className="inline-actions">
@@ -620,7 +667,8 @@ export default function AIConfigPage() {
                 await updateAiAgent(agentEdit.id, {
                   name: agentEdit.name.trim(),
                   model_config_id: agentEdit.model_config_id,
-                  system_prompt_text: agentEdit.system_prompt_text,
+                  override_prompt_text: agentEdit.override_prompt_text,
+                  default_context_pack_refs_json: agentEdit.default_context_pack_refs_json,
                   purposes: agentEdit.purposes,
                   enabled: agentEdit.enabled,
                   is_default: agentEdit.is_default,
@@ -867,8 +915,32 @@ export default function AIConfigPage() {
                       ))}
                     </select>
                   </label>
-                  <label>System prompt
-                    <textarea className="input" rows={8} value={createAgentForm.system_prompt_text} onChange={(event) => setCreateAgentForm((prev) => ({ ...prev, system_prompt_text: event.target.value }))} />
+                  <label>Default context packs
+                    <select
+                      multiple
+                      className="input"
+                      value={createAgentForm.default_context_pack_refs_json.map((entry) => entry.id)}
+                      onChange={(event) =>
+                        setCreateAgentForm((prev) => ({
+                          ...prev,
+                          default_context_pack_refs_json: Array.from(event.target.selectedOptions).map((option) => ({ id: option.value })),
+                        }))
+                      }
+                    >
+                      {contextPacks.map((pack) => (
+                        <option key={pack.id} value={pack.id}>
+                          {pack.name} · v{pack.version} · {pack.is_active ? "canonical" : "deprecated"}
+                        </option>
+                      ))}
+                    </select>
+                  </label>
+                  <label>Override prompt (advanced / not recommended)
+                    <textarea
+                      className="input"
+                      rows={6}
+                      value={createAgentForm.override_prompt_text}
+                      onChange={(event) => setCreateAgentForm((prev) => ({ ...prev, override_prompt_text: event.target.value }))}
+                    />
                   </label>
                 </div>
                 <div className="inline-actions" style={{ marginTop: 12 }}>

@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useParams } from "react-router-dom";
-import { ChevronDown, ChevronUp, History, MessageSquareMore, Plus, SlidersHorizontal, Sparkles, Trash2 } from "lucide-react";
+import { ChevronDown, ChevronUp, History, Lock, MessageSquareMore, Pencil, Plus, SlidersHorizontal, Sparkles, Trash2 } from "lucide-react";
 import { renderMarkdown } from "../../public/markdown";
 import {
   commentOnWorkspaceArtifact,
@@ -29,6 +29,7 @@ import type { AiAgent, ArticleDetail, ArticleFormat, ArticleRevision, ContextPac
 import MarkdownWysiwygEditor, { type EditorSelectionPayload } from "../components/editor/MarkdownWysiwygEditor";
 import ContextRefinementTool from "../components/editor/ContextRefinementTool";
 import CompactPaneTabs, { type CompactPaneTab } from "../components/ui/CompactPaneTabs";
+import Popover from "../components/ui/Popover";
 import EditorCentricLayout from "../layouts/EditorCentricLayout";
 import ArtifactCredibilityLayer from "../components/artifacts/ArtifactCredibilityLayer";
 import { resolveArtifactWorkflowActions, type WorkflowAction, type WorkflowActionId } from "../workflows/artifactWorkflow";
@@ -52,6 +53,10 @@ const EXPLAINER_PURPOSE_META = [
   { slug: "explainer_title_description", name: "Title/Description", description: "Title, description, CTA variants." },
 ] as const;
 type ExplainerPurposeSlug = (typeof EXPLAINER_PURPOSE_META)[number]["slug"];
+type VideoContextPackOverride = {
+  mode?: "extend" | "replace";
+  context_pack_refs?: unknown[];
+};
 
 type PendingAssist = {
   mode: "generate_draft" | "propose_edits" | "rewrite_selection";
@@ -93,6 +98,13 @@ type PendingSurfaceRefinement = {
   model?: string;
   agent_slug?: string;
 };
+
+function actionGroupLabel(group: WorkflowAction["group"]): string {
+  if (group === "position") return "Reactions";
+  if (group === "workflow") return "Workflow";
+  if (group === "danger") return "Lifecycle";
+  return "Other";
+}
 
 function createDefaultVideoSpec(title: string, summaryText: string): VideoSpec {
   return {
@@ -186,6 +198,7 @@ export default function ArtifactDetailPage({
   const [summaryBusy, setSummaryBusy] = useState(false);
   const [busyActionId, setBusyActionId] = useState<WorkflowActionId | null>(null);
   const [confirmingAction, setConfirmingAction] = useState<WorkflowAction | null>(null);
+  const [draftBarActionsOpen, setDraftBarActionsOpen] = useState(false);
   const [restoreRevisionId, setRestoreRevisionId] = useState<string | null>(null);
   const [activityTab, setActivityTab] = useState<ActivityTab>("revisions");
   const [revisionMode, setRevisionMode] = useState<RevisionMode>("list");
@@ -196,16 +209,23 @@ export default function ArtifactDetailPage({
   const [showPreview, setShowPreview] = useState(false);
   const [editorMode, setEditorMode] = useState<EditorMode>("edit");
   const [videoTab, setVideoTab] = useState<VideoTab>("scenes");
+  const [articleEditorCollapsed, setArticleEditorCollapsed] = useState(true);
   const [videoPanelCollapsed, setVideoPanelCollapsed] = useState(false);
   const [videoSpec, setVideoSpec] = useState<VideoSpec | null>(null);
   const [videoRenders, setVideoRenders] = useState<VideoRender[]>([]);
   const [videoContextPacks, setVideoContextPacks] = useState<ContextPackSummary[]>([]);
   const [selectedVideoContextPackId, setSelectedVideoContextPackId] = useState("");
-  const [videoAiConfigOverrides, setVideoAiConfigOverrides] = useState<{ agents: Record<string, string>; context_packs: Record<string, unknown> }>({
+  const [videoAiConfigOverrides, setVideoAiConfigOverrides] = useState<{
+    agents: Record<string, string>;
+    context_packs: Record<string, VideoContextPackOverride | unknown>;
+  }>({
     agents: {},
     context_packs: {},
   });
-  const [videoAiConfigDraft, setVideoAiConfigDraft] = useState<{ agents: Record<string, string>; context_packs: Record<string, unknown> }>({
+  const [videoAiConfigDraft, setVideoAiConfigDraft] = useState<{
+    agents: Record<string, string>;
+    context_packs: Record<string, VideoContextPackOverride | unknown>;
+  }>({
     agents: {},
     context_packs: {},
   });
@@ -815,7 +835,13 @@ export default function ArtifactDetailPage({
   const readOverridePackIds = useCallback((purposeSlug: string): string[] => {
     const raw = videoAiConfigDraft.context_packs?.[purposeSlug];
     if (!raw) return [];
-    const values = Array.isArray(raw) ? raw : [raw];
+    let values: unknown[] = [];
+    if (raw && typeof raw === "object" && !Array.isArray(raw)) {
+      const refs = (raw as VideoContextPackOverride).context_pack_refs;
+      values = Array.isArray(refs) ? refs : [];
+    } else {
+      values = Array.isArray(raw) ? raw : [raw];
+    }
     return values
       .map((entry) => {
         if (entry && typeof entry === "object") {
@@ -824,6 +850,15 @@ export default function ArtifactDetailPage({
         return String(entry || "").trim();
       })
       .filter(Boolean);
+  }, [videoAiConfigDraft.context_packs]);
+
+  const readOverrideMode = useCallback((purposeSlug: string): "extend" | "replace" => {
+    const raw = videoAiConfigDraft.context_packs?.[purposeSlug];
+    if (raw && typeof raw === "object" && !Array.isArray(raw)) {
+      const mode = String((raw as VideoContextPackOverride).mode || "").trim().toLowerCase();
+      if (mode === "replace") return "replace";
+    }
+    return "extend";
   }, [videoAiConfigDraft.context_packs]);
 
   const setOverrideAgent = useCallback((purposeSlug: ExplainerPurposeSlug, value: string) => {
@@ -844,10 +879,59 @@ export default function ArtifactDetailPage({
         agents: { ...(current.agents || {}) },
         context_packs: { ...(current.context_packs || {}) },
       };
+      const currentMode = (() => {
+        const raw = current.context_packs?.[purposeSlug];
+        if (raw && typeof raw === "object" && !Array.isArray(raw)) {
+          const mode = String((raw as VideoContextPackOverride).mode || "").trim().toLowerCase();
+          if (mode === "replace") return "replace";
+        }
+        return "extend";
+      })();
       if (!packIds.length) {
         delete next.context_packs[purposeSlug];
       } else {
-        next.context_packs[purposeSlug] = packIds;
+        next.context_packs[purposeSlug] = {
+          mode: currentMode,
+          context_pack_refs: packIds,
+        } satisfies VideoContextPackOverride;
+      }
+      return next;
+    });
+  }, []);
+
+  const setOverrideContextMode = useCallback((purposeSlug: ExplainerPurposeSlug, mode: "extend" | "replace") => {
+    setVideoAiConfigDraft((current) => {
+      const next = {
+        agents: { ...(current.agents || {}) },
+        context_packs: { ...(current.context_packs || {}) },
+      };
+      const raw = current.context_packs?.[purposeSlug];
+      const refs = (() => {
+        const values: unknown[] =
+          raw && typeof raw === "object" && !Array.isArray(raw)
+            ? (() => {
+                const refs = (raw as VideoContextPackOverride).context_pack_refs;
+                return Array.isArray(refs) ? refs : [];
+              })()
+            : Array.isArray(raw)
+              ? raw
+              : raw
+                ? [raw]
+                : [];
+        return values
+          .map((entry) => {
+            if (entry && typeof entry === "object") return String((entry as { id?: string }).id || "").trim();
+            return String(entry || "").trim();
+          })
+          .filter(Boolean);
+      })();
+      if (!refs.length) {
+        delete next.context_packs[purposeSlug];
+      } else {
+        next.context_packs[purposeSlug] = {
+          mode,
+          context_pack_refs: refs,
+        } satisfies VideoContextPackOverride;
       }
       return next;
     });
@@ -1171,6 +1255,20 @@ export default function ArtifactDetailPage({
       }),
     [allowedRolesText, bodyMarkdown, canManageArticleLifecycle, canReact, canSaveRevision, item?.published_to, item?.status, item?.title, summary, visibilityType]
   );
+  const draftBarSecondaryActions = useMemo(
+    () => workflow.secondaryActions.filter((action) => action.id !== "save_revision" && action.id !== "view_revisions"),
+    [workflow.secondaryActions]
+  );
+  const draftBarActionGroups = useMemo(() => {
+    const orderedGroups: WorkflowAction["group"][] = ["workflow", "position", "danger", "revision"];
+    return orderedGroups
+      .map((group) => ({
+        group,
+        label: actionGroupLabel(group),
+        actions: draftBarSecondaryActions.filter((action) => action.group === group),
+      }))
+      .filter((entry) => entry.actions.length > 0);
+  }, [draftBarSecondaryActions]);
 
   const selectedRevision = useMemo(
     () => revisions.find((entry) => entry.id === selectedRevisionId) || revisions[0] || null,
@@ -1211,6 +1309,12 @@ export default function ArtifactDetailPage({
   const activeVideoSpec = videoSpec || createDefaultVideoSpec(item?.title || "", summary || "");
   const storyboardProposals = Array.isArray(activeVideoSpec.storyboard?.proposals) ? activeVideoSpec.storyboard.proposals : [];
   const videoScenes = Array.isArray(activeVideoSpec.scenes) ? activeVideoSpec.scenes : [];
+  const sceneTitle = (scene: Record<string, unknown> | null | undefined, fallback: string) =>
+    String(scene?.title ?? scene?.name ?? fallback).trim() || fallback;
+  const sceneVoiceover = (scene: Record<string, unknown> | null | undefined) =>
+    String(scene?.voiceover ?? scene?.narration ?? "").trim();
+  const sceneOnScreen = (scene: Record<string, unknown> | null | undefined) =>
+    String(scene?.on_screen ?? scene?.on_screen_text ?? "").trim();
   const selectedVideoScene =
     videoScenes.length > 0 ? videoScenes[Math.min(selectedVideoSceneIndex, videoScenes.length - 1)] : null;
   const selectedStoryboardScene =
@@ -1223,6 +1327,7 @@ export default function ArtifactDetailPage({
   const storyboardDraftCount = Array.isArray(activeVideoSpec.storyboard?.draft) ? activeVideoSpec.storyboard.draft.length : 0;
   const hasStoryboardDraft = storyboardDraftCount > 0;
   const latestVideoRender = videoRenders[0] || null;
+  const latestRenderIsStub = latestVideoRender?.provider === "unknown";
   const isVideoOperationRunning = videoBusy === "script" || videoBusy === "storyboard" || videoBusy === "render" || (latestVideoRender?.status === "queued" || latestVideoRender?.status === "running");
   const videoSummaryRows = [
     `Scenes: ${hasScenes ? `${videoScenes.length} scene${videoScenes.length === 1 ? "" : "s"}` : "not generated"}`,
@@ -1728,7 +1833,7 @@ export default function ArtifactDetailPage({
       <div className="card-header">
         <h3>AI Configuration</h3>
       </div>
-      <p className="muted small">Purpose-scoped agent and context pack defaults for explainer generation.</p>
+      <p className="muted small">Agent is the primary control. Context packs are optional per-step overrides under Advanced.</p>
       {EXPLAINER_PURPOSE_META.map((purpose) => {
         const effective = videoAiConfigEffective[purpose.slug];
         const agentOptions = videoPurposeAgents[purpose.slug] || [];
@@ -1736,12 +1841,14 @@ export default function ArtifactDetailPage({
         const hasAgentOverride = Boolean(videoAiConfigDraft.agents?.[purpose.slug]);
         const hasPackOverride = Boolean(videoAiConfigDraft.context_packs?.[purpose.slug]);
         const selectedPackIds = readOverridePackIds(purpose.slug);
+        const overrideMode = readOverrideMode(purpose.slug);
+        const effectiveRefs = effective?.effective_context_pack_refs || [];
         return (
           <section className="ai-config-row" key={purpose.slug}>
             <div className="card-header">
               <h4>{purpose.name}</h4>
               <span className={`ai-config-indicator ${(hasAgentOverride || hasPackOverride) ? "override" : "default"}`}>
-                {(hasAgentOverride || hasPackOverride) ? "pencil" : "lock"}
+                {(hasAgentOverride || hasPackOverride) ? <Pencil size={12} aria-label="Override configured" /> : <Lock size={12} aria-label="Using defaults" />}
               </span>
             </div>
             <p className="muted small">{purpose.description}</p>
@@ -1756,30 +1863,47 @@ export default function ArtifactDetailPage({
                 ))}
               </select>
             </label>
-            <label>
-              Context packs
-              <select
-                multiple
-                size={Math.min(4, Math.max(2, packOptions.length || 2))}
-                value={selectedPackIds}
-                onChange={(event) => {
-                  const ids = Array.from(event.target.selectedOptions).map((entry) => entry.value).filter(Boolean);
-                  setOverrideContextPacks(purpose.slug, ids);
-                }}
-              >
-                {packOptions.map((pack) => (
-                  <option key={pack.id} value={pack.id}>
-                    {pack.name} · v{pack.version}
-                  </option>
-                ))}
-              </select>
-              <button className="ghost sm" type="button" onClick={() => setOverrideContextPacks(purpose.slug, [])}>
-                Use Default
-              </button>
-            </label>
             <p className="muted small">
-              Effective: {effective?.agent?.name || "None"} · Packs: {effective?.context_packs?.map((entry) => entry.name).join(", ") || "None"}
+              Effective agent: {effective?.agent?.name || "None"} · Model: {effective?.agent?.model_provider || "—"}/{effective?.agent?.model_name || "—"} ·
+              Packs: {effective?.context_packs?.length || 0}
+              {effective?.warning ? ` · ${effective.warning}` : ""}
             </p>
+            {effectiveRefs.length > 0 && (
+              <p className="muted small">
+                {effectiveRefs.map((entry) => `${entry.name} v${entry.version || "?"} (${entry.source || "resolved"})`).join(" · ")}
+              </p>
+            )}
+            <details className="ai-config-advanced">
+              <summary>Advanced overrides</summary>
+              <label>
+                Override mode
+                <select value={overrideMode} onChange={(event) => setOverrideContextMode(purpose.slug, event.target.value as "extend" | "replace")}>
+                  <option value="extend">Extend agent defaults</option>
+                  <option value="replace">Replace agent defaults</option>
+                </select>
+              </label>
+              <label>
+                Additional context packs (optional)
+                <select
+                  multiple
+                  size={Math.min(4, Math.max(2, packOptions.length || 2))}
+                  value={selectedPackIds}
+                  onChange={(event) => {
+                    const ids = Array.from(event.target.selectedOptions).map((entry) => entry.value).filter(Boolean);
+                    setOverrideContextPacks(purpose.slug, ids);
+                  }}
+                >
+                  {packOptions.map((pack) => (
+                    <option key={pack.id} value={pack.id}>
+                      {pack.name} · v{pack.version}
+                    </option>
+                  ))}
+                </select>
+                <button className="ghost sm" type="button" onClick={() => setOverrideContextPacks(purpose.slug, [])}>
+                  Clear overrides
+                </button>
+              </label>
+            </details>
           </section>
         );
       })}
@@ -2015,8 +2139,8 @@ export default function ArtifactDetailPage({
           <div className="card-header">
             <h4>Explainer Settings</h4>
           </div>
-          <label className="field-label">
-            Context pack
+          <div className="field-group">
+            <label className="field-label">Context pack</label>
             <select
               className="input"
               value={selectedVideoContextPackId}
@@ -2029,9 +2153,9 @@ export default function ArtifactDetailPage({
                 </option>
               ))}
             </select>
-          </label>
-          <label className="field-label" htmlFor="article-intent">
-            Intent
+          </div>
+          <div className="field-group">
+            <label className="field-label" htmlFor="article-intent">Intent</label>
             <textarea
               id="article-intent"
               rows={3}
@@ -2040,21 +2164,21 @@ export default function ArtifactDetailPage({
               value={activeVideoSpec.intent || ""}
               onChange={(event) => setVideoSpec({ ...activeVideoSpec, intent: event.target.value })}
             />
-          </label>
-          <label className="field-label">
-            Audience
+          </div>
+          <div className="field-group">
+            <label className="field-label">Audience</label>
             <input
               className="input"
               value={activeVideoSpec.audience || ""}
               onChange={(event) => setVideoSpec({ ...activeVideoSpec, audience: event.target.value })}
             />
-          </label>
-          <label className="field-label">
-            Tone
+          </div>
+          <div className="field-group">
+            <label className="field-label">Tone</label>
             <input className="input" value={activeVideoSpec.tone || ""} onChange={(event) => setVideoSpec({ ...activeVideoSpec, tone: event.target.value })} />
-          </label>
-          <label className="field-label" htmlFor="article-duration">
-            Duration target (seconds)
+          </div>
+          <div className="field-group">
+            <label className="field-label" htmlFor="article-duration">Duration target (seconds)</label>
             <input
               id="article-duration"
               ref={videoDurationFieldRef}
@@ -2066,7 +2190,7 @@ export default function ArtifactDetailPage({
                 setVideoSpec({ ...activeVideoSpec, duration_seconds_target: Number(event.target.value) || activeVideoSpec.duration_seconds_target })
               }
             />
-          </label>
+          </div>
           <button className="ghost sm" type="button" onClick={() => void persistVideoSpec(activeVideoSpec)} disabled={videoBusy === "save"}>
             {videoBusy === "save" ? "Saving…" : "Save explainer settings"}
           </button>
@@ -2138,18 +2262,51 @@ export default function ArtifactDetailPage({
               {workflow.primaryAction.label}
             </button>
           )}
-          <button
-            className="ghost sm"
-            type="button"
-            onClick={() => {
-              const revisionsAction = workflow.secondaryActions.find((action) => action.id === "view_revisions");
-              if (revisionsAction?.enabled) {
-                handleAction(revisionsAction);
-              }
-            }}
-          >
-            Actions
-          </button>
+          <div className="artifact-workflow-actions-menu">
+            <button
+              className="ghost sm"
+              type="button"
+              onClick={() => setDraftBarActionsOpen((current) => !current)}
+              aria-haspopup="menu"
+              aria-expanded={draftBarActionsOpen}
+            >
+              Actions
+            </button>
+            <Popover open={draftBarActionsOpen} onClose={() => setDraftBarActionsOpen(false)} className="artifact-workflow-popover">
+              <div className="artifact-workflow-menu" role="menu" aria-label="Artifact actions">
+                {draftBarActionGroups.length === 0 ? (
+                  <div className="xyn-menu-item disabled" role="status" aria-live="polite">
+                    <span>No additional actions</span>
+                  </div>
+                ) : (
+                  draftBarActionGroups.map((entry) => (
+                    <div key={entry.group} className={`artifact-workflow-menu-group ${entry.group === "position" ? "is-reactions" : ""}`}>
+                      <div className="artifact-workflow-menu-group-label">{entry.label}</div>
+                      {entry.actions.map((action) => (
+                        <button
+                          key={action.id}
+                          type="button"
+                          role="menuitem"
+                          className={`xyn-menu-item ${!action.enabled ? "disabled" : ""}`}
+                          disabled={!action.enabled || busyActionId === action.id}
+                          title={action.disabledReason || undefined}
+                          onClick={() => {
+                            handleAction(action);
+                            setDraftBarActionsOpen(false);
+                          }}
+                        >
+                          <span>{action.label}</span>
+                          {!action.enabled && action.disabledReason && (
+                            <span className="muted small artifact-workflow-action-reason">{action.disabledReason}</span>
+                          )}
+                        </button>
+                      ))}
+                    </div>
+                  ))
+                )}
+              </div>
+            </Popover>
+          </div>
         </div>
       </section>
     </div>
@@ -2173,7 +2330,7 @@ export default function ArtifactDetailPage({
                   Storyboard
                 </button>
                 <button className={`ghost sm ${videoTab === "renders" ? "active" : ""}`} type="button" onClick={() => setVideoTab("renders")}>
-                  Render History
+                  Render
                 </button>
               </>
             )}
@@ -2204,7 +2361,7 @@ export default function ArtifactDetailPage({
                 {collapsedPrimaryAction.label}
               </button>
               <button className="ghost sm" type="button" onClick={() => setVideoTab("renders")} disabled={Boolean(videoBusy)}>
-                Open Render History
+                Open Render
               </button>
               <button className="ghost sm" type="button" onClick={toggleVideoPanelCollapsed} aria-label="Expand explainer panel">
                 Expand
@@ -2222,12 +2379,12 @@ export default function ArtifactDetailPage({
               {videoScenes.map((scene, index) => (
                 <button
                   type="button"
-                  key={`${scene.id || scene.name}-${index}`}
+                  key={`${scene.id || scene.title || scene.name}-${index}`}
                   className={`instance-row ${selectedVideoSceneIndex === index ? "active" : ""}`}
                   onClick={() => setSelectedVideoSceneIndex(index)}
                 >
                   <div>
-                    <strong>{scene.name || `Scene ${index + 1}`}</strong>
+                    <strong>{sceneTitle(scene as unknown as Record<string, unknown>, `Scene ${index + 1}`)}</strong>
                     <span className="muted small">{scene.id || `s${index + 1}`}</span>
                   </div>
                 </button>
@@ -2237,39 +2394,51 @@ export default function ArtifactDetailPage({
             <div className="stack">
               {selectedVideoScene && (
                 <>
-                  <label>
+                  <label className="stacked-field">
                     Scene title
                     <input
                       className="input"
-                      value={selectedVideoScene.name || ""}
+                      value={sceneTitle(selectedVideoScene as unknown as Record<string, unknown>, "")}
                       onChange={(event) => {
                         const nextScenes = [...videoScenes];
-                        nextScenes[selectedVideoSceneIndex] = { ...selectedVideoScene, name: event.target.value };
+                        nextScenes[selectedVideoSceneIndex] = {
+                          ...selectedVideoScene,
+                          title: event.target.value,
+                          name: event.target.value,
+                        };
                         setVideoSpec({ ...activeVideoSpec, scenes: nextScenes });
                       }}
                     />
                   </label>
-                  <label>
+                  <label className="stacked-field">
                     Voiceover
                     <textarea
                       className="input"
                       rows={5}
-                      value={selectedVideoScene.narration || ""}
+                      value={sceneVoiceover(selectedVideoScene as unknown as Record<string, unknown>)}
                       onChange={(event) => {
                         const nextScenes = [...videoScenes];
-                        nextScenes[selectedVideoSceneIndex] = { ...selectedVideoScene, narration: event.target.value };
+                        nextScenes[selectedVideoSceneIndex] = {
+                          ...selectedVideoScene,
+                          voiceover: event.target.value,
+                          narration: event.target.value,
+                        };
                         setVideoSpec({ ...activeVideoSpec, scenes: nextScenes });
                       }}
                     />
                   </label>
-                  <label>
+                  <label className="stacked-field">
                     On-screen text
                     <input
                       className="input"
-                      value={selectedVideoScene.on_screen_text || ""}
+                      value={sceneOnScreen(selectedVideoScene as unknown as Record<string, unknown>)}
                       onChange={(event) => {
                         const nextScenes = [...videoScenes];
-                        nextScenes[selectedVideoSceneIndex] = { ...selectedVideoScene, on_screen_text: event.target.value };
+                        nextScenes[selectedVideoSceneIndex] = {
+                          ...selectedVideoScene,
+                          on_screen: event.target.value,
+                          on_screen_text: event.target.value,
+                        };
                         setVideoSpec({ ...activeVideoSpec, scenes: nextScenes });
                       }}
                     />
@@ -2285,10 +2454,13 @@ export default function ArtifactDetailPage({
                       ...videoScenes,
                       {
                         id: `s${videoScenes.length + 1}`,
+                        title: `Scene ${videoScenes.length + 1}`,
                         name: `Scene ${videoScenes.length + 1}`,
                         duration_seconds: 8,
+                        voiceover: "",
                         narration: "",
                         visual_prompt: "",
+                        on_screen: "",
                         on_screen_text: "",
                         camera_motion: "",
                         style_constraints: [],
@@ -2332,10 +2504,10 @@ export default function ArtifactDetailPage({
                 <p className="muted small">No scenes available to derive script.</p>
               ) : (
                 videoScenes.map((scene, index) => (
-                  <section key={`${scene.id || scene.name}-${index}`} className="diff-panel">
-                    <h4>{scene.name || `Scene ${index + 1}`}</h4>
-                    <p className="muted small">{scene.on_screen_text || "On-screen text not set."}</p>
-                    <p>{scene.narration || "Voiceover not set."}</p>
+                  <section key={`${scene.id || scene.title || scene.name}-${index}`} className="diff-panel">
+                    <h4>{sceneTitle(scene as unknown as Record<string, unknown>, `Scene ${index + 1}`)}</h4>
+                    <p className="muted small">{sceneOnScreen(scene as unknown as Record<string, unknown>) || "On-screen text not set."}</p>
+                    <p>{sceneVoiceover(scene as unknown as Record<string, unknown>) || "Voiceover not set."}</p>
                   </section>
                 ))
               )}
@@ -2363,7 +2535,7 @@ export default function ArtifactDetailPage({
             <div className="stack">
               {selectedStoryboardScene && (
                 <>
-                  <label>
+                  <label className="stacked-field">
                     On-screen text
                     <textarea
                       className="input"
@@ -2380,7 +2552,7 @@ export default function ArtifactDetailPage({
                       }}
                     />
                   </label>
-                  <label>
+                  <label className="stacked-field">
                     Visual description
                     <textarea
                       className="input"
@@ -2397,7 +2569,7 @@ export default function ArtifactDetailPage({
                       }}
                     />
                   </label>
-                  <label>
+                  <label className="stacked-field">
                     Narration
                     <textarea
                       className="input"
@@ -2488,9 +2660,14 @@ export default function ArtifactDetailPage({
             )}
             {videoTab === "renders" && (
           <div className="stack">
+            {latestRenderIsStub ? (
+              <p className="muted small">
+                Video provider is not configured. Render currently produces an export package JSON, not a media file.
+              </p>
+            ) : null}
             <div className="inline-actions">
               <button className="primary sm" type="button" onClick={() => void requestVideoRender()} disabled={videoBusy === "render"}>
-                {videoBusy === "render" ? "Queueing…" : "Render Video"}
+                {videoBusy === "render" ? "Queueing…" : latestRenderIsStub ? "Generate Export Package" : "Render Video"}
               </button>
             </div>
             <div className="instance-list">
@@ -2545,6 +2722,15 @@ export default function ArtifactDetailPage({
       <div className="card-header">
         <h3>Article Editor</h3>
         <div className="inline-actions editor-header-actions">
+          <button
+            className="ghost sm"
+            type="button"
+            aria-label={articleEditorCollapsed ? "Expand article editor" : "Collapse article editor"}
+            title={articleEditorCollapsed ? "Expand" : "Collapse"}
+            onClick={() => setArticleEditorCollapsed((value) => !value)}
+          >
+            {articleEditorCollapsed ? <ChevronDown size={15} /> : <ChevronUp size={15} />}
+          </button>
           <span className="muted small editor-drift-text">
             Drift from {baselineLabel}: +{drift.summary.added} / -{drift.summary.removed}
           </span>
@@ -2574,7 +2760,7 @@ export default function ArtifactDetailPage({
           </label>
         </div>
       </div>
-      {showRevisionInEditor && selectedRevision && revisionMode === "view" && (
+      {!articleEditorCollapsed && showRevisionInEditor && selectedRevision && revisionMode === "view" && (
         <section className="diff-panel article-review-panel revision-editor-panel">
           <div className="card-header">
             <h4>Viewing r{selectedRevision.revision_number}</h4>
@@ -2586,7 +2772,7 @@ export default function ArtifactDetailPage({
           <div className="editor-preview markdown-body" dangerouslySetInnerHTML={{ __html: renderMarkdown(selectedRevision.body_markdown || "") }} />
         </section>
       )}
-      {showRevisionInEditor && selectedRevision && revisionMode === "diff" && (
+      {!articleEditorCollapsed && showRevisionInEditor && selectedRevision && revisionMode === "diff" && (
         <section className="diff-panel article-review-panel revision-editor-panel">
           <div className="card-header">
             <h4>Diff r{selectedRevision.revision_number}</h4>
@@ -2622,7 +2808,7 @@ export default function ArtifactDetailPage({
           </div>
         </section>
       )}
-      {editorMode === "review" && pendingAssist && !showRevisionInEditor && (
+      {!articleEditorCollapsed && editorMode === "review" && pendingAssist && !showRevisionInEditor && (
         <section className="diff-panel article-review-panel">
           <div className="card-header">
             <h4>Suggested edits</h4>
@@ -2655,17 +2841,19 @@ export default function ArtifactDetailPage({
           </div>
         </section>
       )}
-      <div className={`editor-body ${showPreview ? "split" : ""} ${missingConsoleFields.has("body") ? "console-missing-field" : ""}`}>
-        <MarkdownWysiwygEditor
-          value={bodyMarkdown}
-          onChange={setBodyMarkdown}
-          onSelectionChange={handleEditorSelectionChange}
-          ariaLabel="Article editor"
-          placeholder="Write the article content..."
-          focusSignal={editorFocusSignal}
-        />
-        {showPreview && <div className="editor-preview markdown-body" dangerouslySetInnerHTML={{ __html: renderMarkdown(bodyMarkdown) }} />}
-      </div>
+      {!articleEditorCollapsed && (
+        <div className={`editor-body ${showPreview ? "split" : ""} ${missingConsoleFields.has("body") ? "console-missing-field" : ""}`}>
+          <MarkdownWysiwygEditor
+            value={bodyMarkdown}
+            onChange={setBodyMarkdown}
+            onSelectionChange={handleEditorSelectionChange}
+            ariaLabel="Article editor"
+            placeholder="Write the article content..."
+            focusSignal={editorFocusSignal}
+          />
+          {showPreview && <div className="editor-preview markdown-body" dangerouslySetInnerHTML={{ __html: renderMarkdown(bodyMarkdown) }} />}
+        </div>
+      )}
     </div>
   );
 

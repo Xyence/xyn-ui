@@ -10,8 +10,7 @@ const TYPE_OPTIONS: Array<{ value: "" | UnifiedArtifactType; label: string }> = 
   { value: "blueprint", label: "Blueprints" },
 ];
 
-const STATE_OPTIONS: Array<{ value: "" | UnifiedArtifactState; label: string }> = [
-  { value: "", label: "All" },
+const STATE_OPTIONS: Array<{ value: UnifiedArtifactState; label: string }> = [
   { value: "provisional", label: "Provisional" },
   { value: "canonical", label: "Canonical" },
   { value: "immutable", label: "Immutable" },
@@ -35,7 +34,9 @@ export default function ArtifactsRegistryPage({ workspaceId: _workspaceId }: { w
   const [items, setItems] = useState<UnifiedArtifact[]>([]);
   const [query, setQuery] = useState("");
   const [typeFilter, setTypeFilter] = useState<"" | UnifiedArtifactType>("");
-  const [stateFilter, setStateFilter] = useState<"" | UnifiedArtifactState>("");
+  const [stateFilter, setStateFilter] = useState<Set<UnifiedArtifactState>>(
+    () => new Set<UnifiedArtifactState>(["provisional", "canonical", "immutable"])
+  );
   const [error, setError] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
 
@@ -45,9 +46,8 @@ export default function ArtifactsRegistryPage({ workspaceId: _workspaceId }: { w
       setError(null);
       const payload = await listArtifacts({
         type: typeFilter || undefined,
-        state: stateFilter || undefined,
         query: query.trim() || undefined,
-        limit: 300,
+        limit: 500,
         offset: 0,
       });
       setItems(payload.artifacts || []);
@@ -56,7 +56,7 @@ export default function ArtifactsRegistryPage({ workspaceId: _workspaceId }: { w
     } finally {
       setLoading(false);
     }
-  }, [query, stateFilter, typeFilter]);
+  }, [query, typeFilter]);
 
   useEffect(() => {
     void load();
@@ -64,12 +64,33 @@ export default function ArtifactsRegistryPage({ workspaceId: _workspaceId }: { w
 
   const filtered = useMemo(() => {
     const text = query.trim().toLowerCase();
-    if (!text) return items;
     return items.filter((item) => {
+      const state = String(item.artifact_state || "").toLowerCase() as UnifiedArtifactState;
+      if (!stateFilter.has(state)) return false;
+      if (!text) return true;
       const haystack = `${item.title} ${item.summary || ""} ${item.source_ref_type || ""} ${item.source_ref_id || ""}`.toLowerCase();
       return haystack.includes(text);
     });
-  }, [items, query]);
+  }, [items, query, stateFilter]);
+
+  const stateCounts = useMemo(() => {
+    const counts: Record<string, number> = {};
+    for (const item of items) {
+      const key = String(item.artifact_state || "").toLowerCase();
+      if (!key) continue;
+      counts[key] = (counts[key] || 0) + 1;
+    }
+    return counts;
+  }, [items]);
+
+  const toggleStateFilter = (state: UnifiedArtifactState, checked: boolean) => {
+    setStateFilter((current) => {
+      const next = new Set(current);
+      if (checked) next.add(state);
+      else next.delete(state);
+      return next;
+    });
+  };
 
   const navigateForArtifact = (item: UnifiedArtifact) => {
     const source = (item.source || {}) as Record<string, unknown>;
@@ -82,6 +103,30 @@ export default function ArtifactsRegistryPage({ workspaceId: _workspaceId }: { w
       const blueprintId = String(source.id || item.source_ref_id || "").trim();
       if (blueprintId) navigate(`/app/blueprints/${blueprintId}`);
       return;
+    }
+    if (item.artifact_type === "article") {
+      const artifactId = String(item.artifact_id || item.id || "").trim();
+      if (artifactId) navigate(`/app/artifacts/${artifactId}`);
+      return;
+    }
+    if (item.artifact_type === "context_pack") {
+      const packId = String(source.id || item.source_ref_id || "").trim();
+      if (packId) navigate(`/app/context-packs?pack=${encodeURIComponent(packId)}`);
+      else navigate("/app/context-packs");
+      return;
+    }
+    if (item.artifact_type === "workflow") {
+      const workflowId = String(source.id || item.source_ref_id || "").trim();
+      navigate(`/app/artifacts/workflows${workflowId ? `?workflow=${encodeURIComponent(workflowId)}` : ""}`);
+      return;
+    }
+    if (item.artifact_type === "module") {
+      navigate("/app/modules");
+      return;
+    }
+    const artifactId = String(item.artifact_id || item.id || "").trim();
+    if (artifactId) {
+      navigate(`/app/artifacts/${artifactId}`);
     }
   };
 
@@ -129,16 +174,21 @@ export default function ArtifactsRegistryPage({ workspaceId: _workspaceId }: { w
               ))}
             </select>
           </label>
-          <label>
-            State
-            <select value={stateFilter} onChange={(event) => setStateFilter(event.target.value as "" | UnifiedArtifactState)}>
+          <div>
+            <span className="muted small">State</span>
+            <div className="inline-actions artifact-state-multiselect">
               {STATE_OPTIONS.map((option) => (
-                <option key={option.label} value={option.value}>
-                  {option.label}
-                </option>
+                <label key={option.value} className="muted small">
+                  <input
+                    type="checkbox"
+                    checked={stateFilter.has(option.value)}
+                    onChange={(event) => toggleStateFilter(option.value, event.target.checked)}
+                  />{" "}
+                  {option.label} ({stateCounts[option.value] || 0})
+                </label>
               ))}
-            </select>
-          </label>
+            </div>
+          </div>
         </div>
       </section>
 

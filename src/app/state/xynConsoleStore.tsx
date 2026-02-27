@@ -10,6 +10,8 @@ export type XynConsoleContextRef = {
   artifact_type?: string | null;
 };
 
+type SupportedConsoleArtifactType = "ArticleDraft" | "ContextPack";
+
 type PendingProposal = {
   patch_object: Record<string, unknown>;
   changes: Array<{ field: string; from?: unknown; to?: unknown }>;
@@ -76,6 +78,12 @@ function cloneDefaultSession(): ConsoleSessionState {
 function toContextKey(context: XynConsoleContextRef): string {
   const artifactId = String(context.artifact_id || "").trim();
   return artifactId || "global";
+}
+
+function normalizeConsoleArtifactType(value: unknown): SupportedConsoleArtifactType {
+  const raw = String(value || "").trim().toLowerCase();
+  if (raw === "contextpack" || raw === "context_pack") return "ContextPack";
+  return "ArticleDraft";
 }
 
 function readSessionsFromStorage(): PersistedSessions {
@@ -333,9 +341,10 @@ export function XynConsoleProvider({ children }: { children: ReactNode }) {
     setProcessing(true);
     setProcessingStep("validating");
     try {
+      const applyArtifactType = normalizeConsoleArtifactType(context.artifact_type || session.lastResolution?.artifact_type);
       const result = await applyXynIntent({
         action_type: "ApplyPatch",
-        artifact_type: "ArticleDraft",
+        artifact_type: applyArtifactType,
         artifact_id: targetArtifactId,
         payload: session.pendingProposal.patch_object,
       });
@@ -360,7 +369,18 @@ export function XynConsoleProvider({ children }: { children: ReactNode }) {
       setProcessingStep(null);
       setProcessing(false);
     }
-  }, [session.pendingProposal, session.lastResolution?.artifact_id, session.lastMessage, processing, context.artifact_id, activeEditorBridge, updateSession, storeResolution]);
+  }, [
+    session.pendingProposal,
+    session.lastResolution?.artifact_id,
+    session.lastResolution?.artifact_type,
+    session.lastMessage,
+    processing,
+    context.artifact_id,
+    context.artifact_type,
+    activeEditorBridge,
+    updateSession,
+    storeResolution,
+  ]);
 
   const applyPendingProposal = useCallback(async () => {
     await applyPendingProposalAndSave();
@@ -531,15 +551,16 @@ export function XynConsoleProvider({ children }: { children: ReactNode }) {
         const active = current[contextKey];
         if (!active || active.pendingProposal) return current;
         const resolution = active.lastResolution;
-        const shouldReset =
-          resolution?.status === "DraftReady" &&
-          resolution?.action_type === "CreateDraft" &&
-          Boolean(resolution?.artifact_id);
-        if (!shouldReset) return current;
-        return {
-          ...current,
-          [contextKey]: cloneDefaultSession(),
-        };
+      const shouldReset =
+        resolution?.status === "DraftReady" &&
+        resolution?.action_type === "CreateDraft" &&
+        Boolean(resolution?.artifact_id);
+      if (!shouldReset) return current;
+      setLastArtifactHintState(null);
+      return {
+        ...current,
+        [contextKey]: cloneDefaultSession(),
+      };
       });
       setPendingCloseBlock(false);
     },

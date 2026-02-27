@@ -5,6 +5,9 @@ import { getRecentArtifacts } from "../../../api/xyn";
 import type { RecentArtifactItem, XynIntentResolutionResult } from "../../../api/types";
 import { useXynConsole } from "../../state/xynConsoleStore";
 import RecentArtifactsMiniTable from "./RecentArtifactsMiniTable";
+import ConsolePromptCard from "./ConsolePromptCard";
+import ConsoleGuidancePanel from "./ConsoleGuidancePanel";
+import ConsoleResultPanel from "./ConsoleResultPanel";
 
 type ConsoleMode = "overlay" | "page";
 
@@ -26,6 +29,15 @@ function stringifyValue(value: unknown): string {
 function shortArtifactId(id: string): string {
   if (!id) return "";
   return id.length > 12 ? id.slice(0, 12) : id;
+}
+
+function humanizeIntentStatus(status?: string): string {
+  const raw = String(status || "").trim();
+  if (!raw) return "";
+  return raw
+    .replace(/([a-z0-9])([A-Z])/g, "$1 $2")
+    .replace(/_/g, " ")
+    .trim();
 }
 
 function StatusIcon({ status }: { status?: string }) {
@@ -143,12 +155,13 @@ function ResolutionCard({ resolution, onRevise }: { resolution: XynIntentResolut
   const navigate = useNavigate();
   const canCreate = resolution.status === "DraftReady" && resolution.action_type === "CreateDraft" && !!resolution.draft_payload;
   const canOpen = Boolean(resolution.artifact_id);
+  const showRevise = resolution.status !== "UnsupportedIntent";
 
   return (
     <section className="xyn-console-card" aria-label="Resolution">
       <div className="xyn-console-card-head">
         <StatusIcon status={resolution.status} />
-        <strong>{resolution.status}</strong>
+        <strong>{humanizeIntentStatus(resolution.status)}</strong>
       </div>
       <p>{resolution.summary}</p>
       {resolution.validation_errors?.length ? (
@@ -169,18 +182,20 @@ function ResolutionCard({ resolution, onRevise }: { resolution: XynIntentResolut
             Open in editor
           </button>
         ) : null}
-        <button
-          type="button"
-          className="ghost sm"
-          onClick={() => {
-            if (!session.inputText && session.lastMessage) {
-              setInputText(session.lastMessage);
-            }
-            onRevise();
-          }}
-        >
-          Revise
-        </button>
+        {showRevise ? (
+          <button
+            type="button"
+            className="ghost sm"
+            onClick={() => {
+              if (!session.inputText && session.lastMessage) {
+                setInputText(session.lastMessage);
+              }
+              onRevise();
+            }}
+          >
+            Revise
+          </button>
+        ) : null}
       </div>
       {session.localMessage ? <p className="muted small">{session.localMessage}</p> : null}
     </section>
@@ -207,8 +222,13 @@ export default function XynConsoleCore({ mode, onRequestClose }: Props) {
   } = useXynConsole();
   const inputRef = useRef<HTMLTextAreaElement | null>(null);
   const [recentItems, setRecentItems] = useState<RecentArtifactItem[]>([]);
+  const [showDeprecatedArticles, setShowDeprecatedArticles] = useState(false);
   const [recentLoading, setRecentLoading] = useState(false);
   const [recentFetchedAt, setRecentFetchedAt] = useState(0);
+  const initialRecentCount = mode === "page" ? 8 : 6;
+  const [recentLimit, setRecentLimit] = useState(initialRecentCount);
+  const [recentVisibleCount, setRecentVisibleCount] = useState(initialRecentCount);
+  const [recentExpanded, setRecentExpanded] = useState(false);
 
   const isOverlay = mode === "overlay";
   const isSurfaceVisible = isOverlay ? open : true;
@@ -219,6 +239,16 @@ export default function XynConsoleCore({ mode, onRequestClose }: Props) {
     if (!isSurfaceVisible) return;
     inputRef.current?.focus();
   }, [isSurfaceVisible]);
+
+  useEffect(() => {
+    if (!isSurfaceVisible) return;
+    if (session.lastResolution?.status !== "UnsupportedIntent") return;
+    const target = inputRef.current;
+    if (!target) return;
+    target.focus();
+    const end = target.value.length;
+    target.setSelectionRange(end, end);
+  }, [isSurfaceVisible, session.lastResolution?.status]);
 
   useEffect(() => {
     if (context.artifact_type && !context.artifact_id) {
@@ -237,10 +267,7 @@ export default function XynConsoleCore({ mode, onRequestClose }: Props) {
   const shouldShowRecent =
     isSurfaceVisible &&
     isGlobalContext &&
-    !processing &&
-    !session.pendingProposal &&
-    !session.lastResolution &&
-    !inputText.trim();
+    !session.pendingProposal;
 
   useEffect(() => {
     if (!shouldShowRecent) return;
@@ -250,21 +277,10 @@ export default function XynConsoleCore({ mode, onRequestClose }: Props) {
     (async () => {
       try {
         setRecentLoading(true);
-        const payload = await getRecentArtifacts(mode === "page" ? 8 : 6);
+        const payload = await getRecentArtifacts(recentLimit);
         if (!active) return;
         setRecentItems(payload.items || []);
         setRecentFetchedAt(Date.now());
-        if ((payload.items || []).length && !lastArtifactHint?.title) {
-          const first = payload.items[0];
-          setLastArtifactHint({
-            artifact_id: first.artifact_id,
-            artifact_type: first.artifact_type,
-            artifact_state: first.artifact_state || null,
-            title: first.title,
-            route: first.route,
-            updated_at: first.updated_at,
-          });
-        }
       } finally {
         if (active) setRecentLoading(false);
       }
@@ -272,20 +288,15 @@ export default function XynConsoleCore({ mode, onRequestClose }: Props) {
     return () => {
       active = false;
     };
-  }, [isGlobalContext, lastArtifactHint, mode, recentFetchedAt, recentItems.length, setLastArtifactHint, shouldShowRecent]);
+  }, [isGlobalContext, lastArtifactHint, recentFetchedAt, recentItems.length, recentLimit, setLastArtifactHint, shouldShowRecent]);
 
+  const contextualTitle =
+    hasContextArtifact && lastArtifactHint?.artifact_id && String(lastArtifactHint.artifact_id) === String(context.artifact_id || "")
+      ? String(lastArtifactHint.title || "").trim()
+      : "";
   const contextLine = hasContextArtifact
-    ? `Context: ${context.artifact_type} • ${shortArtifactId(String(context.artifact_id || ""))}`
+    ? `Context: ${context.artifact_type} • ${contextualTitle || shortArtifactId(String(context.artifact_id || ""))}`
     : "Context: Global";
-
-  const workingOnLine = isGlobalContext &&
-    !inputText.trim() &&
-    !processing &&
-    !session.lastResolution &&
-    lastArtifactHint?.title
-    ? `Working on: ${lastArtifactHint.title}${lastArtifactHint.artifact_state ? ` • ${lastArtifactHint.artifact_state}` : ""}`
-    : "";
-
   const handleRevise = () => {
     const target = inputRef.current;
     if (!target) return;
@@ -298,49 +309,17 @@ export default function XynConsoleCore({ mode, onRequestClose }: Props) {
   const handleInputKeyDown = (event: ReactKeyboardEvent<HTMLTextAreaElement>) => {
     if (event.key !== "Enter") return;
     if (event.altKey) return;
-    const submitByHotkey = event.shiftKey || event.metaKey || event.ctrlKey;
-    if (!submitByHotkey) return;
-    event.preventDefault();
-    if (!canSubmit) return;
-    void submitResolve();
+    if (event.shiftKey) return;
+    const submitByHotkey = event.metaKey || event.ctrlKey || (!event.metaKey && !event.ctrlKey);
+    if (submitByHotkey) {
+      event.preventDefault();
+      if (!canSubmit) return;
+      void submitResolve();
+    }
   };
 
-  return (
-    <div className={`xyn-console-core ${isOverlay ? "overlay" : "page"}`}>
-      <header className="xyn-console-header">
-        <div>
-          <h3>Xyn</h3>
-          <p className="muted small">{contextLine}</p>
-          {workingOnLine ? <p className="muted small">{workingOnLine}</p> : null}
-        </div>
-        {isOverlay ? (
-          <button
-            type="button"
-            className="ghost sm"
-            onClick={() => {
-              if (onRequestClose) onRequestClose();
-              else setOpen(false);
-            }}
-            disabled={Boolean(session.pendingProposal)}
-          >
-            Close
-          </button>
-        ) : null}
-      </header>
-      <div className="xyn-console-input-wrap">
-        <textarea
-          ref={inputRef}
-          rows={3}
-          value={inputText}
-          onChange={(event) => setInputText(event.target.value)}
-          onKeyDown={handleInputKeyDown}
-          placeholder="Describe a draft state transition."
-        />
-        <button type="button" className="primary sm" onClick={() => void submitResolve()} disabled={!canSubmit}>
-          Submit
-        </button>
-      </div>
-      {processing ? <div className="xyn-console-processing muted small">{statusLine}</div> : null}
+  const resolutionStack = (
+    <>
       {pendingCloseBlock ? <div className="xyn-console-warning">You have a pending proposal. Apply or cancel.</div> : null}
       {session.lastResolution ? (
         <>
@@ -364,46 +343,114 @@ export default function XynConsoleCore({ mode, onRequestClose }: Props) {
       <ProposedPatchCard />
       <MissingFieldsCard />
       <OptionsCard />
-      {shouldShowRecent ? (
-        <RecentArtifactsMiniTable
-          items={recentItems}
-          loading={recentLoading}
-          onRefresh={() => {
-            setRecentFetchedAt(0);
-            setRecentItems([]);
+    </>
+  );
+
+  const promptCard = (
+    <ConsolePromptCard
+      contextLine={contextLine}
+      statusLine={statusLine || "Working..."}
+      processing={processing}
+      inputText={inputText}
+      onInputChange={setInputText}
+      onInputKeyDown={handleInputKeyDown}
+      onSubmit={() => void submitResolve()}
+      onClear={() => {
+        if (session.lastResolution || session.pendingProposal || session.pendingMissingFields.length) {
+          clearSessionResolution();
+        }
+        setInputText("");
+      }}
+      canSubmit={canSubmit}
+      textareaRef={inputRef}
+      pendingCloseBlock={pendingCloseBlock}
+    />
+  );
+
+  const recentSection = shouldShowRecent ? (
+    <RecentArtifactsMiniTable
+      items={recentItems.filter((item) => {
+        if (showDeprecatedArticles) return true;
+        return String(item.artifact_state || "").toLowerCase() !== "deprecated";
+      })}
+      loading={recentLoading}
+      compact={!isOverlay && Boolean(inputText.trim()) && !recentExpanded}
+      maxItems={recentVisibleCount}
+      showDeprecatedArticles={showDeprecatedArticles}
+      onRefresh={() => {
+        setRecentFetchedAt(0);
+        setRecentExpanded(false);
+        setRecentVisibleCount(initialRecentCount);
+        setRecentLimit(initialRecentCount);
+      }}
+      onToggleShowDeprecatedArticles={setShowDeprecatedArticles}
+      onOpen={(item) => {
+        setLastArtifactHint({
+          artifact_id: item.artifact_id,
+          artifact_type: item.artifact_type,
+          artifact_state: item.artifact_state || null,
+          title: item.title,
+          route: item.route,
+          updated_at: item.updated_at,
+        });
+        navigate(item.route);
+        if (isOverlay) {
+          if (onRequestClose) onRequestClose();
+          else setOpen(false);
+        }
+      }}
+      onShowMore={() => {
+        setRecentExpanded(true);
+        setRecentVisibleCount((current) => current + 10);
+        const desired = recentVisibleCount + 10;
+        if (desired > recentLimit) {
+          setRecentLimit((current) => Math.min(Math.max(current + 10, desired), 100));
+          setRecentFetchedAt(0);
+        }
+      }}
+      onInsertSuggestion={injectSuggestion}
+    />
+  ) : null;
+
+  if (!isOverlay) {
+    return (
+      <div className="xyn-console-core page">
+        <div className="xyn-console-page-grid">
+          <div className="xyn-console-page-main">
+            {promptCard}
+            <ConsoleResultPanel>{resolutionStack}</ConsoleResultPanel>
+          </div>
+          <ConsoleGuidancePanel onInsertSuggestion={injectSuggestion} dimmed={Boolean(inputText.trim())} />
+        </div>
+        {recentSection}
+      </div>
+    );
+  }
+
+  return (
+    <div className="xyn-console-core overlay">
+      <header className="xyn-console-header">
+        <h3>Xyn</h3>
+        <button
+          type="button"
+          className="ghost sm"
+          onClick={() => {
+            if (onRequestClose) onRequestClose();
+            else setOpen(false);
           }}
-          onOpen={(item) => {
-            setLastArtifactHint({
-              artifact_id: item.artifact_id,
-              artifact_type: item.artifact_type,
-              artifact_state: item.artifact_state || null,
-              title: item.title,
-              route: item.route,
-              updated_at: item.updated_at,
-            });
-            navigate(item.route);
-            if (isOverlay) {
-              if (onRequestClose) onRequestClose();
-              else setOpen(false);
-            }
-          }}
-          onShowMore={() => {
-            navigate("/app/artifacts/all");
-            if (isOverlay) {
-              if (onRequestClose) onRequestClose();
-              else setOpen(false);
-            }
-          }}
-          onInsertSuggestion={injectSuggestion}
-        />
-      ) : null}
-      {isOverlay ? (
-        <footer className="xyn-console-footer muted small">
-          <span>Esc to collapse (unless proposal pending)</span>
-          <span>Submit: Shift+Enter or ⌘/Ctrl+Enter</span>
-          <span>⌘K / Ctrl+K</span>
-        </footer>
-      ) : null}
+          disabled={Boolean(session.pendingProposal)}
+        >
+          Close
+        </button>
+      </header>
+      {promptCard}
+      <ConsoleResultPanel>{resolutionStack}</ConsoleResultPanel>
+      {recentSection}
+      <footer className="xyn-console-footer muted small">
+        <span>Esc to collapse (unless proposal pending)</span>
+        <span>Submit: Enter or ⌘/Ctrl+Enter</span>
+        <span>Shift+Enter newline</span>
+      </footer>
     </div>
   );
 }
