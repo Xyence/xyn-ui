@@ -2058,11 +2058,54 @@ export type PlatformConfig = {
       timeout_seconds?: number;
     };
   };
+  video?: {
+    rendering_mode?: "export_package_only" | "render_via_adapter" | "render_via_endpoint" | "render_via_model_config" | string;
+    endpoint_url?: string | null;
+    adapter_id?: string | null;
+    adapter_config_id?: string | null;
+    credential_ref?: string | null;
+    timeout_seconds?: number;
+    retry_count?: number;
+  };
 };
 
 export type PlatformConfigResponse = {
   version: number;
   config: PlatformConfig;
+};
+
+export type VideoAdapterDefinition = {
+  id: string;
+  name: string;
+  description: string;
+  config_schema_version: number;
+};
+
+export type VideoAdaptersResponse = {
+  adapters: VideoAdapterDefinition[];
+  feature_flags?: {
+    render_via_model_config?: boolean;
+  };
+};
+
+export type VideoAdapterConfigRecord = {
+  artifact_id: string;
+  title: string;
+  slug?: string;
+  artifact_state: string;
+  version: number;
+  content_hash?: string;
+  updated_at?: string;
+  adapter_id: string;
+  config_json: Record<string, unknown>;
+};
+
+export type VideoAdapterConfigListResponse = {
+  configs: VideoAdapterConfigRecord[];
+};
+
+export type VideoAdapterConfigDetailResponse = {
+  config: VideoAdapterConfigRecord;
 };
 
 export type AccessPermissionDefinition = {

@@ -1,7 +1,14 @@
-import { useEffect, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
+import { useNavigate } from "react-router-dom";
 import InlineMessage from "../../components/InlineMessage";
-import { getPlatformConfig, updatePlatformConfig } from "../../api/xyn";
-import type { PlatformConfig } from "../../api/types";
+import {
+  createVideoAdapterConfig,
+  getPlatformConfig,
+  listVideoAdapterConfigs,
+  listVideoAdapters,
+  updatePlatformConfig,
+} from "../../api/xyn";
+import type { PlatformConfig, VideoAdapterConfigRecord, VideoAdapterDefinition } from "../../api/types";
 
 const defaultConfig: PlatformConfig = {
   storage: {
@@ -26,6 +33,15 @@ const defaultConfig: PlatformConfig = {
       timeout_seconds: 90,
     },
   },
+  video: {
+    rendering_mode: "export_package_only",
+    endpoint_url: "",
+    adapter_id: "http_generic_renderer",
+    adapter_config_id: null,
+    credential_ref: "",
+    timeout_seconds: 90,
+    retry_count: 0,
+  },
 };
 
 function ensureConfig(config?: PlatformConfig): PlatformConfig {
@@ -45,15 +61,43 @@ function ensureConfig(config?: PlatformConfig): PlatformConfig {
       ...((merged.video_generation && merged.video_generation.http) || {}),
     },
   };
+  const incomingVideo = merged.video || {};
+  const fallbackMode = (() => {
+    const provider = String(merged.video_generation?.provider || "").trim().toLowerCase();
+    if (provider === "http_adapter" || provider === "http") return "render_via_adapter";
+    if (provider === "http_endpoint" || provider === "http_url") return "render_via_endpoint";
+    return "export_package_only";
+  })();
+  merged.video = {
+    ...defaultConfig.video,
+    ...incomingVideo,
+    rendering_mode:
+      (incomingVideo.rendering_mode || fallbackMode) as NonNullable<PlatformConfig["video"]>["rendering_mode"],
+    endpoint_url:
+      incomingVideo.endpoint_url ??
+      merged.video_generation?.http?.endpoint_url ??
+      "",
+    timeout_seconds:
+      incomingVideo.timeout_seconds ??
+      merged.video_generation?.http?.timeout_seconds ??
+      90,
+    retry_count: incomingVideo.retry_count ?? 0,
+  };
   return merged;
 }
 
 export default function PlatformSettingsPage() {
+  const navigate = useNavigate();
   const [config, setConfig] = useState<PlatformConfig>(defaultConfig);
   const [version, setVersion] = useState<number>(0);
   const [loading, setLoading] = useState(false);
+  const [loadingAdapters, setLoadingAdapters] = useState(false);
+  const [loadingAdapterConfigs, setLoadingAdapterConfigs] = useState(false);
   const [message, setMessage] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
+  const [videoAdapters, setVideoAdapters] = useState<VideoAdapterDefinition[]>([]);
+  const [adapterConfigs, setAdapterConfigs] = useState<VideoAdapterConfigRecord[]>([]);
+  const [renderViaModelEnabled, setRenderViaModelEnabled] = useState(false);
 
   const load = async () => {
     try {
@@ -72,6 +116,44 @@ export default function PlatformSettingsPage() {
   useEffect(() => {
     load();
   }, []);
+
+  const loadVideoAdapters = async () => {
+    try {
+      setLoadingAdapters(true);
+      const result = await listVideoAdapters();
+      setVideoAdapters(result.adapters || []);
+      setRenderViaModelEnabled(Boolean(result.feature_flags?.render_via_model_config));
+    } catch (err) {
+      setError((err as Error).message);
+    } finally {
+      setLoadingAdapters(false);
+    }
+  };
+
+  const loadAdapterConfigs = async (adapterId: string) => {
+    try {
+      setLoadingAdapterConfigs(true);
+      const result = await listVideoAdapterConfigs(adapterId, "canonical");
+      setAdapterConfigs(result.configs || []);
+    } catch (err) {
+      setError((err as Error).message);
+    } finally {
+      setLoadingAdapterConfigs(false);
+    }
+  };
+
+  useEffect(() => {
+    loadVideoAdapters();
+  }, []);
+
+  const activeVideoConfig = config.video || defaultConfig.video!;
+  useEffect(() => {
+    if (!activeVideoConfig.adapter_id) {
+      setAdapterConfigs([]);
+      return;
+    }
+    loadAdapterConfigs(String(activeVideoConfig.adapter_id));
+  }, [activeVideoConfig.adapter_id]);
 
   const setProvider = (name: string, next: Record<string, unknown>) => {
     const providers = (config.storage.providers || []).map((provider) =>
@@ -102,7 +184,47 @@ export default function PlatformSettingsPage() {
     setConfig({ ...config, notifications: { ...config.notifications, channels } });
   };
 
-  const videoGeneration = config.video_generation || defaultConfig.video_generation!;
+  const renderingMode = activeVideoConfig.rendering_mode || "export_package_only";
+  const selectedAdapter = useMemo(
+    () => videoAdapters.find((item) => item.id === activeVideoConfig.adapter_id) || null,
+    [videoAdapters, activeVideoConfig.adapter_id]
+  );
+  const selectedAdapterConfig = useMemo(
+    () => adapterConfigs.find((item) => item.artifact_id === activeVideoConfig.adapter_config_id) || null,
+    [adapterConfigs, activeVideoConfig.adapter_config_id]
+  );
+
+  const updateVideo = (next: Partial<NonNullable<PlatformConfig["video"]>>) => {
+    setConfig({
+      ...config,
+      video: {
+        ...activeVideoConfig,
+        ...next,
+      },
+    });
+  };
+
+  const createAdapterConfigDraft = async () => {
+    const adapterId = String(activeVideoConfig.adapter_id || "").trim();
+    if (!adapterId) return;
+    try {
+      setLoading(true);
+      const title = `${adapterId.replace(/_/g, " ")} config`.replace(/\b\w/g, (ch) => ch.toUpperCase());
+      const result = await createVideoAdapterConfig({
+        title,
+        adapter_id: adapterId,
+      });
+      setMessage("Adapter config draft created.");
+      await loadAdapterConfigs(adapterId);
+      if (result.config?.artifact_id) {
+        navigate(`/app/artifacts/${result.config.artifact_id}`);
+      }
+    } catch (err) {
+      setError((err as Error).message);
+    } finally {
+      setLoading(false);
+    }
+  };
 
   const save = async () => {
     try {
@@ -325,92 +447,142 @@ export default function PlatformSettingsPage() {
 
         <section className="card">
           <div className="card-header">
-            <h3>Video Generation</h3>
+            <h3>Video Rendering</h3>
           </div>
           <div className="form-grid">
             <label>
-              Video generation enabled
+              Rendering mode
               <select
-                value={videoGeneration.enabled ? "yes" : "no"}
+                value={renderingMode}
                 onChange={(event) =>
-                  setConfig({
-                    ...config,
-                    video_generation: {
-                      ...videoGeneration,
-                      enabled: event.target.value === "yes",
-                    },
+                  updateVideo({
+                    rendering_mode: event.target.value as NonNullable<PlatformConfig["video"]>["rendering_mode"],
                   })
                 }
               >
-                <option value="yes">Yes</option>
-                <option value="no">No</option>
+                <option value="export_package_only">Export package only</option>
+                <option value="render_via_adapter">Render via adapter</option>
+                <option value="render_via_endpoint">Render via endpoint</option>
+                {renderViaModelEnabled ? <option value="render_via_model_config">Render via model config</option> : null}
               </select>
             </label>
-            <label>
-              Provider
-              <select
-                value={videoGeneration.provider || "export_package"}
-                onChange={(event) =>
-                  setConfig({
-                    ...config,
-                    video_generation: {
-                      ...videoGeneration,
-                      provider: event.target.value as "export_package" | "http" | "unknown",
-                    },
-                  })
-                }
-              >
-                <option value="export_package">Export package only</option>
-                <option value="http">HTTP adapter</option>
-                <option value="unknown">Not configured</option>
-              </select>
-            </label>
-            <label>
-              HTTP endpoint URL
-              <input
-                className="input"
-                placeholder="https://video-provider.example.com/render"
-                value={videoGeneration.http?.endpoint_url || ""}
-                onChange={(event) =>
-                  setConfig({
-                    ...config,
-                    video_generation: {
-                      ...videoGeneration,
-                      http: {
-                        ...(videoGeneration.http || {}),
-                        endpoint_url: event.target.value,
-                      },
-                    },
-                  })
-                }
-              />
-            </label>
-            <label>
-              HTTP timeout (seconds)
-              <input
-                className="input"
-                type="number"
-                min={5}
-                max={600}
-                value={videoGeneration.http?.timeout_seconds ?? 90}
-                onChange={(event) =>
-                  setConfig({
-                    ...config,
-                    video_generation: {
-                      ...videoGeneration,
-                      http: {
-                        ...(videoGeneration.http || {}),
-                        timeout_seconds: Number(event.target.value) || 90,
-                      },
-                    },
-                  })
-                }
-              />
-            </label>
+            {renderingMode === "render_via_adapter" ? (
+              <>
+                <label>
+                  Renderer adapter
+                  <select
+                    value={activeVideoConfig.adapter_id || ""}
+                    onChange={(event) =>
+                      updateVideo({
+                        adapter_id: event.target.value,
+                        adapter_config_id: null,
+                      })
+                    }
+                  >
+                    <option value="">Select adapter</option>
+                    {videoAdapters.map((adapter) => (
+                      <option key={adapter.id} value={adapter.id}>
+                        {adapter.name}
+                      </option>
+                    ))}
+                  </select>
+                  <span className="muted small">{selectedAdapter?.description || "Choose how Xyn hands render packages to a renderer."}</span>
+                </label>
+                <label>
+                  Adapter config (canonical)
+                  <select
+                    value={activeVideoConfig.adapter_config_id || ""}
+                    onChange={(event) => updateVideo({ adapter_config_id: event.target.value || null })}
+                    disabled={!activeVideoConfig.adapter_id || loadingAdapterConfigs}
+                  >
+                    <option value="">{loadingAdapterConfigs ? "Loading…" : "Select config"}</option>
+                    {adapterConfigs.map((item) => (
+                      <option key={item.artifact_id} value={item.artifact_id}>
+                        {item.title} ({item.slug || item.artifact_id.slice(0, 8)} · v{item.version})
+                      </option>
+                    ))}
+                  </select>
+                </label>
+                <div className="inline-actions">
+                  <button
+                    type="button"
+                    className="ghost"
+                    disabled={!selectedAdapterConfig}
+                    onClick={() => selectedAdapterConfig && navigate(`/app/artifacts/${selectedAdapterConfig.artifact_id}`)}
+                  >
+                    Open config
+                  </button>
+                  <button type="button" className="ghost" onClick={createAdapterConfigDraft} disabled={!activeVideoConfig.adapter_id || loading}>
+                    Create config
+                  </button>
+                  <button type="button" className="ghost" disabled title="Placeholder; connection checks can be wired per adapter later.">
+                    Test connection
+                  </button>
+                </div>
+              </>
+            ) : null}
+            {renderingMode === "render_via_endpoint" ? (
+              <>
+                <label>
+                  Endpoint URL
+                  <input
+                    className="input"
+                    placeholder="https://renderer.example.com/render"
+                    value={activeVideoConfig.endpoint_url || ""}
+                    onChange={(event) => updateVideo({ endpoint_url: event.target.value })}
+                  />
+                </label>
+                <label>
+                  Authorization credential ref (optional)
+                  <input
+                    className="input"
+                    placeholder="secret_ref:<uuid> or credential name"
+                    value={activeVideoConfig.credential_ref || ""}
+                    onChange={(event) => updateVideo({ credential_ref: event.target.value })}
+                  />
+                </label>
+                <label>
+                  Timeout (seconds)
+                  <input
+                    className="input"
+                    type="number"
+                    min={5}
+                    max={600}
+                    value={activeVideoConfig.timeout_seconds ?? 90}
+                    onChange={(event) => updateVideo({ timeout_seconds: Number(event.target.value) || 90 })}
+                  />
+                </label>
+                <label>
+                  Retry count
+                  <input
+                    className="input"
+                    type="number"
+                    min={0}
+                    max={10}
+                    value={activeVideoConfig.retry_count ?? 0}
+                    onChange={(event) => updateVideo({ retry_count: Number(event.target.value) || 0 })}
+                  />
+                </label>
+              </>
+            ) : null}
           </div>
-          <p className="muted small">
-            `export_package` keeps current behavior (JSON package). Use `http` to call an external video rendering service.
-          </p>
+          {renderingMode === "export_package_only" ? (
+            <p className="muted small">No rendering is performed. Xyn produces a governed render package for export/use elsewhere.</p>
+          ) : null}
+          {renderingMode === "render_via_adapter" ? (
+            <p className="muted small">
+              Xyn produces a render package then invokes the selected adapter + canonical adapter config.
+            </p>
+          ) : null}
+          {renderingMode === "render_via_endpoint" ? (
+            <p className="muted small">
+              Endpoint contract: <code>POST {'{endpoint_url}'}/render</code> with <code>{"{ render_package_id, render_package_hash, callback_url, options }"}</code>.
+            </p>
+          ) : null}
+          {renderingMode === "render_via_model_config" ? (
+            <InlineMessage tone="info" title="Feature gated mode" body="Direct model rendering mode is enabled by feature flag. Provider-specific execution is intentionally not implemented in this release." />
+          ) : null}
+          {loadingAdapters ? <p className="muted small">Loading adapter registry…</p> : null}
         </section>
       </div>
     </>

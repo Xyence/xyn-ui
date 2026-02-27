@@ -87,6 +87,9 @@ import type {
   ReportRecord,
   PlatformConfig,
   PlatformConfigResponse,
+  VideoAdapterConfigDetailResponse,
+  VideoAdapterConfigListResponse,
+  VideoAdaptersResponse,
   WorkspaceListResponse,
   ArtifactSummary,
   ArtifactDetail,
@@ -3422,6 +3425,68 @@ export async function updatePlatformConfig(config: PlatformConfig): Promise<Plat
     body: JSON.stringify(config),
   });
   return handle<PlatformConfigResponse>(response);
+}
+
+export async function listVideoAdapters(): Promise<VideoAdaptersResponse> {
+  const apiBaseUrl = resolveApiBaseUrl();
+  const response = await apiFetch(`${apiBaseUrl}/xyn/api/video/adapters`, {
+    credentials: "include",
+  });
+  return handle<VideoAdaptersResponse>(response);
+}
+
+export async function listVideoAdapterConfigs(
+  adapterId?: string,
+  state: "canonical" | "provisional" | "deprecated" | string = "canonical"
+): Promise<VideoAdapterConfigListResponse> {
+  const apiBaseUrl = resolveApiBaseUrl();
+  const url = new URL(`${apiBaseUrl}/xyn/api/video/adapter-configs`);
+  if (adapterId) {
+    url.searchParams.set("adapter_id", adapterId);
+  }
+  if (state) {
+    url.searchParams.set("state", state);
+  }
+  const response = await apiFetch(url.toString(), {
+    credentials: "include",
+  });
+  return handle<VideoAdapterConfigListResponse>(response);
+}
+
+export async function createVideoAdapterConfig(payload: {
+  title: string;
+  slug?: string;
+  adapter_id: string;
+  config_json?: Record<string, unknown>;
+}): Promise<VideoAdapterConfigDetailResponse> {
+  const apiBaseUrl = resolveApiBaseUrl();
+  const response = await apiFetch(`${apiBaseUrl}/xyn/api/video/adapter-configs`, {
+    method: "POST",
+    headers: buildHeaders(),
+    credentials: "include",
+    body: JSON.stringify(payload),
+  });
+  return handle<VideoAdapterConfigDetailResponse>(response);
+}
+
+export async function updateVideoAdapterConfig(
+  artifactId: string,
+  payload: Partial<{
+    title: string;
+    slug: string;
+    adapter_id: string;
+    artifact_state: string;
+    config_json: Record<string, unknown>;
+  }>
+): Promise<VideoAdapterConfigDetailResponse> {
+  const apiBaseUrl = resolveApiBaseUrl();
+  const response = await apiFetch(`${apiBaseUrl}/xyn/api/video/adapter-configs/${artifactId}`, {
+    method: "PATCH",
+    headers: buildHeaders(),
+    credentials: "include",
+    body: JSON.stringify(payload),
+  });
+  return handle<VideoAdapterConfigDetailResponse>(response);
 }
 
 export async function createIdentityProvider(payload: IdentityProviderPayload): Promise<{ id: string }> {
