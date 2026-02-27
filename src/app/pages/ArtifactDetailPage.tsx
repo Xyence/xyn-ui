@@ -2719,141 +2719,147 @@ export default function ArtifactDetailPage({
   const mainSection = (
     <div className="stack">
       {videoEditorPanel}
-      <div className="card-header">
-        <h3>Article Editor</h3>
-        <div className="inline-actions editor-header-actions">
-          <button
-            className="ghost sm"
-            type="button"
-            aria-label={articleEditorCollapsed ? "Expand article editor" : "Collapse article editor"}
-            title={articleEditorCollapsed ? "Expand" : "Collapse"}
-            onClick={() => setArticleEditorCollapsed((value) => !value)}
-          >
-            {articleEditorCollapsed ? <ChevronDown size={15} /> : <ChevronUp size={15} />}
-          </button>
-          <span className="muted small editor-drift-text">
-            Drift from {baselineLabel}: +{drift.summary.added} / -{drift.summary.removed}
-          </span>
-          {pendingAssist && (
-            <button className={`ghost sm ${editorMode === "review" ? "active" : ""}`} type="button" onClick={() => setEditorMode("review")}>
-              Review proposal
-            </button>
-          )}
-          {pendingAssist && editorMode === "review" && (
-            <button className="ghost sm" type="button" onClick={() => setEditorMode("edit")}>
-              Back to edit
-            </button>
-          )}
-          <button
-            className="ghost sm"
-            type="button"
-            onClick={(event) => {
-              const rect = (event.currentTarget as HTMLButtonElement).getBoundingClientRect();
-              openRefinement("article", { top: rect.top, left: rect.left, width: rect.width, height: rect.height });
-            }}
-          >
-            <Sparkles size={14} /> Refine
-          </button>
-          <label className="checkbox-row">
-            <input type="checkbox" checked={showPreview} onChange={(event) => setShowPreview(event.target.checked)} />
-            Preview
-          </label>
-        </div>
-      </div>
-      {!articleEditorCollapsed && showRevisionInEditor && selectedRevision && revisionMode === "view" && (
-        <section className="diff-panel article-review-panel revision-editor-panel">
-          <div className="card-header">
-            <h4>Viewing r{selectedRevision.revision_number}</h4>
-            <button className="ghost sm" type="button" onClick={() => setRevisionMode("list")}>
-              Close
-            </button>
-          </div>
-          <textarea className="input revision-readonly-textarea" rows={8} value={selectedRevision.body_markdown || ""} readOnly />
-          <div className="editor-preview markdown-body" dangerouslySetInnerHTML={{ __html: renderMarkdown(selectedRevision.body_markdown || "") }} />
-        </section>
-      )}
-      {!articleEditorCollapsed && showRevisionInEditor && selectedRevision && revisionMode === "diff" && (
-        <section className="diff-panel article-review-panel revision-editor-panel">
-          <div className="card-header">
-            <h4>Diff r{selectedRevision.revision_number}</h4>
-            <button className="ghost sm" type="button" onClick={() => setRevisionMode("list")}>
-              Close
-            </button>
-          </div>
-          <div className="inline-actions">
-            <span className="muted small">Compare against</span>
-            <select value={compareRevisionId} onChange={(event) => setCompareRevisionId(event.target.value)}>
-              <option value="current">Current editor</option>
-              {revisions
-                .filter((entry) => entry.id !== selectedRevision.id)
-                .map((entry) => (
-                  <option key={entry.id} value={entry.id}>
-                    r{entry.revision_number}
-                  </option>
-                ))}
-            </select>
-          </div>
-          {selectedRevisionDiff && (
-            <p className="muted small">
-              +{selectedRevisionDiff.summary.added} / -{selectedRevisionDiff.summary.removed} lines changed
-            </p>
-          )}
-          <div className="line-diff article-review-diff">
-            {(selectedRevisionDiff?.ops || []).map((op, idx) => (
-              <pre key={`${idx}-${op.type}`} className={`line-diff-row ${op.type}`}>
-                <span>{op.type === "add" ? "+" : op.type === "remove" ? "-" : " "}</span>
-                {op.text}
-              </pre>
-            ))}
-          </div>
-        </section>
-      )}
-      {!articleEditorCollapsed && editorMode === "review" && pendingAssist && !showRevisionInEditor && (
-        <section className="diff-panel article-review-panel">
-          <div className="card-header">
-            <h4>Suggested edits</h4>
-            <span className="muted small">
-              +{pendingAssistDiff?.summary.added || 0} / -{pendingAssistDiff?.summary.removed || 0} lines
+      <section className={`card article-editor-panel ${articleEditorCollapsed ? "collapsed" : "expanded"}`}>
+        <div className="card-header">
+          <h4>Article Editor</h4>
+          <div className="inline-actions editor-header-actions">
+            <span className="muted small editor-drift-text">
+              Drift from {baselineLabel}: +{drift.summary.added} / -{drift.summary.removed}
             </span>
-          </div>
-          <div className="line-diff article-review-diff">
-            {(pendingAssistDiff?.ops || []).map((op, idx) => (
-              <pre key={`${idx}-${op.type}`} className={`line-diff-row ${op.type}`}>
-                <span>{op.type === "add" ? "+" : op.type === "remove" ? "-" : " "}</span>
-                {op.text}
-              </pre>
-            ))}
-          </div>
-          <div className="inline-actions">
-            <button className="primary" type="button" onClick={() => void acceptAssist()}>
-              Apply changes
-            </button>
+            {pendingAssist && (
+              <button className={`ghost sm ${editorMode === "review" ? "active" : ""}`} type="button" onClick={() => setEditorMode("review")}>
+                Review proposal
+              </button>
+            )}
+            {pendingAssist && editorMode === "review" && (
+              <button className="ghost sm" type="button" onClick={() => setEditorMode("edit")}>
+                Back to edit
+              </button>
+            )}
             <button
-              className="ghost"
+              className="ghost sm"
               type="button"
-              onClick={() => {
-                setPendingAssist(null);
-                setEditorMode("edit");
+              onClick={(event) => {
+                const rect = (event.currentTarget as HTMLButtonElement).getBoundingClientRect();
+                openRefinement("article", { top: rect.top, left: rect.left, width: rect.width, height: rect.height });
               }}
             >
-              Discard
+              <Sparkles size={14} /> Refine
+            </button>
+            <label className="checkbox-row">
+              <input type="checkbox" checked={showPreview} onChange={(event) => setShowPreview(event.target.checked)} />
+              Preview
+            </label>
+            <button
+              className="ghost sm"
+              type="button"
+              aria-label={articleEditorCollapsed ? "Expand article editor" : "Collapse article editor"}
+              title={articleEditorCollapsed ? "Expand" : "Collapse"}
+              onClick={() => setArticleEditorCollapsed((value) => !value)}
+            >
+              {articleEditorCollapsed ? <ChevronDown size={15} /> : <ChevronUp size={15} />}
             </button>
           </div>
-        </section>
-      )}
-      {!articleEditorCollapsed && (
-        <div className={`editor-body ${showPreview ? "split" : ""} ${missingConsoleFields.has("body") ? "console-missing-field" : ""}`}>
-          <MarkdownWysiwygEditor
-            value={bodyMarkdown}
-            onChange={setBodyMarkdown}
-            onSelectionChange={handleEditorSelectionChange}
-            ariaLabel="Article editor"
-            placeholder="Write the article content..."
-            focusSignal={editorFocusSignal}
-          />
-          {showPreview && <div className="editor-preview markdown-body" dangerouslySetInnerHTML={{ __html: renderMarkdown(bodyMarkdown) }} />}
         </div>
-      )}
+        {articleEditorCollapsed ? (
+          <p className="muted small">Article markdown editor is collapsed. Expand to edit body content and preview.</p>
+        ) : (
+          <>
+            {showRevisionInEditor && selectedRevision && revisionMode === "view" && (
+              <section className="diff-panel article-review-panel revision-editor-panel">
+                <div className="card-header">
+                  <h4>Viewing r{selectedRevision.revision_number}</h4>
+                  <button className="ghost sm" type="button" onClick={() => setRevisionMode("list")}>
+                    Close
+                  </button>
+                </div>
+                <textarea className="input revision-readonly-textarea" rows={8} value={selectedRevision.body_markdown || ""} readOnly />
+                <div className="editor-preview markdown-body" dangerouslySetInnerHTML={{ __html: renderMarkdown(selectedRevision.body_markdown || "") }} />
+              </section>
+            )}
+            {showRevisionInEditor && selectedRevision && revisionMode === "diff" && (
+              <section className="diff-panel article-review-panel revision-editor-panel">
+                <div className="card-header">
+                  <h4>Diff r{selectedRevision.revision_number}</h4>
+                  <button className="ghost sm" type="button" onClick={() => setRevisionMode("list")}>
+                    Close
+                  </button>
+                </div>
+                <div className="inline-actions">
+                  <span className="muted small">Compare against</span>
+                  <select value={compareRevisionId} onChange={(event) => setCompareRevisionId(event.target.value)}>
+                    <option value="current">Current editor</option>
+                    {revisions
+                      .filter((entry) => entry.id !== selectedRevision.id)
+                      .map((entry) => (
+                        <option key={entry.id} value={entry.id}>
+                          r{entry.revision_number}
+                        </option>
+                      ))}
+                  </select>
+                </div>
+                {selectedRevisionDiff && (
+                  <p className="muted small">
+                    +{selectedRevisionDiff.summary.added} / -{selectedRevisionDiff.summary.removed} lines changed
+                  </p>
+                )}
+                <div className="line-diff article-review-diff">
+                  {(selectedRevisionDiff?.ops || []).map((op, idx) => (
+                    <pre key={`${idx}-${op.type}`} className={`line-diff-row ${op.type}`}>
+                      <span>{op.type === "add" ? "+" : op.type === "remove" ? "-" : " "}</span>
+                      {op.text}
+                    </pre>
+                  ))}
+                </div>
+              </section>
+            )}
+            {editorMode === "review" && pendingAssist && !showRevisionInEditor && (
+              <section className="diff-panel article-review-panel">
+                <div className="card-header">
+                  <h4>Suggested edits</h4>
+                  <span className="muted small">
+                    +{pendingAssistDiff?.summary.added || 0} / -{pendingAssistDiff?.summary.removed || 0} lines
+                  </span>
+                </div>
+                <div className="line-diff article-review-diff">
+                  {(pendingAssistDiff?.ops || []).map((op, idx) => (
+                    <pre key={`${idx}-${op.type}`} className={`line-diff-row ${op.type}`}>
+                      <span>{op.type === "add" ? "+" : op.type === "remove" ? "-" : " "}</span>
+                      {op.text}
+                    </pre>
+                  ))}
+                </div>
+                <div className="inline-actions">
+                  <button className="primary" type="button" onClick={() => void acceptAssist()}>
+                    Apply changes
+                  </button>
+                  <button
+                    className="ghost"
+                    type="button"
+                    onClick={() => {
+                      setPendingAssist(null);
+                      setEditorMode("edit");
+                    }}
+                  >
+                    Discard
+                  </button>
+                </div>
+              </section>
+            )}
+            <div className={`editor-body ${showPreview ? "split" : ""} ${missingConsoleFields.has("body") ? "console-missing-field" : ""}`}>
+              <MarkdownWysiwygEditor
+                value={bodyMarkdown}
+                onChange={setBodyMarkdown}
+                onSelectionChange={handleEditorSelectionChange}
+                ariaLabel="Article editor"
+                placeholder="Write the article content..."
+                focusSignal={editorFocusSignal}
+              />
+              {showPreview && <div className="editor-preview markdown-body" dangerouslySetInnerHTML={{ __html: renderMarkdown(bodyMarkdown) }} />}
+            </div>
+          </>
+        )}
+      </section>
     </div>
   );
 

@@ -2194,6 +2194,19 @@ button.sm {
   align-items: center;
 }
 
+.article-editor-panel {
+  transition: padding 0.2s ease;
+}
+
+.article-editor-panel.collapsed {
+  gap: 8px;
+  padding: 12px 14px;
+}
+
+.article-editor-panel .card-header .inline-actions {
+  align-items: center;
+}
+
 .video-panel-summary {
   display: grid;
   gap: 10px;

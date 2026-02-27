@@ -2050,6 +2050,14 @@ export type PlatformConfig = {
       };
     }>;
   };
+  video_generation?: {
+    enabled?: boolean;
+    provider?: "unknown" | "export_package" | "json_export" | "http" | "http_adapter" | string;
+    http?: {
+      endpoint_url?: string;
+      timeout_seconds?: number;
+    };
+  };
 };
 
 export type PlatformConfigResponse = {

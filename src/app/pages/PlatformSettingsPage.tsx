@@ -18,6 +18,14 @@ const defaultConfig: PlatformConfig = {
       { name: "sns-default", type: "aws_sns", enabled: false, aws_sns: { topic_arn: "", region: "" } },
     ],
   },
+  video_generation: {
+    enabled: true,
+    provider: "export_package",
+    http: {
+      endpoint_url: "",
+      timeout_seconds: 90,
+    },
+  },
 };
 
 function ensureConfig(config?: PlatformConfig): PlatformConfig {
@@ -29,6 +37,14 @@ function ensureConfig(config?: PlatformConfig): PlatformConfig {
   if (!hasS3) providers.push({ name: "default", type: "s3", s3: { bucket: "", region: "", prefix: "xyn/", acl: "private" } });
   merged.storage.providers = providers;
   if (!merged.notifications.channels?.length) merged.notifications.channels = defaultConfig.notifications.channels;
+  merged.video_generation = {
+    ...defaultConfig.video_generation,
+    ...(merged.video_generation || {}),
+    http: {
+      ...(defaultConfig.video_generation?.http || {}),
+      ...((merged.video_generation && merged.video_generation.http) || {}),
+    },
+  };
   return merged;
 }
 
@@ -85,6 +101,8 @@ export default function PlatformSettingsPage() {
     else channels.push(next as PlatformConfig["notifications"]["channels"][number]);
     setConfig({ ...config, notifications: { ...config.notifications, channels } });
   };
+
+  const videoGeneration = config.video_generation || defaultConfig.video_generation!;
 
   const save = async () => {
     try {
@@ -303,6 +321,96 @@ export default function PlatformSettingsPage() {
               />
             </label>
           </div>
+        </section>
+
+        <section className="card">
+          <div className="card-header">
+            <h3>Video Generation</h3>
+          </div>
+          <div className="form-grid">
+            <label>
+              Video generation enabled
+              <select
+                value={videoGeneration.enabled ? "yes" : "no"}
+                onChange={(event) =>
+                  setConfig({
+                    ...config,
+                    video_generation: {
+                      ...videoGeneration,
+                      enabled: event.target.value === "yes",
+                    },
+                  })
+                }
+              >
+                <option value="yes">Yes</option>
+                <option value="no">No</option>
+              </select>
+            </label>
+            <label>
+              Provider
+              <select
+                value={videoGeneration.provider || "export_package"}
+                onChange={(event) =>
+                  setConfig({
+                    ...config,
+                    video_generation: {
+                      ...videoGeneration,
+                      provider: event.target.value as "export_package" | "http" | "unknown",
+                    },
+                  })
+                }
+              >
+                <option value="export_package">Export package only</option>
+                <option value="http">HTTP adapter</option>
+                <option value="unknown">Not configured</option>
+              </select>
+            </label>
+            <label>
+              HTTP endpoint URL
+              <input
+                className="input"
+                placeholder="https://video-provider.example.com/render"
+                value={videoGeneration.http?.endpoint_url || ""}
+                onChange={(event) =>
+                  setConfig({
+                    ...config,
+                    video_generation: {
+                      ...videoGeneration,
+                      http: {
+                        ...(videoGeneration.http || {}),
+                        endpoint_url: event.target.value,
+                      },
+                    },
+                  })
+                }
+              />
+            </label>
+            <label>
+              HTTP timeout (seconds)
+              <input
+                className="input"
+                type="number"
+                min={5}
+                max={600}
+                value={videoGeneration.http?.timeout_seconds ?? 90}
+                onChange={(event) =>
+                  setConfig({
+                    ...config,
+                    video_generation: {
+                      ...videoGeneration,
+                      http: {
+                        ...(videoGeneration.http || {}),
+                        timeout_seconds: Number(event.target.value) || 90,
+                      },
+                    },
+                  })
+                }
+              />
+            </label>
+          </div>
+          <p className="muted small">
+            `export_package` keeps current behavior (JSON package). Use `http` to call an external video rendering service.
+          </p>
         </section>
       </div>
     </>
