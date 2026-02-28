@@ -952,7 +952,18 @@ export type ArtifactDetail = ArtifactSummary & {
   }>;
 };
 
-export type UnifiedArtifactType = "draft_session" | "blueprint" | "article" | "workflow" | "module" | "context_pack";
+export type UnifiedArtifactType =
+  | "draft_session"
+  | "blueprint"
+  | "article"
+  | "workflow"
+  | "module"
+  | "context_pack"
+  | "app_shell"
+  | "auth_login"
+  | "data_model"
+  | "ui_view"
+  | "integration";
 export type UnifiedArtifactState = "provisional" | "canonical" | "immutable" | "deprecated";
 
 export type UnifiedArtifact = {
@@ -962,8 +973,13 @@ export type UnifiedArtifact = {
   artifact_state: UnifiedArtifactState | string;
   title: string;
   summary?: string;
+  status?: string;
+  package_version?: string;
   schema_version?: string;
   content_hash?: string;
+  dependencies?: Array<Record<string, unknown>>;
+  bindings?: Array<Record<string, unknown>>;
+  content_ref?: Record<string, unknown>;
   validation_status?: "pass" | "fail" | "warning" | "unknown" | string;
   validation_errors?: string[];
   owner?: {
@@ -989,6 +1005,68 @@ export type UnifiedArtifactListResponse = {
   count: number;
   limit: number;
   offset: number;
+};
+
+export type ArtifactBinding = {
+  id: string;
+  name: string;
+  type: "string" | "secret_ref" | "model_ref" | "url" | "json";
+  value?: unknown;
+  description?: string;
+  secret_ref_id?: string | null;
+  updated_at?: string;
+};
+
+export type ArtifactPackageRecord = {
+  id: string;
+  name: string;
+  version: string;
+  package_hash: string;
+  created_at?: string;
+  artifact_count?: number;
+  manifest?: Record<string, unknown>;
+};
+
+export type ArtifactPackageValidationResult = {
+  valid: boolean;
+  errors: string[];
+  package?: {
+    name: string;
+    version: string;
+    format_version: number;
+  };
+  dependency_plan?: Array<{ type: string; slug: string; version: string }>;
+  required_bindings?: Array<Record<string, unknown>>;
+  resolved_bindings?: Record<string, unknown>;
+  planned_changes?: Array<{
+    type: string;
+    slug: string;
+    from_version?: string | null;
+    to_version: string;
+    action: "install" | "upgrade" | "reinstall";
+  }>;
+};
+
+export type ArtifactInstallReceipt = {
+  id: string;
+  package_name: string;
+  package_version: string;
+  package_hash: string;
+  installed_at?: string;
+  installed_by?: string | null;
+  install_mode: "install" | "upgrade" | "reinstall";
+  resolved_bindings?: Record<string, unknown>;
+  operations?: Array<Record<string, unknown>>;
+  status: "success" | "failed" | "partial";
+  error_summary?: string;
+  artifact_changes?: Array<{
+    artifact_id: string;
+    type: string;
+    slug: string;
+    from_version?: string | null;
+    to_version?: string | null;
+    action: string;
+  }>;
 };
 
 export type LedgerEventSummary = {

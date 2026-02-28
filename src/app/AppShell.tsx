@@ -36,6 +36,7 @@ import WorkspaceHomePage from "./pages/WorkspaceHomePage";
 import ArtifactsArticlesPage from "./pages/ArtifactsArticlesPage";
 import ArtifactsWorkflowsPage from "./pages/ArtifactsWorkflowsPage";
 import ArtifactsRegistryPage from "./pages/ArtifactsRegistryPage";
+import ArtifactsLibraryPage from "./pages/ArtifactsLibraryPage";
 import ArtifactDetailPage from "./pages/ArtifactDetailPage";
 import PeopleRolesPage from "./pages/PeopleRolesPage";
 import WorkspaceSettingsPage from "./pages/WorkspaceSettingsPage";
@@ -454,6 +455,7 @@ export default function AppShell() {
               element={<ArtifactsWorkflowsPage workspaceId={activeWorkspace?.id || ""} canCreate={isPlatformManager && !isPreviewReadOnly} />}
             />
             <Route path="artifacts/all" element={<ArtifactsRegistryPage workspaceId={activeWorkspace?.id || ""} />} />
+            <Route path="artifacts/library" element={<ArtifactsLibraryPage />} />
             <Route
               path="artifacts/:artifactId"
               element={

@@ -81,6 +81,10 @@ import type {
   UnifiedArtifact,
   UnifiedArtifactType,
   UnifiedArtifactListResponse,
+  ArtifactBinding,
+  ArtifactPackageRecord,
+  ArtifactPackageValidationResult,
+  ArtifactInstallReceipt,
   LedgerEventSummary,
   LedgerSummaryByUserRow,
   ReportPayload,
@@ -508,6 +512,119 @@ export async function listArtifactActivity(
   if (params.until) url.searchParams.set("until", params.until);
   const response = await apiFetch(url.toString(), { credentials: "include" });
   return handle<{ events: LedgerEventSummary[]; count: number; limit: number; offset: number }>(response);
+}
+
+export async function listArtifactBindings(): Promise<{ bindings: ArtifactBinding[] }> {
+  const apiBaseUrl = resolveApiBaseUrl();
+  const response = await apiFetch(`${apiBaseUrl}/xyn/api/artifacts/bindings`, {
+    credentials: "include",
+  });
+  return handle<{ bindings: ArtifactBinding[] }>(response);
+}
+
+export async function upsertArtifactBinding(payload: {
+  name: string;
+  type: ArtifactBinding["type"];
+  value?: unknown;
+  description?: string;
+  secret_ref_id?: string | null;
+}): Promise<{ binding: ArtifactBinding }> {
+  const apiBaseUrl = resolveApiBaseUrl();
+  const response = await apiFetch(`${apiBaseUrl}/xyn/api/artifacts/bindings`, {
+    method: "POST",
+    headers: buildHeaders(),
+    credentials: "include",
+    body: JSON.stringify(payload),
+  });
+  return handle<{ binding: ArtifactBinding }>(response);
+}
+
+export async function deleteArtifactBinding(bindingId: string): Promise<void> {
+  const apiBaseUrl = resolveApiBaseUrl();
+  const response = await apiFetch(`${apiBaseUrl}/xyn/api/artifacts/bindings/${encodeURIComponent(bindingId)}`, {
+    method: "DELETE",
+    credentials: "include",
+  });
+  await handle<void>(response);
+}
+
+export async function listArtifactPackages(): Promise<{ packages: ArtifactPackageRecord[] }> {
+  const apiBaseUrl = resolveApiBaseUrl();
+  const response = await apiFetch(`${apiBaseUrl}/xyn/api/artifacts/packages`, {
+    credentials: "include",
+  });
+  return handle<{ packages: ArtifactPackageRecord[] }>(response);
+}
+
+export async function importArtifactPackage(file: File): Promise<{ package: ArtifactPackageRecord }> {
+  const apiBaseUrl = resolveApiBaseUrl();
+  const form = new FormData();
+  form.append("file", file);
+  const response = await apiFetch(`${apiBaseUrl}/xyn/api/artifacts/packages/import`, {
+    method: "POST",
+    credentials: "include",
+    body: form,
+  });
+  return handle<{ package: ArtifactPackageRecord }>(response);
+}
+
+export async function validateArtifactPackage(
+  packageId: string,
+  payload?: { binding_overrides?: Record<string, unknown> }
+): Promise<ArtifactPackageValidationResult> {
+  const apiBaseUrl = resolveApiBaseUrl();
+  const response = await apiFetch(`${apiBaseUrl}/xyn/api/artifacts/packages/${encodeURIComponent(packageId)}/validate`, {
+    method: "POST",
+    headers: buildHeaders(),
+    credentials: "include",
+    body: JSON.stringify(payload || {}),
+  });
+  return handle<ArtifactPackageValidationResult>(response);
+}
+
+export async function installArtifactPackage(
+  packageId: string,
+  payload?: { binding_overrides?: Record<string, unknown> }
+): Promise<{ receipt: ArtifactInstallReceipt }> {
+  const apiBaseUrl = resolveApiBaseUrl();
+  const response = await apiFetch(`${apiBaseUrl}/xyn/api/artifacts/packages/${encodeURIComponent(packageId)}/install`, {
+    method: "POST",
+    headers: buildHeaders(),
+    credentials: "include",
+    body: JSON.stringify(payload || {}),
+  });
+  return handle<{ receipt: ArtifactInstallReceipt }>(response);
+}
+
+export async function listArtifactInstallReceipts(params?: { artifact_id?: string }): Promise<{ receipts: ArtifactInstallReceipt[] }> {
+  const apiBaseUrl = resolveApiBaseUrl();
+  const url = new URL(`${apiBaseUrl}/xyn/api/artifacts/install-receipts`);
+  if (params?.artifact_id) url.searchParams.set("artifact_id", params.artifact_id);
+  const response = await apiFetch(url.toString(), {
+    credentials: "include",
+  });
+  return handle<{ receipts: ArtifactInstallReceipt[] }>(response);
+}
+
+export async function exportArtifactPackage(payload: {
+  artifact_id: string;
+  package_name: string;
+  package_version: string;
+}): Promise<Blob> {
+  const apiBaseUrl = resolveApiBaseUrl();
+  const response = await apiFetch(`${apiBaseUrl}/xyn/api/artifacts/${encodeURIComponent(payload.artifact_id)}/export-package`, {
+    method: "POST",
+    headers: buildHeaders(),
+    credentials: "include",
+    body: JSON.stringify({
+      package_name: payload.package_name,
+      package_version: payload.package_version,
+    }),
+  });
+  if (!response.ok) {
+    await handle(response);
+  }
+  return response.blob();
 }
 
 export async function listLedgerEvents(params: {

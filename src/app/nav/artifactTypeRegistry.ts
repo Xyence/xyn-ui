@@ -33,6 +33,14 @@ export const ARTIFACT_TYPE_REGISTRY: ArtifactTypeRegistryEntry[] = [
     order: 10,
   },
   {
+    key: "artifact_library",
+    display_name: "Artifacts Library",
+    icon: "Package",
+    group: "build",
+    default_route: "/app/artifacts/library",
+    order: 15,
+  },
+  {
     key: "article",
     display_name: "Articles",
     icon: "BookOpen",
