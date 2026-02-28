@@ -30,6 +30,7 @@ import ToursPage from "./pages/ToursPage";
 import TourDetailPage from "./pages/TourDetailPage";
 import XynMapPage from "./pages/XynMapPage";
 import PlatformSettingsPage from "./pages/PlatformSettingsPage";
+import VideoAdapterConfigPage from "./pages/VideoAdapterConfigPage";
 import SeedPacksPage from "./pages/SeedPacksPage";
 import WorkspaceHomePage from "./pages/WorkspaceHomePage";
 import ArtifactsArticlesPage from "./pages/ArtifactsArticlesPage";
@@ -512,6 +513,7 @@ export default function AppShell() {
             <Route path="platform/roles" element={<RedirectLegacyAccessControlRoute tab="roles" />} />
             <Route path="platform/branding" element={<PlatformBrandingPage />} />
             <Route path="platform/settings" element={<PlatformSettingsPage />} />
+            <Route path="platform/video-adapter-configs/:artifactId" element={<VideoAdapterConfigPage />} />
             <Route path="platform/seeds" element={<SeedPacksPage />} />
             <Route path="platform/identity-configuration" element={<IdentityConfigurationPage />} />
             <Route path="platform/identity-providers" element={<RedirectLegacyIdentityRoute tab="identity-providers" />} />

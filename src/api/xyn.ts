@@ -3489,6 +3489,14 @@ export async function updateVideoAdapterConfig(
   return handle<VideoAdapterConfigDetailResponse>(response);
 }
 
+export async function getVideoAdapterConfig(artifactId: string): Promise<VideoAdapterConfigDetailResponse> {
+  const apiBaseUrl = resolveApiBaseUrl();
+  const response = await apiFetch(`${apiBaseUrl}/xyn/api/video/adapter-configs/${artifactId}`, {
+    credentials: "include",
+  });
+  return handle<VideoAdapterConfigDetailResponse>(response);
+}
+
 export async function createIdentityProvider(payload: IdentityProviderPayload): Promise<{ id: string }> {
   const apiBaseUrl = resolveApiBaseUrl();
   const response = await apiFetch(`${apiBaseUrl}/xyn/api/platform/identity-providers`, {

@@ -217,7 +217,7 @@ export default function PlatformSettingsPage() {
       setMessage("Adapter config draft created.");
       await loadAdapterConfigs(adapterId);
       if (result.config?.artifact_id) {
-        navigate(`/app/artifacts/${result.config.artifact_id}`);
+        navigate(`/app/platform/video-adapter-configs/${result.config.artifact_id}`);
       }
     } catch (err) {
       setError((err as Error).message);
@@ -240,6 +240,17 @@ export default function PlatformSettingsPage() {
     } finally {
       setLoading(false);
     }
+  };
+
+  const testConnection = () => {
+    if (renderingMode !== "render_via_adapter" || !selectedAdapterConfig) {
+      setError("Select an adapter and adapter config before testing.");
+      return;
+    }
+    setError(null);
+    setMessage(
+      `Connection test placeholder: adapter '${selectedAdapterConfig.adapter_id}' config '${selectedAdapterConfig.title}' is selected and structurally valid.`
+    );
   };
 
   return (
@@ -508,14 +519,17 @@ export default function PlatformSettingsPage() {
                     type="button"
                     className="ghost"
                     disabled={!selectedAdapterConfig}
-                    onClick={() => selectedAdapterConfig && navigate(`/app/artifacts/${selectedAdapterConfig.artifact_id}`)}
+                    onClick={() =>
+                      selectedAdapterConfig &&
+                      navigate(`/app/platform/video-adapter-configs/${selectedAdapterConfig.artifact_id}`)
+                    }
                   >
                     Open config
                   </button>
                   <button type="button" className="ghost" onClick={createAdapterConfigDraft} disabled={!activeVideoConfig.adapter_id || loading}>
                     Create config
                   </button>
-                  <button type="button" className="ghost" disabled title="Placeholder; connection checks can be wired per adapter later.">
+                  <button type="button" className="ghost" onClick={testConnection} disabled={!selectedAdapterConfig}>
                     Test connection
                   </button>
                 </div>
