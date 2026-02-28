@@ -2695,18 +2695,25 @@ export default function ArtifactDetailPage({
                 <div className="instance-row" key={entry.id}>
                   <div>
                     <strong>{entry.status}</strong>
-                    <span className="muted small">
+                    <div className="muted small">
                       {entry.provider} · requested {entry.requested_at || "—"}
-                    </span>
+                    </div>
                     {(entry.context_pack_name || entry.context_pack_id) && (
-                      <span className="muted small">
+                      <div className="muted small">
                         Context pack: {entry.context_pack_name || entry.context_pack_id}
                         {entry.context_pack_version ? ` · v${entry.context_pack_version}` : ""}
-                      </span>
+                      </div>
                     )}
-                    {!!entry.error_message && <span className="muted small">{entry.error_message}</span>}
+                    {!!entry.error_message && <div className="muted small">{entry.error_message}</div>}
                     {(entry.output_assets || []).map((asset, idx) => (
-                      <a key={`${entry.id}-asset-${idx}`} className="muted small" href={asset.url} target="_blank" rel="noreferrer noopener">
+                      <a
+                        key={`${entry.id}-asset-${idx}`}
+                        className="muted small"
+                        href={asset.url}
+                        target="_blank"
+                        rel="noreferrer noopener"
+                        style={{ display: "block", marginTop: "2px" }}
+                      >
                         {asset.type}: {asset.url}
                       </a>
                     ))}
