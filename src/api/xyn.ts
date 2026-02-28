@@ -3386,6 +3386,33 @@ export async function listSecretRefs(filters?: {
   return handle<SecretRefListResponse>(response);
 }
 
+export async function createSecretValue(payload: {
+  name: string;
+  scope_kind: "platform" | "tenant" | "user" | "team";
+  scope_id?: string | null;
+  store_id?: string | null;
+  value: string;
+  description?: string;
+}): Promise<{
+  secret_ref: {
+    id: string;
+    name: string;
+    scope_kind: string;
+    scope_id?: string | null;
+    store_id: string;
+    updated_at?: string;
+  };
+}> {
+  const apiBaseUrl = resolveApiBaseUrl();
+  const response = await apiFetch(`${apiBaseUrl}/xyn/internal/secrets`, {
+    method: "POST",
+    headers: buildHeaders(),
+    credentials: "include",
+    body: JSON.stringify(payload),
+  });
+  return handle(response);
+}
+
 export async function createReport(payload: ReportPayload, files: File[]): Promise<ReportRecord> {
   const apiBaseUrl = resolveApiBaseUrl();
   const form = new FormData();
