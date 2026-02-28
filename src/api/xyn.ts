@@ -90,6 +90,7 @@ import type {
   VideoAdapterConfigDetailResponse,
   VideoAdapterConfigListResponse,
   VideoAdaptersResponse,
+  VideoAdapterTestResponse,
   WorkspaceListResponse,
   ArtifactSummary,
   ArtifactDetail,
@@ -3495,6 +3496,20 @@ export async function getVideoAdapterConfig(artifactId: string): Promise<VideoAd
     credentials: "include",
   });
   return handle<VideoAdapterConfigDetailResponse>(response);
+}
+
+export async function testVideoAdapterConnection(payload: {
+  adapter_id: string;
+  adapter_config_id?: string;
+}): Promise<VideoAdapterTestResponse> {
+  const apiBaseUrl = resolveApiBaseUrl();
+  const response = await apiFetch(`${apiBaseUrl}/xyn/api/video/adapters/test`, {
+    method: "POST",
+    headers: buildHeaders(),
+    credentials: "include",
+    body: JSON.stringify(payload),
+  });
+  return handle<VideoAdapterTestResponse>(response);
 }
 
 export async function createIdentityProvider(payload: IdentityProviderPayload): Promise<{ id: string }> {

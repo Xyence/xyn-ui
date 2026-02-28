@@ -6,6 +6,7 @@ import {
   getPlatformConfig,
   listVideoAdapterConfigs,
   listVideoAdapters,
+  testVideoAdapterConnection,
   updatePlatformConfig,
 } from "../../api/xyn";
 import type { PlatformConfig, VideoAdapterConfigRecord, VideoAdapterDefinition } from "../../api/types";
@@ -247,10 +248,27 @@ export default function PlatformSettingsPage() {
       setError("Select an adapter and adapter config before testing.");
       return;
     }
+    setLoading(true);
     setError(null);
-    setMessage(
-      `Connection test placeholder: adapter '${selectedAdapterConfig.adapter_id}' config '${selectedAdapterConfig.title}' is selected and structurally valid.`
-    );
+    setMessage(null);
+    testVideoAdapterConnection({
+      adapter_id: selectedAdapterConfig.adapter_id,
+      adapter_config_id: selectedAdapterConfig.artifact_id,
+    })
+      .then((result) => {
+        const checksSummary = (result.checks || [])
+          .map((item) => `${item.status.toUpperCase()}: ${item.name}`)
+          .join(" · ");
+        setMessage(
+          `${result.ok ? "Connection test passed" : "Connection test reported issues"} for ${selectedAdapterConfig.title}. ${checksSummary}`
+        );
+      })
+      .catch((err) => {
+        setError((err as Error).message);
+      })
+      .finally(() => {
+        setLoading(false);
+      });
   };
 
   return (

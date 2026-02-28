@@ -2108,6 +2108,24 @@ export type VideoAdapterConfigDetailResponse = {
   config: VideoAdapterConfigRecord;
 };
 
+export type VideoAdapterConnectionCheck = {
+  name: string;
+  status: "pass" | "warning" | "fail" | string;
+  message: string;
+  details?: Record<string, unknown>;
+};
+
+export type VideoAdapterTestResponse = {
+  ok: boolean;
+  adapter_id: string;
+  adapter_config_id?: string | null;
+  adapter_config_slug?: string;
+  adapter_config_version?: number;
+  provider_model_id?: string | null;
+  checked_at?: string;
+  checks: VideoAdapterConnectionCheck[];
+};
+
 export type AccessPermissionDefinition = {
   key: string;
   name: string;
