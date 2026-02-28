@@ -1068,7 +1068,6 @@ export default function ArtifactDetailPage({
       setVideoBusy("render");
       setError(null);
       const result = await renderArticleVideo(artifactId, {
-        provider: "unknown",
         context_pack_id: selectedVideoContextPackId || null,
         request_payload_json: { mode: "full_render" },
       });
