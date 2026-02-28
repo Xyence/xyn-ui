@@ -24,6 +24,31 @@ function prettyJson(value: unknown): string {
   }
 }
 
+function validateAdapterCredential(adapter: string, rawValue: string): string | null {
+  const adapterId = String(adapter || "").trim().toLowerCase();
+  const value = String(rawValue || "").trim();
+  if (!value) return "API key is required.";
+  if (adapterId !== "google_veo") {
+    return null;
+  }
+  if (value.startsWith("AIza")) {
+    return null;
+  }
+  try {
+    const parsed = JSON.parse(value);
+    if (parsed && typeof parsed === "object") {
+      const obj = parsed as Record<string, unknown>;
+      const maybeKey = String(obj.api_key ?? obj.apiKey ?? obj.key ?? "").trim();
+      if (maybeKey.startsWith("AIza")) {
+        return null;
+      }
+    }
+  } catch {
+    // Intentionally ignored; handled by returning validation guidance below.
+  }
+  return "Google Veo credential must be a Google API key (starts with 'AIza') or JSON containing api_key/apiKey/key.";
+}
+
 export default function VideoAdapterConfigPage() {
   const navigate = useNavigate();
   const { artifactId = "" } = useParams();
@@ -137,8 +162,9 @@ export default function VideoAdapterConfigPage() {
 
   const storeApiKeyAndAttach = async () => {
     if (!artifactId) return;
-    if (!secretValue.trim()) {
-      setError("API key is required.");
+    const credentialError = validateAdapterCredential(adapterId, secretValue);
+    if (credentialError) {
+      setError(credentialError);
       return;
     }
     if (!secretName.trim()) {
@@ -304,6 +330,11 @@ export default function VideoAdapterConfigPage() {
             Current credential_ref: <code>{currentCredentialRef || "(none)"}</code>
             {resolvedSecretRef ? ` · resolves to secret '${resolvedSecretRef.name}'` : ""}
           </p>
+          {String(adapterId || "").trim().toLowerCase() === "google_veo" ? (
+            <p className="muted small" style={{ gridColumn: "1 / -1" }}>
+              For Google Veo, use a Google API key (`AIza...`) or JSON containing `api_key`.
+            </p>
+          ) : null}
         </div>
       </section>
 
