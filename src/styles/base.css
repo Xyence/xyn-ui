@@ -2183,11 +2183,13 @@ button.sm {
 
 .video-explainer-panel {
   transition: padding 0.2s ease;
+  min-height: 0;
 }
 
 .video-explainer-panel.collapsed {
   gap: 10px;
   padding: 12px 14px;
+  min-height: auto;
 }
 
 .video-explainer-panel .card-header .inline-actions {
@@ -2196,11 +2198,13 @@ button.sm {
 
 .article-editor-panel {
   transition: padding 0.2s ease;
+  min-height: 0;
 }
 
 .article-editor-panel.collapsed {
   gap: 8px;
   padding: 12px 14px;
+  min-height: auto;
 }
 
 .article-editor-panel .card-header .inline-actions {
