@@ -14,6 +14,7 @@ import {
   generateArticleVideoStoryboard,
   getArticleVideoAiConfig,
   getArticle,
+  getPlatformConfig,
   initializeArticleVideo,
   listArticleRevisions,
   listArticleVideoRenders,
@@ -213,6 +214,7 @@ export default function ArtifactDetailPage({
   const [videoPanelCollapsed, setVideoPanelCollapsed] = useState(false);
   const [videoSpec, setVideoSpec] = useState<VideoSpec | null>(null);
   const [videoRenders, setVideoRenders] = useState<VideoRender[]>([]);
+  const [videoRenderingMode, setVideoRenderingMode] = useState<string>("");
   const [videoContextPacks, setVideoContextPacks] = useState<ContextPackSummary[]>([]);
   const [selectedVideoContextPackId, setSelectedVideoContextPackId] = useState("");
   const [videoAiConfigOverrides, setVideoAiConfigOverrides] = useState<{
@@ -413,6 +415,17 @@ export default function ArtifactDetailPage({
           listArticleVideoRenders(artifactId),
           loadVideoContextPacks(),
         ]);
+        try {
+          const platform = await getPlatformConfig();
+          const mode = String(
+            platform?.config?.video?.rendering_mode ||
+              platform?.config?.video_generation?.provider ||
+              ""
+          ).trim();
+          setVideoRenderingMode(mode);
+        } catch {
+          setVideoRenderingMode("");
+        }
         await Promise.all([loadVideoAiConfig(), loadVideoAiConfigOptions()]);
         setVideoRenders(renderData.renders || []);
         setVideoContextPacks(packsData || []);
@@ -420,6 +433,7 @@ export default function ArtifactDetailPage({
         setSelectedVideoContextPackId(article.video_context_pack_id || fallbackDefaultPackId || "");
       } else {
         setVideoRenders([]);
+        setVideoRenderingMode("");
         setVideoContextPacks([]);
         setSelectedVideoContextPackId("");
         setVideoAiConfigOverrides({ agents: {}, context_packs: {} });
@@ -1328,6 +1342,13 @@ export default function ArtifactDetailPage({
   const hasStoryboardDraft = storyboardDraftCount > 0;
   const latestVideoRender = videoRenders[0] || null;
   const latestRenderIsStub = latestVideoRender?.provider === "unknown";
+  const configuredForVideoRender =
+    videoRenderingMode === "render_via_adapter" ||
+    videoRenderingMode === "render_via_endpoint" ||
+    videoRenderingMode === "render_via_model_config";
+  const showProviderNotConfigured =
+    !configuredForVideoRender &&
+    (latestRenderIsStub || videoRenderingMode === "export_package_only" || !videoRenderingMode);
   const isVideoOperationRunning = videoBusy === "script" || videoBusy === "storyboard" || videoBusy === "render" || (latestVideoRender?.status === "queued" || latestVideoRender?.status === "running");
   const videoSummaryRows = [
     `Scenes: ${hasScenes ? `${videoScenes.length} scene${videoScenes.length === 1 ? "" : "s"}` : "not generated"}`,
@@ -2660,14 +2681,14 @@ export default function ArtifactDetailPage({
             )}
             {videoTab === "renders" && (
           <div className="stack">
-            {latestRenderIsStub ? (
+            {showProviderNotConfigured ? (
               <p className="muted small">
                 Video provider is not configured. Render currently produces an export package JSON, not a media file.
               </p>
             ) : null}
             <div className="inline-actions">
               <button className="primary sm" type="button" onClick={() => void requestVideoRender()} disabled={videoBusy === "render"}>
-                {videoBusy === "render" ? "Queueing…" : latestRenderIsStub ? "Generate Export Package" : "Render Video"}
+                {videoBusy === "render" ? "Queueing…" : showProviderNotConfigured ? "Generate Export Package" : "Render Video"}
               </button>
             </div>
             <div className="instance-list">
