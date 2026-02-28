@@ -2699,12 +2699,12 @@ export default function ArtifactDetailPage({
                       {entry.provider} · requested {entry.requested_at || "—"}
                     </div>
                     {(entry.context_pack_name || entry.context_pack_id) && (
-                      <div className="muted small">
-                        Context pack: {entry.context_pack_name || entry.context_pack_id}
+                      <div className="muted small" style={{ marginTop: 2 }}>
+                        · Context pack: {entry.context_pack_name || entry.context_pack_id}
                         {entry.context_pack_version ? ` · v${entry.context_pack_version}` : ""}
                       </div>
                     )}
-                    {!!entry.error_message && <div className="muted small">{entry.error_message}</div>}
+                    {!!entry.error_message && <div className="muted small" style={{ marginTop: 2 }}>· {entry.error_message}</div>}
                     {(entry.output_assets || []).map((asset, idx) => (
                       <a
                         key={`${entry.id}-asset-${idx}`}
