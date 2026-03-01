@@ -76,6 +76,8 @@ type QuickAction = {
 
 type Props = {
   user: NavUserContext;
+  navGroups?: NavGroup[];
+  createActions?: QuickAction[];
   workspaces?: Array<{ id: string; name: string }>;
   activeWorkspaceId?: string;
   onWorkspaceChange?: (workspaceId: string) => void;
@@ -145,7 +147,14 @@ function NavTooltip({ content, disabled, children }: { content: string; disabled
   );
 }
 
-export default function Sidebar({ user, workspaces = [], activeWorkspaceId = "", onWorkspaceChange }: Props) {
+export default function Sidebar({
+  user,
+  navGroups = NAV_GROUPS,
+  createActions = QUICK_ACTIONS,
+  workspaces = [],
+  activeWorkspaceId = "",
+  onWorkspaceChange,
+}: Props) {
   const { pathname } = useLocation();
   const navigate = useNavigate();
   const scrollRef = useRef<HTMLElement | null>(null);
@@ -159,7 +168,7 @@ export default function Sidebar({ user, workspaces = [], activeWorkspaceId = "",
   const [canScrollDown, setCanScrollDown] = useState(false);
   const [searchPopoverPos, setSearchPopoverPos] = useState<{ top: number; left: number }>({ top: 16, left: 88 });
 
-  const allowedGroups = useMemo(() => visibleNav(NAV_GROUPS, user), [user]);
+  const allowedGroups = useMemo(() => visibleNav(navGroups, user), [navGroups, user]);
   const filtered = useMemo(() => filterNav(allowedGroups, query), [allowedGroups, query]);
   const expanded = useMemo(
     () => mergedExpandedState(state, pathname, filtered, allowedGroups, query),
@@ -258,7 +267,7 @@ export default function Sidebar({ user, workspaces = [], activeWorkspaceId = "",
     }
   };
 
-  const quickActions = QUICK_ACTIONS.filter((action) => canViewNavItem(user, action));
+  const quickActions = createActions.filter((action) => canViewNavItem(user, action));
   const filteredCount = flattenItems(filtered.groups).length;
 
   useEffect(() => {

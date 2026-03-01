@@ -81,6 +81,9 @@ import type {
   UnifiedArtifact,
   UnifiedArtifactType,
   UnifiedArtifactListResponse,
+  ArtifactSurface,
+  ArtifactRuntimeRole,
+  ArtifactSurfaceResolveResponse,
   ArtifactBinding,
   ArtifactPackageRecord,
   ArtifactPackageValidationResult,
@@ -95,7 +98,11 @@ import type {
   VideoAdapterConfigListResponse,
   VideoAdaptersResponse,
   VideoAdapterTestResponse,
+  WorkspaceSummary,
   WorkspaceListResponse,
+  ArtifactRawMetadataResponse,
+  RawFilesListResponse,
+  RawFilePreviewResponse,
   ArtifactSummary,
   ArtifactDetail,
   ArticleSummary,
@@ -324,6 +331,7 @@ export async function getRecentArtifacts(limit = 6): Promise<RecentArtifactListR
 export async function getMe(): Promise<{
   user: Record<string, string | null>;
   roles: string[];
+  permissions?: string[];
   actor_roles?: string[];
   preview?: {
     enabled: boolean;
@@ -341,6 +349,7 @@ export async function getMe(): Promise<{
   return handle<{
     user: Record<string, string | null>;
     roles: string[];
+    permissions?: string[];
     actor_roles?: string[];
     preview?: {
       enabled: boolean;
@@ -431,6 +440,31 @@ export async function listWorkspaces(): Promise<WorkspaceListResponse> {
   return handle<WorkspaceListResponse>(response);
 }
 
+export async function createWorkspace(payload: { name: string; slug?: string; description?: string }): Promise<{ workspace: WorkspaceSummary }> {
+  const apiBaseUrl = resolveApiBaseUrl();
+  const response = await apiFetch(`${apiBaseUrl}/xyn/api/workspaces`, {
+    method: "POST",
+    headers: buildHeaders(),
+    credentials: "include",
+    body: JSON.stringify(payload),
+  });
+  return handle<{ workspace: WorkspaceSummary }>(response);
+}
+
+export async function updateWorkspace(
+  workspaceId: string,
+  payload: Partial<{ name: string; slug: string; description: string; status: "active" | "deprecated" }>
+): Promise<{ workspace: WorkspaceSummary }> {
+  const apiBaseUrl = resolveApiBaseUrl();
+  const response = await apiFetch(`${apiBaseUrl}/xyn/api/workspaces/${workspaceId}`, {
+    method: "PATCH",
+    headers: buildHeaders(),
+    credentials: "include",
+    body: JSON.stringify(payload),
+  });
+  return handle<{ workspace: WorkspaceSummary }>(response);
+}
+
 export async function listWorkspaceArtifacts(
   workspaceId: string,
   filters?: { type?: string; status?: string }
@@ -491,6 +525,40 @@ export async function getArtifact(artifactId: string): Promise<UnifiedArtifact> 
     credentials: "include",
   });
   return handle<UnifiedArtifact>(response);
+}
+
+export async function listArtifactSurfaces(artifactId: string): Promise<{ artifact_id: string; surfaces: ArtifactSurface[] }> {
+  const apiBaseUrl = resolveApiBaseUrl();
+  const response = await apiFetch(`${apiBaseUrl}/xyn/api/artifacts/${encodeURIComponent(artifactId)}/surfaces`, {
+    credentials: "include",
+  });
+  return handle<{ artifact_id: string; surfaces: ArtifactSurface[] }>(response);
+}
+
+export async function listArtifactRuntimeRoles(artifactId: string): Promise<{ artifact_id: string; runtime_roles: ArtifactRuntimeRole[] }> {
+  const apiBaseUrl = resolveApiBaseUrl();
+  const response = await apiFetch(`${apiBaseUrl}/xyn/api/artifacts/${encodeURIComponent(artifactId)}/runtime-roles`, {
+    credentials: "include",
+  });
+  return handle<{ artifact_id: string; runtime_roles: ArtifactRuntimeRole[] }>(response);
+}
+
+export async function listArtifactNavSurfaces(): Promise<{ surfaces: ArtifactSurface[] }> {
+  const apiBaseUrl = resolveApiBaseUrl();
+  const response = await apiFetch(`${apiBaseUrl}/xyn/api/artifact-surfaces/nav`, {
+    credentials: "include",
+  });
+  return handle<{ surfaces: ArtifactSurface[] }>(response);
+}
+
+export async function resolveArtifactSurface(pathname: string): Promise<ArtifactSurfaceResolveResponse> {
+  const apiBaseUrl = resolveApiBaseUrl();
+  const url = new URL(`${apiBaseUrl}/xyn/api/artifact-surfaces/resolve`);
+  url.searchParams.set("path", pathname);
+  const response = await apiFetch(url.toString(), {
+    credentials: "include",
+  });
+  return handle<ArtifactSurfaceResolveResponse>(response);
 }
 
 export async function listArtifactActivity(
@@ -625,6 +693,78 @@ export async function exportArtifactPackage(payload: {
     await handle(response);
   }
   return response.blob();
+}
+
+export async function getArtifactRawMetadata(artifactId: string): Promise<ArtifactRawMetadataResponse> {
+  const apiBaseUrl = resolveApiBaseUrl();
+  const response = await apiFetch(`${apiBaseUrl}/xyn/api/artifacts/${encodeURIComponent(artifactId)}/raw/metadata`, {
+    credentials: "include",
+  });
+  return handle<ArtifactRawMetadataResponse>(response);
+}
+
+export async function getArtifactRawArtifactJson(artifactId: string): Promise<Record<string, unknown>> {
+  const apiBaseUrl = resolveApiBaseUrl();
+  const response = await apiFetch(`${apiBaseUrl}/xyn/api/artifacts/${encodeURIComponent(artifactId)}/raw/artifact-json`, {
+    credentials: "include",
+  });
+  return handle<Record<string, unknown>>(response);
+}
+
+export async function listArtifactRawFiles(artifactId: string, path = "/"): Promise<RawFilesListResponse> {
+  const apiBaseUrl = resolveApiBaseUrl();
+  const url = new URL(`${apiBaseUrl}/xyn/api/artifacts/${encodeURIComponent(artifactId)}/raw/files`);
+  url.searchParams.set("path", path);
+  const response = await apiFetch(url.toString(), { credentials: "include" });
+  return handle<RawFilesListResponse>(response);
+}
+
+export async function getArtifactRawFilePreview(artifactId: string, path: string): Promise<RawFilePreviewResponse> {
+  const apiBaseUrl = resolveApiBaseUrl();
+  const url = new URL(`${apiBaseUrl}/xyn/api/artifacts/${encodeURIComponent(artifactId)}/raw/file`);
+  url.searchParams.set("path", path);
+  const response = await apiFetch(url.toString(), { credentials: "include" });
+  return handle<RawFilePreviewResponse>(response);
+}
+
+export function getArtifactRawFileDownloadUrl(artifactId: string, path: string): string {
+  const apiBaseUrl = resolveApiBaseUrl();
+  const url = new URL(`${apiBaseUrl}/xyn/api/artifacts/${encodeURIComponent(artifactId)}/raw/file`);
+  url.searchParams.set("path", path);
+  url.searchParams.set("download", "1");
+  return url.toString();
+}
+
+export async function getArtifactPackageRawManifest(packageId: string): Promise<{ manifest: Record<string, unknown> }> {
+  const apiBaseUrl = resolveApiBaseUrl();
+  const response = await apiFetch(`${apiBaseUrl}/xyn/api/artifacts/packages/${encodeURIComponent(packageId)}/raw/manifest`, {
+    credentials: "include",
+  });
+  return handle<{ manifest: Record<string, unknown> }>(response);
+}
+
+export async function listArtifactPackageRawTree(packageId: string, path = "/"): Promise<RawFilesListResponse> {
+  const apiBaseUrl = resolveApiBaseUrl();
+  const url = new URL(`${apiBaseUrl}/xyn/api/artifacts/packages/${encodeURIComponent(packageId)}/raw/tree`);
+  url.searchParams.set("path", path);
+  const response = await apiFetch(url.toString(), { credentials: "include" });
+  return handle<RawFilesListResponse>(response);
+}
+
+export async function getArtifactPackageRawFilePreview(packageId: string, path: string): Promise<RawFilePreviewResponse> {
+  const apiBaseUrl = resolveApiBaseUrl();
+  const url = new URL(`${apiBaseUrl}/xyn/api/artifacts/packages/${encodeURIComponent(packageId)}/raw/file`);
+  url.searchParams.set("path", path);
+  const response = await apiFetch(url.toString(), { credentials: "include" });
+  return handle<RawFilePreviewResponse>(response);
+}
+
+export function getArtifactPackageRawFileDownloadUrl(packageId: string, path: string): string {
+  const apiBaseUrl = resolveApiBaseUrl();
+  const url = new URL(`${apiBaseUrl}/xyn/api/artifacts/packages/${encodeURIComponent(packageId)}/raw/file`);
+  url.searchParams.set("path", path);
+  url.searchParams.set("download", "1");
+  return url.toString();
 }
 
 export async function listLedgerEvents(params: {

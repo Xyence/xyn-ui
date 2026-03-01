@@ -345,6 +345,12 @@ export default function XynConsoleCore({ mode, onRequestClose }: Props) {
       <OptionsCard />
     </>
   );
+  const hasResolutionContent =
+    pendingCloseBlock ||
+    Boolean(session.lastResolution) ||
+    Boolean(session.pendingProposal) ||
+    session.pendingMissingFields.length > 0 ||
+    Object.keys(session.optionsByField || {}).length > 0;
 
   const promptCard = (
     <ConsolePromptCard
@@ -418,7 +424,7 @@ export default function XynConsoleCore({ mode, onRequestClose }: Props) {
         <div className="xyn-console-page-grid">
           <div className="xyn-console-page-main">
             {promptCard}
-            <ConsoleResultPanel>{resolutionStack}</ConsoleResultPanel>
+            {hasResolutionContent ? <ConsoleResultPanel>{resolutionStack}</ConsoleResultPanel> : null}
           </div>
           <ConsoleGuidancePanel onInsertSuggestion={injectSuggestion} dimmed={Boolean(inputText.trim())} />
         </div>

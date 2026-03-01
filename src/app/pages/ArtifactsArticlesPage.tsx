@@ -318,13 +318,6 @@ export default function ArtifactsArticlesPage({
           <p className="muted">Governed article artifacts in this workspace.</p>
         </div>
         <div className="inline-actions">
-          <button
-            className="ghost"
-            data-testid="articles-start-tour"
-            onClick={() => window.dispatchEvent(new CustomEvent("xyn:start-tour", { detail: { slug: "articles-tour" } }))}
-          >
-            Start Tour
-          </button>
           {tab === "articles" && canCreate && (
             <button ref={createButtonRef} className="primary" onClick={openCreateModal}>
               New Article

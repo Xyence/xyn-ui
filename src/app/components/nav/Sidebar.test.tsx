@@ -26,12 +26,12 @@ describe("Sidebar", () => {
     expect(screen.getByRole("link", { name: /^Home$/i })).toBeInTheDocument();
     expect(screen.getByRole("link", { name: /^Articles$/i })).toBeInTheDocument();
     expect(screen.getByRole("link", { name: /^Artifact Explorer$/i })).toBeInTheDocument();
-    expect(screen.getByRole("link", { name: /^Workspace Access$/i })).toBeInTheDocument();
+    expect(screen.getByRole("link", { name: /^Workspaces$/i })).toBeInTheDocument();
   });
 
   it("auto-expands active route group/subgroup", () => {
-    renderSidebar("/app/people-roles", ["admin"]);
-    expect(screen.getByRole("link", { name: /Workspace Access/i })).toBeInTheDocument();
+    renderSidebar("/app/workspaces", ["admin"]);
+    expect(screen.getByRole("link", { name: /Workspaces/i })).toBeInTheDocument();
   });
 
   it("persists collapsed mode to localStorage", async () => {
@@ -50,7 +50,7 @@ describe("Sidebar", () => {
     await user.type(search, "artifact");
 
     expect(screen.getByRole("link", { name: /^Artifact Explorer$/i })).toBeInTheDocument();
-    expect(screen.queryByRole("link", { name: /^Workspace Access$/i })).not.toBeInTheDocument();
+    expect(screen.queryByRole("link", { name: /^Workspaces$/i })).not.toBeInTheDocument();
   });
 
   it("keeps role-gated settings hidden for non-admin users", async () => {

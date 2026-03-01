@@ -1,8 +1,9 @@
 import { useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
 import { Navigate, Route, Routes, useLocation, useNavigate } from "react-router-dom";
 import { Bot } from "lucide-react";
-import { getMe, getMyProfile, getTenantBranding, listWorkspaces } from "../api/xyn";
-import { NAV_GROUPS, NAV_MOVE_TOAST_STORAGE_KEY, NavUserContext } from "./nav/nav.config";
+import { getMe, getMyProfile, getTenantBranding, listArtifactNavSurfaces, listWorkspaces } from "../api/xyn";
+import type { ArtifactSurface } from "../api/types";
+import { CREATE_ACTIONS, NAV_GROUPS, NAV_MOVE_TOAST_STORAGE_KEY, NavGroup, NavItem, NavUserContext } from "./nav/nav.config";
 import { getBreadcrumbs, visibleNav } from "./nav/nav.utils";
 import Sidebar from "./components/nav/Sidebar";
 import BlueprintsPage from "./pages/BlueprintsPage";
@@ -33,12 +34,11 @@ import PlatformSettingsPage from "./pages/PlatformSettingsPage";
 import VideoAdapterConfigPage from "./pages/VideoAdapterConfigPage";
 import SeedPacksPage from "./pages/SeedPacksPage";
 import WorkspaceHomePage from "./pages/WorkspaceHomePage";
-import ArtifactsArticlesPage from "./pages/ArtifactsArticlesPage";
-import ArtifactsWorkflowsPage from "./pages/ArtifactsWorkflowsPage";
 import ArtifactsRegistryPage from "./pages/ArtifactsRegistryPage";
 import ArtifactsLibraryPage from "./pages/ArtifactsLibraryPage";
 import ArtifactDetailPage from "./pages/ArtifactDetailPage";
-import PeopleRolesPage from "./pages/PeopleRolesPage";
+import ArtifactSurfaceRoutePage from "./pages/ArtifactSurfaceRoutePage";
+import WorkspacesPage from "./pages/WorkspacesPage";
 import WorkspaceSettingsPage from "./pages/WorkspaceSettingsPage";
 import DevicesPage from "./pages/DevicesPage";
 import InitiatePage from "./pages/InitiatePage";
@@ -95,6 +95,13 @@ function RedirectLegacyAccessControlRoute({ tab }: { tab: "roles" | "users" | "e
   return <Navigate to={{ pathname: "/app/platform/access-control", search: `?${currentParams.toString()}` }} replace />;
 }
 
+function RedirectLegacyWorkspaceAccessRoute() {
+  const location = useLocation();
+  const currentParams = new URLSearchParams(location.search);
+  currentParams.set("tab", "people_roles");
+  return <Navigate to={{ pathname: "/app/workspaces", search: `?${currentParams.toString()}` }} replace />;
+}
+
 function RedirectWithNotice({ to, notice }: { to: string; notice: string }) {
   const { push } = useNotifications();
   useEffect(() => {
@@ -126,6 +133,7 @@ export default function AppShell() {
   const contentRef = useRef<HTMLElement | null>(null);
   const [authed, setAuthed] = useState(false);
   const [roles, setRoles] = useState<string[]>([]);
+  const [permissions, setPermissions] = useState<string[]>([]);
   const [actorRoles, setActorRoles] = useState<string[]>([]);
   const [authUser, setAuthUser] = useState<Record<string, unknown> | null>(null);
   const [userContext, setUserContext] = useState<{ id?: string; email?: string }>({});
@@ -136,6 +144,7 @@ export default function AppShell() {
   const [workspaces, setWorkspaces] = useState<Array<{ id: string; slug: string; name: string; role: string; termination_authority?: boolean }>>([]);
   const [activeWorkspaceId, setActiveWorkspaceId] = useState<string>(() => localStorage.getItem("xyn.activeWorkspaceId") || "");
   const [helpOpen, setHelpOpen] = useState(false);
+  const [surfaceNavItems, setSurfaceNavItems] = useState<ArtifactSurface[]>([]);
   const [tourSlug, setTourSlug] = useState<string | null>(null);
   const [tourLaunchToken, setTourLaunchToken] = useState(0);
   const [agentActivityOpen, setAgentActivityOpen] = useState(false);
@@ -154,6 +163,7 @@ export default function AppShell() {
         setAuthed(Boolean(me?.user));
         setAuthUser((me?.user as Record<string, unknown>) || null);
         setRoles(me?.roles ?? []);
+        setPermissions(me?.permissions ?? []);
         setActorRoles(me?.actor_roles ?? me?.roles ?? []);
         setUserContext({
           id: (me?.user?.subject as string | null) || (me?.user?.sub as string | null) || "",
@@ -197,6 +207,7 @@ export default function AppShell() {
         setAuthed(false);
         setAuthUser(null);
         setRoles([]);
+        setPermissions([]);
         setActorRoles([]);
       } finally {
         if (mounted) {
@@ -208,6 +219,27 @@ export default function AppShell() {
       mounted = false;
     };
   }, []);
+
+  useEffect(() => {
+    if (!authed) {
+      setSurfaceNavItems([]);
+      return;
+    }
+    let mounted = true;
+    (async () => {
+      try {
+        const payload = await listArtifactNavSurfaces();
+        if (!mounted) return;
+        setSurfaceNavItems(payload.surfaces || []);
+      } catch {
+        if (!mounted) return;
+        setSurfaceNavItems([]);
+      }
+    })();
+    return () => {
+      mounted = false;
+    };
+  }, [authed]);
 
   useEffect(() => {
     if (activeWorkspaceId) localStorage.setItem("xyn.activeWorkspaceId", activeWorkspaceId);
@@ -222,6 +254,7 @@ export default function AppShell() {
     fetch("/auth/logout", { method: "POST", credentials: "include" }).then(() => {
       setAuthed(false);
       setAuthUser(null);
+      setPermissions([]);
     });
 
   const effectiveRoles = useMemo(() => {
@@ -237,7 +270,51 @@ export default function AppShell() {
   const isPlatformArchitect = effectiveRoles.includes("platform_architect");
   const isPlatformManager = isPlatformAdmin || isPlatformArchitect;
 
-  const navUser: NavUserContext = useMemo(() => ({ roles: effectiveRoles, permissions: [] }), [effectiveRoles]);
+  const navUser: NavUserContext = useMemo(() => ({ roles: effectiveRoles, permissions }), [effectiveRoles, permissions]);
+  const navGroups: NavGroup[] = useMemo(() => {
+    const baseGroups = NAV_GROUPS.map((group) => ({
+      ...group,
+      items: group.items ? [...group.items] : [],
+      subgroups: group.subgroups ? [...group.subgroups] : [],
+    }));
+    if (!surfaceNavItems.length) return baseGroups;
+    const idToGroup = new Map(baseGroups.map((group) => [group.id, group]));
+    const pathSeen = new Set<string>();
+    baseGroups.forEach((group) => {
+      (group.items || []).forEach((item) => pathSeen.add(item.path));
+      (group.subgroups || []).forEach((subgroup) => subgroup.items.forEach((item) => pathSeen.add(item.path)));
+    });
+
+    surfaceNavItems
+      .filter((surface) => String(surface.nav_visibility || "").toLowerCase() === "always")
+      .sort((a, b) => Number(a.sort_order || 0) - Number(b.sort_order || 0))
+      .forEach((surface) => {
+        const route = String(surface.route || "").trim();
+        if (!route || pathSeen.has(route)) return;
+        const navGroupHint = String(surface.nav_group || "build").trim().toLowerCase();
+        const targetGroup = idToGroup.get(navGroupHint) || idToGroup.get("build");
+        if (!targetGroup) return;
+        const permissionsSpec = (surface.permissions || {}) as Record<string, unknown>;
+        const requiredRoles = Array.isArray(permissionsSpec.required_roles)
+          ? permissionsSpec.required_roles.map((entry) => String(entry).trim()).filter(Boolean)
+          : [];
+        const requiredPermissions = Array.isArray(permissionsSpec.required_permissions)
+          ? permissionsSpec.required_permissions.map((entry) => String(entry).trim()).filter(Boolean)
+          : [];
+        const navItem: NavItem = {
+          id: `surface-${surface.id}`,
+          label: String(surface.nav_label || surface.title || "Surface"),
+          path: route,
+          icon: String(surface.nav_icon || "").trim() || "Sparkles",
+          requiredRoles: requiredRoles.length ? requiredRoles : undefined,
+          requiredPermissions: requiredPermissions.length ? requiredPermissions : undefined,
+        };
+        targetGroup.items = [...(targetGroup.items || []), navItem];
+        pathSeen.add(route);
+      });
+
+    return baseGroups;
+  }, [surfaceNavItems]);
   const activeWorkspace = useMemo(
     () => workspaces.find((workspace) => workspace.id === activeWorkspaceId) || workspaces[0] || null,
     [workspaces, activeWorkspaceId]
@@ -245,9 +322,9 @@ export default function AppShell() {
   const workspaceRole = activeWorkspace?.role || "reader";
   const canWorkspaceAdmin = workspaceRole === "admin";
   const breadcrumbTrail = useMemo(() => {
-    const allowed = visibleNav(NAV_GROUPS, navUser);
+    const allowed = visibleNav(navGroups, navUser);
     return getBreadcrumbs(location.pathname, allowed);
-  }, [location.pathname, navUser]);
+  }, [location.pathname, navGroups, navUser]);
   const routeId = useMemo(() => resolveRouteId(location.pathname), [location.pathname]);
   const artifactRouteId = useMemo(() => {
     const match = location.pathname.match(/^\/app\/artifacts\/([^/]+)/);
@@ -422,6 +499,8 @@ export default function AppShell() {
       <div className={`app-body ${isPreviewReadOnly ? "preview-readonly" : ""}`}>
         <Sidebar
           user={navUser}
+          navGroups={navGroups}
+          createActions={CREATE_ACTIONS}
           workspaces={workspaces.map((workspace) => ({ id: workspace.id, name: workspace.name }))}
           activeWorkspaceId={activeWorkspace?.id || ""}
           onWorkspaceChange={setActiveWorkspaceId}
@@ -445,14 +524,25 @@ export default function AppShell() {
             <Route path="/" element={<Navigate to="home" replace />} />
             <Route path="home" element={<WorkspaceHomePage workspaceName={activeWorkspace?.name || "Workspace"} />} />
             <Route path="console" element={<InitiatePage />} />
+            <Route
+              path="a/*"
+              element={
+                <ArtifactSurfaceRoutePage
+                  workspaceId={activeWorkspace?.id || ""}
+                  workspaceRole={workspaceRole}
+                  canManageArticleLifecycle={isPlatformManager && !isPreviewReadOnly}
+                  canCreate={isPlatformManager && !isPreviewReadOnly}
+                />
+              }
+            />
             <Route path="artifacts" element={<Navigate to="/app/artifacts/all" replace />} />
             <Route
               path="artifacts/articles"
-              element={<ArtifactsArticlesPage workspaceId={activeWorkspace?.id || ""} canCreate={isPlatformManager && !isPreviewReadOnly} />}
+              element={<RedirectWithNotice to="/app/a/articles" notice="Articles moved to Surface route /app/a/articles." />}
             />
             <Route
               path="artifacts/workflows"
-              element={<ArtifactsWorkflowsPage workspaceId={activeWorkspace?.id || ""} canCreate={isPlatformManager && !isPreviewReadOnly} />}
+              element={<RedirectWithNotice to="/app/a/workflows" notice="Workflows moved to Surface route /app/a/workflows." />}
             />
             <Route path="artifacts/all" element={<ArtifactsRegistryPage workspaceId={activeWorkspace?.id || ""} />} />
             <Route path="artifacts/library" element={<ArtifactsLibraryPage />} />
@@ -469,9 +559,17 @@ export default function AppShell() {
             <Route path="activity" element={<ActivityPage workspaceId={activeWorkspace?.id || ""} />} />
             <Route path="govern/contributions" element={<ActivityPage workspaceId={activeWorkspace?.id || ""} defaultTab="contributions" />} />
             <Route
-              path="people-roles"
-              element={<PeopleRolesPage workspaceId={activeWorkspace?.id || ""} canAdmin={canWorkspaceAdmin && !isPreviewReadOnly} />}
+              path="workspaces"
+              element={
+                <WorkspacesPage
+                  activeWorkspaceId={activeWorkspace?.id || ""}
+                  activeWorkspaceName={activeWorkspace?.name || "Workspace"}
+                  canWorkspaceAdmin={canWorkspaceAdmin && !isPreviewReadOnly}
+                  canManageWorkspaces={isPlatformAdmin && !isPreviewReadOnly}
+                />
+              }
             />
+            <Route path="people-roles" element={<RedirectLegacyWorkspaceAccessRoute />} />
             <Route path="devices" element={<DevicesPage />} />
             <Route path="guides" element={<GuidesPage roles={effectiveRoles} />} />
             <Route path="tours" element={<ToursPage />} />

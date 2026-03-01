@@ -47,13 +47,13 @@ const HELP_BY_ROUTE: Record<string, RouteHelp> = {
     atlasNode: "observe",
     nextSteps: [
       { label: "Articles", to: "/app/artifacts/articles" },
-      { label: "Workspace Access", to: "/app/people-roles" },
+      { label: "Workspaces", to: "/app/workspaces" },
     ],
   },
-  "app.people-roles": {
-    routeId: "app.people-roles",
-    title: "People & Roles",
-    whatYouDo: ["View workspace membership", "Assign responsibilities", "Manage governance authority"],
+  "app.workspaces": {
+    routeId: "app.workspaces",
+    title: "Workspaces",
+    whatYouDo: ["Create and manage workspace records", "Deprecate or reactivate workspaces", "Manage people and roles by workspace"],
     atlasNode: "run",
     nextSteps: [
       { label: "Workspace Settings", to: "/app/settings" },
@@ -66,7 +66,7 @@ const HELP_BY_ROUTE: Record<string, RouteHelp> = {
     whatYouDo: ["Adjust workspace behavior", "Confirm ownership and governance defaults", "Review operational configuration"],
     atlasNode: "run",
     nextSteps: [
-      { label: "Workspace Access", to: "/app/people-roles" },
+      { label: "Workspaces", to: "/app/workspaces" },
       { label: "Guides", to: "/app/guides" },
     ],
   },
@@ -168,7 +168,8 @@ export function resolveRouteId(pathname: string): string {
   if (pathname.startsWith("/app/artifacts/")) return "app.artifacts.articles";
   if (pathname === "/app/artifacts") return "app.artifacts.articles";
   if (pathname.startsWith("/app/activity")) return "app.activity";
-  if (pathname.startsWith("/app/people-roles")) return "app.people-roles";
+  if (pathname.startsWith("/app/workspaces")) return "app.workspaces";
+  if (pathname.startsWith("/app/people-roles")) return "app.workspaces";
   if (pathname.startsWith("/app/settings")) return "app.settings";
   return "app.home";
 }

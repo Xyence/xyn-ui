@@ -140,7 +140,7 @@ export const NAV_GROUPS: NavGroup[] = [
     icon: "Scale",
     items: [
       { id: "activity", label: "Activity", path: "/app/activity", icon: "Activity", keywords: ["events", "audit"] },
-      { id: "workspace-access", label: "Workspace Access", path: "/app/people-roles", icon: "Users", keywords: ["membership", "rbac"] },
+      { id: "workspaces", label: "Workspaces", path: "/app/workspaces", icon: "Users", keywords: ["membership", "rbac", "workspace"] },
       { id: "platform-access-control", label: "Access Control", path: "/app/platform/access-control", icon: "KeyRound" },
       { id: "identity-configuration", label: "Identity Configuration", path: "/app/platform/identity-configuration", icon: "IdCard" },
       { id: "secrets", label: "Secrets", path: "/app/platform/secrets", icon: "Vault" },

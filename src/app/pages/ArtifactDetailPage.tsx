@@ -14,6 +14,14 @@ import {
   generateArticleVideoStoryboard,
   getArticleVideoAiConfig,
   getArticle,
+  getArtifactRawArtifactJson,
+  getArtifactRawFileDownloadUrl,
+  getArtifactRawFilePreview,
+  getArtifactRawMetadata,
+  getMe,
+  listArtifactRuntimeRoles,
+  listArtifactRawFiles,
+  listArtifactSurfaces,
   getPlatformConfig,
   initializeArticleVideo,
   listArticleRevisions,
@@ -26,7 +34,20 @@ import {
   updateArticleVideoAiConfig,
   updateArticle,
 } from "../../api/xyn";
-import type { AiAgent, ArticleDetail, ArticleFormat, ArticleRevision, ContextPackSummary, VideoAiConfigEntry, VideoRender, VideoSpec } from "../../api/types";
+import type {
+  AiAgent,
+  ArticleDetail,
+  ArticleFormat,
+  ArticleRevision,
+  ArtifactRuntimeRole,
+  ArtifactSurface,
+  ContextPackSummary,
+  ArtifactRawMetadataResponse,
+  RawFileEntry,
+  VideoAiConfigEntry,
+  VideoRender,
+  VideoSpec,
+} from "../../api/types";
 import MarkdownWysiwygEditor, { type EditorSelectionPayload } from "../components/editor/MarkdownWysiwygEditor";
 import ContextRefinementTool from "../components/editor/ContextRefinementTool";
 import CompactPaneTabs, { type CompactPaneTab } from "../components/ui/CompactPaneTabs";
@@ -41,7 +62,7 @@ import { useXynConsole } from "../state/xynConsoleStore";
 import { canRewriteSelection, resolveAssistPrimaryAction } from "./articleAssistLogic";
 import { applyPatchToFormSnapshot, buildArticleDraftSnapshot } from "../utils/articleIntentForm";
 
-type ActivityTab = "overview" | "revisions" | "ai_config" | "discussion";
+type ActivityTab = "overview" | "revisions" | "surfaces" | "raw" | "ai_config" | "discussion";
 type RevisionMode = "list" | "view" | "diff";
 type EditorMode = "edit" | "review";
 type VideoTab = "scenes" | "script" | "storyboard" | "renders";
@@ -169,6 +190,84 @@ function buildSceneScaffold(title: string, intent: string, summaryText: string, 
   });
 }
 
+const PERSON_LIKENESS_PATTERNS: RegExp[] = [
+  /\blooks?\s+like\s+[A-Z][a-z]+(?:\s+[A-Z][a-z]+)+/g,
+  /\b(?:with|featuring)\s+[A-Z][a-z]+(?:\s+[A-Z][a-z]+)+/g,
+  /\bin\s+the\s+style\s+of\s+[A-Z][a-z]+(?:\s+[A-Z][a-z]+)+/g,
+  /\b(celebrity|famous actor|famous person|real person(?:'s)? likeness)\b/gi,
+];
+
+function collectRenderPromptText(spec: VideoSpec | null): string {
+  if (!spec) return "";
+  const scenes = (spec.scenes || [])
+    .map((scene) => [scene.name, scene.narration, scene.on_screen_text, scene.visual_prompt].filter(Boolean).join(" "))
+    .join("\n");
+  const storyboard = (spec.storyboard?.draft || [])
+    .map((scene) =>
+      [
+        String(scene.on_screen_text || ""),
+        String(scene.visual_description || ""),
+        String(scene.narration || ""),
+      ]
+        .filter(Boolean)
+        .join(" "),
+    )
+    .join("\n");
+  return [spec.title || "", spec.intent || "", spec.script?.draft || "", scenes, storyboard].filter(Boolean).join("\n");
+}
+
+function lintPolicyRisk(text: string): string[] {
+  const input = String(text || "");
+  if (!input.trim()) return [];
+  const hits: string[] = [];
+  PERSON_LIKENESS_PATTERNS.forEach((pattern) => {
+    const matches = input.match(pattern) || [];
+    matches.forEach((match) => {
+      const cleaned = String(match).trim();
+      if (cleaned && !hits.includes(cleaned)) hits.push(cleaned);
+    });
+  });
+  return hits;
+}
+
+function neutralizePolicyRiskText(text: string): string {
+  let next = String(text || "");
+  next = next.replace(/\blooks?\s+like\s+[A-Z][a-z]+(?:\s+[A-Z][a-z]+)+/g, "has a generic appearance");
+  next = next.replace(/\b(?:with|featuring)\s+[A-Z][a-z]+(?:\s+[A-Z][a-z]+)+/g, "with a generic person");
+  next = next.replace(/\bin\s+the\s+style\s+of\s+[A-Z][a-z]+(?:\s+[A-Z][a-z]+)+/g, "in a neutral style");
+  next = next.replace(/\b(celebrity|famous actor|famous person|real person(?:'s)? likeness)\b/gi, "generic person");
+  return next;
+}
+
+function neutralizeVideoSpecPolicyRisk(spec: VideoSpec | null): VideoSpec | null {
+  if (!spec) return spec;
+  return {
+    ...spec,
+    title: neutralizePolicyRiskText(spec.title || ""),
+    intent: neutralizePolicyRiskText(spec.intent || ""),
+    script: {
+      ...(spec.script || { draft: "" }),
+      draft: neutralizePolicyRiskText(spec.script?.draft || ""),
+    },
+    scenes: (spec.scenes || []).map((scene) => ({
+      ...scene,
+      name: neutralizePolicyRiskText(scene.name || ""),
+      narration: neutralizePolicyRiskText(scene.narration || ""),
+      on_screen_text: neutralizePolicyRiskText(scene.on_screen_text || ""),
+      visual_prompt: neutralizePolicyRiskText(scene.visual_prompt || ""),
+    })),
+    storyboard: {
+      ...(spec.storyboard || { draft: [] }),
+      draft: (spec.storyboard?.draft || []).map((scene) => ({
+        ...scene,
+        on_screen_text: neutralizePolicyRiskText(String(scene.on_screen_text || "")),
+        visual_description: neutralizePolicyRiskText(String(scene.visual_description || "")),
+        narration: neutralizePolicyRiskText(String(scene.narration || "")),
+      })),
+    },
+  };
+}
+
 export default function ArtifactDetailPage({
   workspaceId,
   workspaceRole,
@@ -182,6 +281,8 @@ export default function ArtifactDetailPage({
   const [item, setItem] = useState<ArticleDetail | null>(null);
   const [title, setTitle] = useState("");
   const [revisions, setRevisions] = useState<ArticleRevision[]>([]);
+  const [artifactSurfaces, setArtifactSurfaces] = useState<ArtifactSurface[]>([]);
+  const [artifactRuntimeRoles, setArtifactRuntimeRoles] = useState<ArtifactRuntimeRole[]>([]);
   const [bodyMarkdown, setBodyMarkdown] = useState("");
   const [legacyBodyHtml, setLegacyBodyHtml] = useState("");
   const [summary, setSummary] = useState("");
@@ -202,6 +303,17 @@ export default function ArtifactDetailPage({
   const [draftBarActionsOpen, setDraftBarActionsOpen] = useState(false);
   const [restoreRevisionId, setRestoreRevisionId] = useState<string | null>(null);
   const [activityTab, setActivityTab] = useState<ActivityTab>("revisions");
+  const [canDebugRaw, setCanDebugRaw] = useState(false);
+  const [rawAccessKnown, setRawAccessKnown] = useState(false);
+  const [rawMeta, setRawMeta] = useState<ArtifactRawMetadataResponse | null>(null);
+  const [rawArtifactJson, setRawArtifactJson] = useState<Record<string, unknown> | null>(null);
+  const [rawEntries, setRawEntries] = useState<RawFileEntry[]>([]);
+  const [rawPath, setRawPath] = useState("/");
+  const [rawSelectedPath, setRawSelectedPath] = useState("/artifact.json");
+  const [rawPreview, setRawPreview] = useState<Record<string, unknown> | null>(null);
+  const [rawError, setRawError] = useState<string | null>(null);
+  const [rawLoading, setRawLoading] = useState(false);
+  const [rawLoadedFor, setRawLoadedFor] = useState<string>("");
   const [revisionMode, setRevisionMode] = useState<RevisionMode>("list");
   const [selectedRevisionId, setSelectedRevisionId] = useState<string>("");
   const [compareRevisionId, setCompareRevisionId] = useState<string>("current");
@@ -286,6 +398,31 @@ export default function ArtifactDetailPage({
       clearConsoleContext();
     };
   }, [artifactId, setConsoleContext, clearConsoleContext]);
+
+  useEffect(() => {
+    let active = true;
+    (async () => {
+      try {
+        const profile = await getMe();
+        if (!active) return;
+        const permissions = profile.permissions || [];
+        const roles = profile.roles || [];
+        const allowed =
+          permissions.includes("artifact_debug_view") ||
+          roles.includes("platform_admin") ||
+          roles.includes("platform_architect");
+        setCanDebugRaw(Boolean(allowed));
+      } catch {
+        if (!active) return;
+        setCanDebugRaw(false);
+      } finally {
+        if (active) setRawAccessKnown(true);
+      }
+    })();
+    return () => {
+      active = false;
+    };
+  }, []);
 
   const handleEditorSelectionChange = useCallback((selection: EditorSelectionPayload) => {
     setEditorSelection(selection);
@@ -387,14 +524,56 @@ export default function ArtifactDetailPage({
     setVideoPurposeContextPacks(nextPacks);
   }, []);
 
+  const loadRawArtifactView = useCallback(async () => {
+    if (!artifactId || !canDebugRaw) return;
+    setRawLoading(true);
+    setRawError(null);
+    try {
+      const [meta, artifactJson, files] = await Promise.all([
+        getArtifactRawMetadata(artifactId),
+        getArtifactRawArtifactJson(artifactId),
+        listArtifactRawFiles(artifactId, "/"),
+      ]);
+      setRawMeta(meta);
+      setRawArtifactJson(artifactJson);
+      setRawEntries(files.entries || []);
+      setRawPath(files.path || "/");
+      setRawSelectedPath("/artifact.json");
+      setRawPreview({ inline: true, content: JSON.stringify(artifactJson || {}, null, 2), path: "/artifact.json" });
+      setRawLoadedFor(artifactId);
+    } catch (err) {
+      setRawError((err as Error).message);
+    } finally {
+      setRawLoading(false);
+    }
+  }, [artifactId, canDebugRaw]);
+
+  const openRawPath = useCallback(
+    async (entry: RawFileEntry) => {
+      if (!artifactId || !canDebugRaw) return;
+      if (entry.kind === "dir") {
+        const next = await listArtifactRawFiles(artifactId, entry.path);
+        setRawEntries(next.entries || []);
+        setRawPath(next.path || "/");
+        return;
+      }
+      setRawSelectedPath(entry.path);
+      const preview = await getArtifactRawFilePreview(artifactId, entry.path);
+      setRawPreview(preview as unknown as Record<string, unknown>);
+    },
+    [artifactId, canDebugRaw]
+  );
+
   const load = useCallback(async () => {
     if (!artifactId || !workspaceId) return;
     try {
       setError(null);
-      const [articleRes, revisionsRes, categoriesRes] = await Promise.all([
+      const [articleRes, revisionsRes, categoriesRes, surfacesRes, runtimeRolesRes] = await Promise.all([
         getArticle(artifactId),
         listArticleRevisions(artifactId),
         listArticleCategories(),
+        listArtifactSurfaces(artifactId),
+        listArtifactRuntimeRoles(artifactId),
       ]);
       const article = articleRes.article;
       const nextRevisions = revisionsRes.revisions || [];
@@ -404,6 +583,8 @@ export default function ArtifactDetailPage({
       setItem(article);
       setTitle(article.title || "");
       setRevisions(nextRevisions);
+      setArtifactSurfaces(surfacesRes.surfaces || []);
+      setArtifactRuntimeRoles(runtimeRolesRes.runtime_roles || []);
       setBodyMarkdown(initialBody);
       setLegacyBodyHtml(fallbackHtml);
       setSummary(article.summary || "");
@@ -528,6 +709,14 @@ export default function ArtifactDetailPage({
       setActivityTab("revisions");
     }
   }, [activityTab, articleFormat]);
+
+  useEffect(() => {
+    if (activityTab !== "raw") return;
+    if (!canDebugRaw) return;
+    if (!artifactId) return;
+    if (rawLoadedFor === artifactId) return;
+    void loadRawArtifactView();
+  }, [activityTab, artifactId, canDebugRaw, loadRawArtifactView, rawLoadedFor]);
 
   useEffect(() => {
     if (videoTab !== "script") setScriptSelection(null);
@@ -1067,9 +1256,24 @@ export default function ArtifactDetailPage({
     try {
       setVideoBusy("render");
       setError(null);
+      const lintHits = lintPolicyRisk(collectRenderPromptText(videoSpec));
+      if (lintHits.length > 0) {
+        push({
+          level: "warning",
+          title: "Prompt may be blocked by provider policy",
+          message: `Detected potential real-person references: ${lintHits.slice(0, 3).join(", ")}.`,
+          status: "failed",
+          action: "article.video.render.lint",
+          entityType: "unknown",
+          entityId: artifactId,
+        });
+      }
       const result = await renderArticleVideo(artifactId, {
         context_pack_id: selectedVideoContextPackId || null,
-        request_payload_json: { mode: "full_render" },
+        request_payload_json: {
+          mode: "full_render",
+          prompt_lint: { real_person_reference_hits: lintHits },
+        },
       });
       setVideoRenders((prev) => [result.render, ...prev.filter((entry) => entry.id !== result.render.id)]);
       setItem(result.article);
@@ -1320,6 +1524,22 @@ export default function ArtifactDetailPage({
   const canRefineSelection = canRewriteSelection(selectionLength);
   const isExplainerFormat = articleFormat === "video_explainer";
   const activeVideoSpec = videoSpec || createDefaultVideoSpec(item?.title || "", summary || "");
+  const renderPromptLintHits = useMemo(
+    () => lintPolicyRisk(collectRenderPromptText(activeVideoSpec)),
+    [activeVideoSpec],
+  );
+  const neutralizeRenderPrompt = useCallback(() => {
+    setVideoSpec((prev) => neutralizeVideoSpecPolicyRisk(prev || activeVideoSpec));
+    push({
+      level: "info",
+      title: "Prompt neutralized",
+      message: "Removed real-person/likeness phrasing from explainer render inputs.",
+      status: "succeeded",
+      action: "article.video.render.neutralize",
+      entityType: "unknown",
+      entityId: artifactId,
+    });
+  }, [activeVideoSpec, artifactId, push]);
   const storyboardProposals = Array.isArray(activeVideoSpec.storyboard?.proposals) ? activeVideoSpec.storyboard.proposals : [];
   const videoScenes = Array.isArray(activeVideoSpec.scenes) ? activeVideoSpec.scenes : [];
   const sceneTitle = (scene: Record<string, unknown> | null | undefined, fallback: string) =>
@@ -2004,6 +2224,8 @@ export default function ArtifactDetailPage({
           [
             { key: "overview", label: "Overview", icon: <Sparkles size={15} /> },
             { key: "revisions", label: "Revisions", icon: <History size={15} /> },
+            { key: "surfaces", label: "Surfaces", icon: <SlidersHorizontal size={15} /> },
+            ...(canDebugRaw ? [{ key: "raw", label: "Raw / Files", icon: <SlidersHorizontal size={15} /> }] : []),
             ...(articleFormat === "video_explainer"
               ? [{ key: "ai_config", label: "AI Configuration", icon: <SlidersHorizontal size={15} /> }]
               : []),
@@ -2018,6 +2240,143 @@ export default function ArtifactDetailPage({
       />
       {activityTab === "overview" && credibilityPanel}
       {activityTab === "revisions" && revisionPanel}
+      {activityTab === "surfaces" && (
+        <div className="card stack">
+          <div className="stack">
+            <strong>Artifact Surfaces</strong>
+            {(artifactSurfaces || []).length === 0 ? (
+              <span className="muted small">No surfaces declared for this artifact.</span>
+            ) : (
+              <div className="instance-list">
+                {artifactSurfaces.map((surface) => (
+                  <div className="instance-row" key={surface.id}>
+                    <div className="stack">
+                      <strong>{surface.title || surface.key}</strong>
+                      <span className="muted small">
+                        {surface.surface_kind} · {surface.route} · {surface.nav_visibility}
+                      </span>
+                      <span className="muted small">
+                        renderer: {String((surface.renderer?.type as string) || "unknown")}
+                      </span>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            )}
+          </div>
+          <div className="stack">
+            <strong>Runtime Roles</strong>
+            {(artifactRuntimeRoles || []).length === 0 ? (
+              <span className="muted small">No runtime roles declared for this artifact.</span>
+            ) : (
+              <div className="instance-list">
+                {artifactRuntimeRoles.map((role) => (
+                  <div className="instance-row" key={role.id}>
+                    <div className="stack">
+                      <strong>{role.role_kind}</strong>
+                      <span className="muted small">enabled: {role.enabled ? "yes" : "no"}</span>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            )}
+          </div>
+        </div>
+      )}
+      {activityTab === "raw" && (
+        <div className="card stack">
+          {!rawAccessKnown ? <p className="muted small">Checking permissions…</p> : null}
+          {rawAccessKnown && !canDebugRaw ? (
+            <p className="muted small">
+              Raw artifact view requires <code>artifact_debug_view</code> (or platform admin/architect role).
+            </p>
+          ) : null}
+          {canDebugRaw ? (
+            <>
+              <div className="inline-actions">
+                <button className="ghost sm" type="button" onClick={() => void loadRawArtifactView()} disabled={rawLoading}>
+                  Refresh
+                </button>
+                {artifactId ? (
+                  <a className="ghost sm" href={getArtifactRawFileDownloadUrl(artifactId, "/artifact.json")} target="_blank" rel="noreferrer">
+                    Download artifact.json
+                  </a>
+                ) : null}
+              </div>
+              {rawError ? <p className="error-message">{rawError}</p> : null}
+              <div className="split">
+                <div className="card stack">
+                  <strong>Path {rawPath}</strong>
+                  {rawPath !== "/" && artifactId ? (
+                    <button
+                      className="ghost sm"
+                      type="button"
+                      onClick={async () => {
+                        const parent = rawPath === "/" ? "/" : rawPath.split("/").slice(0, -1).join("/") || "/";
+                        const next = await listArtifactRawFiles(artifactId, parent);
+                        setRawEntries(next.entries || []);
+                        setRawPath(next.path || "/");
+                      }}
+                    >
+                      Up one level
+                    </button>
+                  ) : null}
+                  <div className="instance-list">
+                    <button
+                      className="instance-row"
+                      type="button"
+                      onClick={() => {
+                        setRawSelectedPath("/artifact.json");
+                        setRawPreview({ inline: true, content: JSON.stringify(rawArtifactJson || {}, null, 2), path: "/artifact.json" });
+                      }}
+                    >
+                      /artifact.json
+                    </button>
+                    {rawEntries.map((entry) => (
+                      <button
+                        key={entry.path}
+                        className="instance-row"
+                        type="button"
+                        onClick={() => void openRawPath(entry)}
+                      >
+                        <span>
+                          [{entry.kind === "dir" ? "dir" : "file"}] {entry.path}
+                        </span>
+                      </button>
+                    ))}
+                  </div>
+                </div>
+                <div className="card stack">
+                  <strong>Raw metadata</strong>
+                  {rawMeta ? <pre className="code-block">{JSON.stringify(rawMeta, null, 2)}</pre> : <p className="muted small">No metadata loaded.</p>}
+                  <strong>File preview: {rawSelectedPath}</strong>
+                  {rawPreview ? (
+                    "content" in rawPreview ? (
+                      <pre className="code-block">{String((rawPreview as Record<string, unknown>).content || "")}</pre>
+                    ) : (
+                      <div className="inline-actions">
+                        <span className="muted small">Binary or large file. Download to inspect.</span>
+                        {artifactId ? (
+                          <a
+                            className="ghost sm"
+                            href={getArtifactRawFileDownloadUrl(artifactId, rawSelectedPath)}
+                            target="_blank"
+                            rel="noreferrer"
+                          >
+                            Download
+                          </a>
+                        ) : null}
+                      </div>
+                    )
+                  ) : (
+                    <p className="muted small">Select a file to preview.</p>
+                  )}
+                </div>
+              </div>
+            </>
+          ) : null}
+        </div>
+      )}
       {activityTab === "ai_config" && articleFormat === "video_explainer" && aiConfigPanel}
       {activityTab === "discussion" && discussionPanel}
     </div>
@@ -2685,6 +3044,24 @@ export default function ArtifactDetailPage({
                 Video provider is not configured. Render currently produces an export package JSON, not a media file.
               </p>
             ) : null}
+            {renderPromptLintHits.length > 0 && (
+              <div className="diff-panel">
+                <p className="small" style={{ marginBottom: 6 }}>
+                  This render may be blocked by provider policy due to real-person references.
+                </p>
+                <p className="muted small" style={{ marginBottom: 8 }}>
+                  Matches: {renderPromptLintHits.slice(0, 4).join(", ")}
+                </p>
+                <div className="inline-actions">
+                  <button className="ghost sm" type="button" onClick={neutralizeRenderPrompt}>
+                    Neutralize prompt
+                  </button>
+                  <button className="ghost sm" type="button" onClick={() => setVideoTab("scenes")}>
+                    Edit prompt
+                  </button>
+                </div>
+              </div>
+            )}
             <div className="inline-actions">
               <button className="primary sm" type="button" onClick={() => void requestVideoRender()} disabled={videoBusy === "render"}>
                 {videoBusy === "render" ? "Queueing…" : showProviderNotConfigured ? "Generate Export Package" : "Render Video"}
@@ -2694,7 +3071,9 @@ export default function ArtifactDetailPage({
               {videoRenders.map((entry) => (
                 <div className="instance-row" key={entry.id}>
                   <div>
-                    <strong>{entry.status}</strong>
+                    <strong style={entry.status === "filtered" || entry.outcome === "filtered" ? { color: "#f5c26b" } : undefined}>
+                      {entry.outcome === "filtered" || entry.status === "filtered" ? "filtered" : entry.status}
+                    </strong>
                     <div className="muted small">
                       {entry.provider} · requested {entry.requested_at || "—"}
                     </div>
@@ -2704,7 +3083,24 @@ export default function ArtifactDetailPage({
                         {entry.context_pack_version ? ` · v${entry.context_pack_version}` : ""}
                       </div>
                     )}
-                    {!!entry.error_message && <div className="muted small" style={{ marginTop: 2 }}>· {entry.error_message}</div>}
+                    {!!entry.user_message && <div className="muted small" style={{ marginTop: 2 }}>· {entry.user_message}</div>}
+                    {!entry.user_message && !!entry.error_message && <div className="muted small" style={{ marginTop: 2 }}>· {entry.error_message}</div>}
+                    {(entry.provider_filtered_reasons || []).length > 0 && (
+                      <ul className="muted small" style={{ marginTop: 6, marginBottom: 0, paddingLeft: 18 }}>
+                        {(entry.provider_filtered_reasons || []).map((reason, idx) => (
+                          <li key={`${entry.id}-reason-${idx}`}>{reason}</li>
+                        ))}
+                      </ul>
+                    )}
+                    {(entry.provider_operation_name || entry.provider_response_excerpt) && (
+                      <details style={{ marginTop: 6 }}>
+                        <summary className="muted small">Technical details</summary>
+                        <div className="muted small" style={{ marginTop: 4 }}>
+                          {entry.provider_operation_name ? <div>Operation: {entry.provider_operation_name}</div> : null}
+                          {entry.provider_error_code ? <div>Error code: {entry.provider_error_code}</div> : null}
+                        </div>
+                      </details>
+                    )}
                     {(entry.output_assets || []).map((asset, idx) => (
                       <a
                         key={`${entry.id}-asset-${idx}`}
@@ -2719,9 +3115,14 @@ export default function ArtifactDetailPage({
                     ))}
                   </div>
                   <div className="inline-actions">
-                    {entry.status === "failed" && (
+                    {(entry.status === "failed" || entry.status === "filtered") && (
                       <button className="ghost sm" type="button" onClick={() => void retryFailedRender(entry.id)} disabled={videoBusy === "retry"}>
                         Retry
+                      </button>
+                    )}
+                    {(entry.status === "filtered" || entry.outcome === "filtered") && (
+                      <button className="ghost sm" type="button" onClick={() => setVideoTab("scenes")}>
+                        Edit prompt
                       </button>
                     )}
                     {(entry.status === "queued" || entry.status === "running") && (

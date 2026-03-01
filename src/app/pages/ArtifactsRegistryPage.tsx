@@ -138,13 +138,6 @@ export default function ArtifactsRegistryPage({ workspaceId: _workspaceId }: { w
           <p className="muted">Unified artifacts index across Draft Sessions and Blueprints.</p>
         </div>
         <div className="inline-actions">
-          <button
-            className="ghost"
-            data-testid="artifact-explorer-start-tour"
-            onClick={() => window.dispatchEvent(new CustomEvent("xyn:start-tour", { detail: { slug: "platform-build-tour" } }))}
-          >
-            Start Tour
-          </button>
           <button className="ghost" onClick={() => void load()} disabled={loading}>
             Refresh
           </button>

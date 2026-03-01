@@ -1,4 +1,4 @@
-import { render, screen, waitFor } from "@testing-library/react";
+import { render, screen, waitFor, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import ArtifactDetailPage from "./ArtifactDetailPage";
@@ -51,6 +51,16 @@ vi.mock("../state/notificationsStore", () => ({
 
 vi.mock("../state/operationRegistry", () => ({
   useOperations: () => ({ startOperation: vi.fn(), finishOperation: vi.fn() }),
+}));
+
+vi.mock("../state/xynConsoleStore", () => ({
+  useXynConsole: () => ({
+    session: { pendingMissingFields: [] },
+    setContext: vi.fn(),
+    clearContext: vi.fn(),
+    registerEditorBridge: vi.fn(),
+    unregisterEditorBridge: vi.fn(),
+  }),
 }));
 
 describe("ArtifactDetailPage video explainer", () => {
@@ -139,7 +149,7 @@ describe("ArtifactDetailPage video explainer", () => {
     const intent = screen.getByLabelText("Intent");
     await userEvent.clear(intent);
     await userEvent.type(intent, "new intent");
-    await userEvent.click(screen.getByRole("button", { name: "Save video spec" }));
+    await userEvent.click(screen.getByRole("button", { name: "Save explainer settings" }));
 
     await waitFor(() => expect(apiMocks.updateArticle).toHaveBeenCalled());
     const lastCall = apiMocks.updateArticle.mock.calls[apiMocks.updateArticle.mock.calls.length - 1] as [string, Record<string, unknown>];
@@ -180,11 +190,14 @@ describe("ArtifactDetailPage video explainer", () => {
     render(<ArtifactDetailPage workspaceId="ws-1" workspaceRole="owner" canManageArticleLifecycle />);
     expect(await screen.findByText("Explainer Video")).toBeInTheDocument();
     await userEvent.click(screen.getByRole("button", { name: "AI Configuration" }));
-    expect(await screen.findByText("Purpose-scoped agent and context pack defaults for explainer generation.")).toBeInTheDocument();
+    expect(await screen.findByText("Agent is the primary control. Context packs are optional per-step overrides under Advanced.")).toBeInTheDocument();
 
     const agentSelect = screen.getAllByLabelText("Agent")[0];
     await userEvent.selectOptions(agentSelect, "writer");
-    await userEvent.click(screen.getByRole("button", { name: "Save" }));
+    const aiPanelHeading = screen.getByRole("heading", { name: "AI Configuration" });
+    const aiPanel = aiPanelHeading.closest(".activity-ai-config-panel");
+    expect(aiPanel).toBeTruthy();
+    await userEvent.click(within(aiPanel as HTMLElement).getByRole("button", { name: "Save" }));
 
     await waitFor(() =>
       expect(apiMocks.updateArticleVideoAiConfig).toHaveBeenCalledWith(
@@ -218,5 +231,73 @@ describe("ArtifactDetailPage video explainer", () => {
     render(<ArtifactDetailPage workspaceId="ws-1" workspaceRole="owner" canManageArticleLifecycle />);
     expect(await screen.findByText("Article Editor")).toBeInTheDocument();
     expect(screen.queryByRole("button", { name: "AI Configuration" })).not.toBeInTheDocument();
+  });
+
+  it("renders filtered provider outcome with reasons and remediation actions", async () => {
+    apiMocks.listArticleVideoRenders.mockResolvedValue({
+      renders: [
+        {
+          id: "render-1",
+          article_id: "art-1",
+          provider: "google_veo",
+          status: "filtered",
+          outcome: "filtered",
+          requested_at: "2026-02-28T17:41:29Z",
+          user_message: "Provider blocked media output due to policy.",
+          provider_filtered_count: 1,
+          provider_filtered_reasons: [
+            "Sorry, we can't create videos with real people's names or likenesses.",
+          ],
+          user_actions: ["edit_prompt", "neutralize_prompt", "retry"],
+          output_assets: [{ type: "export_package", url: "/xyn/api/articles/art-1/video/export-package" }],
+        },
+      ],
+    });
+    render(<ArtifactDetailPage workspaceId="ws-1" workspaceRole="owner" canManageArticleLifecycle />);
+    expect(await screen.findByText("Explainer Video")).toBeInTheDocument();
+    await userEvent.click(screen.getByRole("button", { name: /^Render$/ }));
+    expect(await screen.findByText(/real people's names or likenesses/i)).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "Retry" })).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "Edit prompt" })).toBeInTheDocument();
+  });
+
+  it("shows prompt lint warning for real-person references before render", async () => {
+    apiMocks.getArticle.mockResolvedValueOnce({
+      article: {
+        id: "art-1",
+        workspace_id: "ws-1",
+        title: "Video Article",
+        slug: "video-article",
+        summary: "summary",
+        body_markdown: "hello",
+        body_html: "",
+        category: "guide",
+        format: "video_explainer",
+        status: "draft",
+        visibility_type: "private",
+        allowed_roles: [],
+        tags: [],
+        published_to: [],
+        video_context_pack_id: "pack-1",
+        video_spec_json: {
+          version: 1,
+          title: "Video Article",
+          intent: "looks like Taylor Swift walking through a forest.",
+          audience: "mixed",
+          tone: "clear",
+          duration_seconds_target: 120,
+          voice: { style: "conversational", speaker: "neutral", pace: "medium" },
+          script: { draft: "", last_generated_at: null, notes: "", proposals: [] },
+          storyboard: { draft: [], last_generated_at: null, notes: "", proposals: [] },
+          scenes: [],
+          generation: { provider: null, status: "not_started", last_render_id: null },
+        },
+      },
+    });
+    render(<ArtifactDetailPage workspaceId="ws-1" workspaceRole="owner" canManageArticleLifecycle />);
+    expect(await screen.findByText("Explainer Video")).toBeInTheDocument();
+    await userEvent.click(screen.getByRole("button", { name: /^Render$/ }));
+    expect(await screen.findByText(/This render may be blocked by provider policy/i)).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "Neutralize prompt" })).toBeInTheDocument();
   });
 });

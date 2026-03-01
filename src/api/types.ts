@@ -902,6 +902,7 @@ export type WorkspaceSummary = {
   slug: string;
   name: string;
   description?: string;
+  status?: "active" | "deprecated";
   role: "reader" | "contributor" | "publisher" | "moderator" | "admin";
   termination_authority?: boolean;
 };
@@ -966,6 +967,36 @@ export type UnifiedArtifactType =
   | "integration";
 export type UnifiedArtifactState = "provisional" | "canonical" | "immutable" | "deprecated";
 
+export type ArtifactSurface = {
+  id: string;
+  artifact_id: string;
+  key: string;
+  title: string;
+  description?: string;
+  surface_kind: "config" | "editor" | "dashboard" | "visualizer" | "docs" | string;
+  route: string;
+  nav_visibility: "hidden" | "contextual" | "always" | string;
+  nav_label?: string;
+  nav_icon?: string;
+  nav_group?: string;
+  renderer?: Record<string, unknown>;
+  context?: Record<string, unknown>;
+  permissions?: Record<string, unknown>;
+  sort_order?: number;
+  created_at?: string;
+  updated_at?: string;
+};
+
+export type ArtifactRuntimeRole = {
+  id: string;
+  artifact_id: string;
+  role_kind: "route_provider" | "job" | "event_handler" | "integration" | "auth" | "data_model" | string;
+  spec?: Record<string, unknown>;
+  enabled?: boolean;
+  created_at?: string;
+  updated_at?: string;
+};
+
 export type UnifiedArtifact = {
   id: string;
   artifact_id: string;
@@ -995,6 +1026,8 @@ export type UnifiedArtifact = {
   parent_artifact_id?: string | null;
   lineage_root_id?: string | null;
   tags?: string[];
+  surfaces?: ArtifactSurface[];
+  runtime_roles?: ArtifactRuntimeRole[];
   created_at?: string;
   updated_at?: string;
   source?: Record<string, unknown>;
@@ -1005,6 +1038,12 @@ export type UnifiedArtifactListResponse = {
   count: number;
   limit: number;
   offset: number;
+};
+
+export type ArtifactSurfaceResolveResponse = {
+  surface: ArtifactSurface;
+  artifact: UnifiedArtifact;
+  params: Record<string, string>;
 };
 
 export type ArtifactBinding = {
@@ -1067,6 +1106,49 @@ export type ArtifactInstallReceipt = {
     to_version?: string | null;
     action: string;
   }>;
+};
+
+export type RawFileEntry = {
+  name: string;
+  path: string;
+  kind: "file" | "dir";
+  size_bytes?: number | null;
+  mime_guess?: string | null;
+  sha256_optional?: string | null;
+};
+
+export type ArtifactRawMetadataResponse = {
+  artifact: {
+    id: string;
+    type: string;
+    slug: string;
+    version: string;
+    title: string;
+    artifact_state: string;
+    status: string;
+  };
+  artifact_hash?: string;
+  content_ref?: Record<string, unknown>;
+  dependencies?: Array<Record<string, unknown>>;
+  bindings?: Array<Record<string, unknown>>;
+  surfaces?: ArtifactSurface[];
+  runtime_roles?: ArtifactRuntimeRole[];
+  files_root?: { name: string; path: string; kind: "dir" };
+};
+
+export type RawFilesListResponse = {
+  path: string;
+  entries: RawFileEntry[];
+};
+
+export type RawFilePreviewResponse = {
+  path: string;
+  kind: "file";
+  size_bytes: number;
+  mime_guess: string;
+  inline: boolean;
+  content?: string;
+  download_url?: string;
 };
 
 export type LedgerEventSummary = {
@@ -1181,7 +1263,7 @@ export type VideoSpec = {
   scenes: VideoSpecScene[];
   generation: {
     provider?: string | null;
-    status: "not_started" | "queued" | "running" | "succeeded" | "failed" | "canceled";
+    status: "not_started" | "queued" | "running" | "succeeded" | "failed" | "filtered" | "canceled";
     last_render_id?: string | null;
     updated_at?: string;
   };
@@ -1192,7 +1274,8 @@ export type VideoRender = {
   article_id: string;
   provider: string;
   model_name?: string;
-  status: "queued" | "running" | "succeeded" | "failed" | "canceled";
+  status: "queued" | "running" | "succeeded" | "failed" | "filtered" | "canceled";
+  outcome?: "success" | "failed" | "filtered" | "canceled" | "timeout" | string;
   requested_at?: string;
   started_at?: string | null;
   completed_at?: string | null;
@@ -1210,8 +1293,19 @@ export type VideoRender = {
   context_pack_hash?: string;
   spec_snapshot_hash?: string;
   input_snapshot_hash?: string;
+  provider_operation_name?: string;
+  provider_operation_id?: string;
+  provider_filtered_count?: number | null;
+  provider_filtered_reasons?: string[];
+  provider_error_code?: string;
+  provider_error_message?: string;
+  provider_response_excerpt?: Record<string, unknown>;
+  last_provider_status_at?: string | null;
+  export_package_generated?: boolean;
   error_message?: string;
   error_details_json?: Record<string, unknown>;
+  user_message?: string;
+  user_actions?: string[];
 };
 
 export type ArticleSummary = {

@@ -1,11 +1,21 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
 import InlineMessage from "../../components/InlineMessage";
 import {
+  getArtifactPackageRawFileDownloadUrl,
+  getArtifactPackageRawFilePreview,
+  getArtifactPackageRawManifest,
+  getArtifactRawArtifactJson,
+  getArtifactRawFileDownloadUrl,
+  getArtifactRawFilePreview,
+  getArtifactRawMetadata,
+  getMe,
   deleteArtifactBinding,
   exportArtifactPackage,
   getArtifact,
   importArtifactPackage,
   installArtifactPackage,
+  listArtifactPackageRawTree,
+  listArtifactRawFiles,
   listArtifactBindings,
   listArtifactInstallReceipts,
   listArtifactPackages,
@@ -13,7 +23,7 @@ import {
   upsertArtifactBinding,
   validateArtifactPackage,
 } from "../../api/xyn";
-import type { ArtifactBinding, ArtifactInstallReceipt, ArtifactPackageRecord, UnifiedArtifact } from "../../api/types";
+import type { ArtifactBinding, ArtifactInstallReceipt, ArtifactPackageRecord, RawFileEntry, UnifiedArtifact } from "../../api/types";
 
 const LIBRARY_TYPES = new Set(["app_shell", "auth_login", "data_model", "ui_view", "integration", "workflow"]);
 
@@ -54,6 +64,20 @@ export default function ArtifactsLibraryPage() {
   const [selectedPackageId, setSelectedPackageId] = useState<string>("");
   const [validationJson, setValidationJson] = useState<string>("");
   const [validationResult, setValidationResult] = useState<Record<string, unknown> | null>(null);
+  const [canDebugRaw, setCanDebugRaw] = useState(false);
+
+  const [artifactRawMetadata, setArtifactRawMetadata] = useState<Record<string, unknown> | null>(null);
+  const [artifactRawArtifactJson, setArtifactRawArtifactJson] = useState<Record<string, unknown> | null>(null);
+  const [artifactRawEntries, setArtifactRawEntries] = useState<RawFileEntry[]>([]);
+  const [artifactRawPath, setArtifactRawPath] = useState("/");
+  const [artifactSelectedRawPath, setArtifactSelectedRawPath] = useState("/artifact.json");
+  const [artifactRawPreview, setArtifactRawPreview] = useState<Record<string, unknown> | null>(null);
+
+  const [packageRawManifest, setPackageRawManifest] = useState<Record<string, unknown> | null>(null);
+  const [packageRawEntries, setPackageRawEntries] = useState<RawFileEntry[]>([]);
+  const [packageRawPath, setPackageRawPath] = useState("/");
+  const [packageSelectedRawPath, setPackageSelectedRawPath] = useState("/manifest.json");
+  const [packageRawPreview, setPackageRawPreview] = useState<Record<string, unknown> | null>(null);
 
   const [exportName, setExportName] = useState("ems-hello");
   const [exportVersion, setExportVersion] = useState("0.1.0");
@@ -89,6 +113,24 @@ export default function ArtifactsLibraryPage() {
   }, [load]);
 
   useEffect(() => {
+    (async () => {
+      try {
+        const me = await getMe();
+        const roles = me.roles || [];
+        const permissions = me.permissions || [];
+        const allowed =
+          permissions.includes("artifact_debug_view") ||
+          roles.includes("platform_owner") ||
+          roles.includes("platform_admin") ||
+          roles.includes("platform_architect");
+        setCanDebugRaw(Boolean(allowed));
+      } catch {
+        setCanDebugRaw(false);
+      }
+    })();
+  }, []);
+
+  useEffect(() => {
     if (!selectedArtifactId) {
       setSelectedArtifact(null);
       setReceipts([]);
@@ -110,6 +152,85 @@ export default function ArtifactsLibraryPage() {
       }
     })();
   }, [selectedArtifactId, exportName]);
+
+  useEffect(() => {
+    if (!canDebugRaw || !selectedArtifactId) {
+      setArtifactRawMetadata(null);
+      setArtifactRawArtifactJson(null);
+      setArtifactRawEntries([]);
+      setArtifactRawPreview(null);
+      return;
+    }
+    (async () => {
+      try {
+        const [meta, artifactJson, entries] = await Promise.all([
+          getArtifactRawMetadata(selectedArtifactId),
+          getArtifactRawArtifactJson(selectedArtifactId),
+          listArtifactRawFiles(selectedArtifactId, "/"),
+        ]);
+        setArtifactRawMetadata(meta as unknown as Record<string, unknown>);
+        setArtifactRawArtifactJson(artifactJson);
+        setArtifactRawEntries(entries.entries || []);
+        setArtifactRawPath(entries.path || "/");
+        setArtifactSelectedRawPath("/artifact.json");
+      } catch (err) {
+        setError((err as Error).message);
+      }
+    })();
+  }, [canDebugRaw, selectedArtifactId]);
+
+  useEffect(() => {
+    if (!canDebugRaw || !selectedArtifactId || !artifactSelectedRawPath) {
+      setArtifactRawPreview(null);
+      return;
+    }
+    (async () => {
+      try {
+        const preview = await getArtifactRawFilePreview(selectedArtifactId, artifactSelectedRawPath);
+        setArtifactRawPreview(preview as unknown as Record<string, unknown>);
+      } catch (err) {
+        setArtifactRawPreview({ error: (err as Error).message });
+      }
+    })();
+  }, [canDebugRaw, selectedArtifactId, artifactSelectedRawPath]);
+
+  useEffect(() => {
+    if (!canDebugRaw || !selectedPackageId) {
+      setPackageRawManifest(null);
+      setPackageRawEntries([]);
+      setPackageRawPreview(null);
+      return;
+    }
+    (async () => {
+      try {
+        const [manifestResp, treeResp] = await Promise.all([
+          getArtifactPackageRawManifest(selectedPackageId),
+          listArtifactPackageRawTree(selectedPackageId, "/"),
+        ]);
+        setPackageRawManifest(manifestResp.manifest || {});
+        setPackageRawEntries(treeResp.entries || []);
+        setPackageRawPath(treeResp.path || "/");
+        setPackageSelectedRawPath("/manifest.json");
+      } catch (err) {
+        setError((err as Error).message);
+      }
+    })();
+  }, [canDebugRaw, selectedPackageId]);
+
+  useEffect(() => {
+    if (!canDebugRaw || !selectedPackageId || !packageSelectedRawPath) {
+      setPackageRawPreview(null);
+      return;
+    }
+    (async () => {
+      try {
+        const preview = await getArtifactPackageRawFilePreview(selectedPackageId, packageSelectedRawPath);
+        setPackageRawPreview(preview as unknown as Record<string, unknown>);
+      } catch (err) {
+        setPackageRawPreview({ error: (err as Error).message });
+      }
+    })();
+  }, [canDebugRaw, selectedPackageId, packageSelectedRawPath]);
 
   const dependencyCount = useMemo(() => {
     const map: Record<string, number> = {};
@@ -205,6 +326,36 @@ export default function ArtifactsLibraryPage() {
     } catch (err) {
       setError((err as Error).message);
     }
+  };
+
+  const openArtifactRawPath = async (entry: RawFileEntry) => {
+    if (!selectedArtifactId || !canDebugRaw) return;
+    if (entry.kind === "dir") {
+      try {
+        const next = await listArtifactRawFiles(selectedArtifactId, entry.path);
+        setArtifactRawEntries(next.entries || []);
+        setArtifactRawPath(next.path || "/");
+      } catch (err) {
+        setError((err as Error).message);
+      }
+      return;
+    }
+    setArtifactSelectedRawPath(entry.path);
+  };
+
+  const openPackageRawPath = async (entry: RawFileEntry) => {
+    if (!selectedPackageId || !canDebugRaw) return;
+    if (entry.kind === "dir") {
+      try {
+        const next = await listArtifactPackageRawTree(selectedPackageId, entry.path);
+        setPackageRawEntries(next.entries || []);
+        setPackageRawPath(next.path || "/");
+      } catch (err) {
+        setError((err as Error).message);
+      }
+      return;
+    }
+    setPackageSelectedRawPath(entry.path);
   };
 
   return (
@@ -326,6 +477,84 @@ export default function ArtifactsLibraryPage() {
               <h4>Bindings</h4>
               <pre className="code-block">{JSON.stringify(selectedArtifact.bindings || [], null, 2)}</pre>
 
+              {canDebugRaw ? (
+                <>
+                  <h4>Raw / Files (read-only)</h4>
+                  <p className="muted small">Developer view for artifact.json and payload structure.</p>
+                  <div className="layout" style={{ gridTemplateColumns: "minmax(240px, 1fr) minmax(300px, 1.4fr)", gap: 12 }}>
+                    <section className="card" style={{ padding: 12 }}>
+                      <div className="inline-actions" style={{ justifyContent: "space-between" }}>
+                        <strong>Path {artifactRawPath}</strong>
+                        {artifactRawPath !== "/" ? (
+                          <button
+                            className="ghost sm"
+                            type="button"
+                            onClick={async () => {
+                              const parent = artifactRawPath === "/" ? "/" : artifactRawPath.split("/").slice(0, -1).join("/") || "/";
+                              const next = await listArtifactRawFiles(selectedArtifactId, parent);
+                              setArtifactRawEntries(next.entries || []);
+                              setArtifactRawPath(next.path || "/");
+                            }}
+                          >
+                            Up
+                          </button>
+                        ) : null}
+                      </div>
+                      <div className="instance-list">
+                        {artifactRawEntries.map((entry) => (
+                          <button key={entry.path} className="instance-row" type="button" onClick={() => void openArtifactRawPath(entry)}>
+                            <div>
+                              <strong>{entry.name}</strong>
+                              <span className="muted small">{entry.kind}{entry.size_bytes ? ` · ${entry.size_bytes} bytes` : ""}</span>
+                            </div>
+                          </button>
+                        ))}
+                      </div>
+                    </section>
+                    <section className="card" style={{ padding: 12 }}>
+                      <div className="inline-actions">
+                        <button
+                          className="ghost sm"
+                          type="button"
+                          onClick={() => setArtifactRawPreview({ inline: true, content: JSON.stringify(artifactRawArtifactJson || {}, null, 2), path: "/artifact.json" })}
+                        >
+                          View artifact.json
+                        </button>
+                        <a className="ghost sm" href={getArtifactRawFileDownloadUrl(selectedArtifactId, "/artifact.json")} target="_blank" rel="noreferrer">
+                          Download artifact.json
+                        </a>
+                      </div>
+                      {artifactRawMetadata ? <pre className="code-block">{JSON.stringify(artifactRawMetadata, null, 2)}</pre> : null}
+                      {artifactRawPreview ? (
+                        "content" in artifactRawPreview ? (
+                          <pre className="code-block">{String((artifactRawPreview as Record<string, unknown>).content || "")}</pre>
+                        ) : (
+                          <div className="inline-actions">
+                            <span className="muted small">Binary or large file.</span>
+                            <a
+                              className="ghost sm"
+                              href={getArtifactRawFileDownloadUrl(selectedArtifactId, artifactSelectedRawPath)}
+                              target="_blank"
+                              rel="noreferrer"
+                            >
+                              Download file
+                            </a>
+                          </div>
+                        )
+                      ) : (
+                        <p className="muted small">Select a file to preview.</p>
+                      )}
+                    </section>
+                  </div>
+                </>
+              ) : (
+                <InlineMessage
+                  tone="warn"
+                  title="Raw artifact view is restricted"
+                  body="You need the artifact_debug_view permission (or platform_admin/platform_architect role) to inspect artifact.json and payload files."
+                />
+              )}
+
               <h4>Install Receipts</h4>
               <div className="instance-list">
                 {receipts.map((receipt) => (
@@ -395,6 +624,91 @@ export default function ArtifactsLibraryPage() {
             <h4>Validation / Receipt JSON</h4>
             <pre className="code-block">{JSON.stringify(validationResult, null, 2)}</pre>
           </>
+        )}
+
+        {canDebugRaw ? (
+          <>
+            <h4>Browse Contents (read-only)</h4>
+            <p className="muted small">Do not paste secrets into packages. Raw developer view only.</p>
+            <div className="layout" style={{ gridTemplateColumns: "minmax(240px, 1fr) minmax(300px, 1.4fr)", gap: 12 }}>
+              <section className="card" style={{ padding: 12 }}>
+                <div className="inline-actions" style={{ justifyContent: "space-between" }}>
+                  <strong>Path {packageRawPath}</strong>
+                  {packageRawPath !== "/" ? (
+                    <button
+                      className="ghost sm"
+                      type="button"
+                      onClick={async () => {
+                        if (!selectedPackageId) return;
+                        const parent = packageRawPath === "/" ? "/" : packageRawPath.split("/").slice(0, -1).join("/") || "/";
+                        const next = await listArtifactPackageRawTree(selectedPackageId, parent);
+                        setPackageRawEntries(next.entries || []);
+                        setPackageRawPath(next.path || "/");
+                      }}
+                    >
+                      Up
+                    </button>
+                  ) : null}
+                </div>
+                <div className="instance-list">
+                  {packageRawEntries.map((entry) => (
+                    <button key={entry.path} className="instance-row" type="button" onClick={() => void openPackageRawPath(entry)}>
+                      <div>
+                        <strong>{entry.name}</strong>
+                        <span className="muted small">{entry.kind}{entry.size_bytes ? ` · ${entry.size_bytes} bytes` : ""}</span>
+                      </div>
+                    </button>
+                  ))}
+                </div>
+              </section>
+              <section className="card" style={{ padding: 12 }}>
+                <div className="inline-actions">
+                  <button
+                    className="ghost sm"
+                    type="button"
+                    onClick={() => setPackageRawPreview({ inline: true, content: JSON.stringify(packageRawManifest || {}, null, 2), path: "/manifest.json" })}
+                  >
+                    View manifest.json
+                  </button>
+                  {selectedPackageId ? (
+                    <a
+                      className="ghost sm"
+                      href={getArtifactPackageRawFileDownloadUrl(selectedPackageId, "/manifest.json")}
+                      target="_blank"
+                      rel="noreferrer"
+                    >
+                      Download manifest.json
+                    </a>
+                  ) : null}
+                </div>
+                {packageRawPreview ? (
+                  "content" in packageRawPreview ? (
+                    <pre className="code-block">{String((packageRawPreview as Record<string, unknown>).content || "")}</pre>
+                  ) : selectedPackageId ? (
+                    <div className="inline-actions">
+                      <span className="muted small">Binary or large file.</span>
+                      <a
+                        className="ghost sm"
+                        href={getArtifactPackageRawFileDownloadUrl(selectedPackageId, packageSelectedRawPath)}
+                        target="_blank"
+                        rel="noreferrer"
+                      >
+                        Download file
+                      </a>
+                    </div>
+                  ) : null
+                ) : (
+                  <p className="muted small">Select a file to preview.</p>
+                )}
+              </section>
+            </div>
+          </>
+        ) : (
+          <InlineMessage
+            tone="warn"
+            title="Package content browsing is restricted"
+            body="You need the artifact_debug_view permission (or platform_admin/platform_architect role) to inspect package manifest and file trees."
+          />
         )}
       </section>
     </>
