@@ -576,13 +576,22 @@ export default function ArtifactDetailPage({
     if (!artifactId || !workspaceId) return;
     try {
       setError(null);
-      const [articleRes, revisionsRes, categoriesRes, surfacesRes, runtimeRolesRes] = await Promise.all([
+      const [articleRes, revisionsRes, categoriesRes] = await Promise.all([
         getArticle(artifactId),
         listArticleRevisions(artifactId),
         listArticleCategories(),
-        listArtifactSurfaces(artifactId),
-        listArtifactRuntimeRoles(artifactId),
       ]);
+      try {
+        const [surfacesRes, runtimeRolesRes] = await Promise.all([
+          listArtifactSurfaces(artifactId),
+          listArtifactRuntimeRoles(artifactId),
+        ]);
+        setArtifactSurfaces(surfacesRes.surfaces || []);
+        setArtifactRuntimeRoles(runtimeRolesRes.runtime_roles || []);
+      } catch {
+        setArtifactSurfaces([]);
+        setArtifactRuntimeRoles([]);
+      }
       const article = articleRes.article;
       const nextRevisions = revisionsRes.revisions || [];
       const latestRevision = nextRevisions[0];
@@ -591,8 +600,6 @@ export default function ArtifactDetailPage({
       setItem(article);
       setTitle(article.title || "");
       setRevisions(nextRevisions);
-      setArtifactSurfaces(surfacesRes.surfaces || []);
-      setArtifactRuntimeRoles(runtimeRolesRes.runtime_roles || []);
       setBodyMarkdown(initialBody);
       setLegacyBodyHtml(fallbackHtml);
       setSummary(article.summary || "");
