@@ -13,6 +13,7 @@ import {
   createArticleRevision,
   generateArticleVideoStoryboard,
   getArticleVideoAiConfig,
+  getArtifact,
   getArticle,
   getArtifactRawArtifactJson,
   getArtifactRawFileDownloadUrl,
@@ -576,9 +577,28 @@ export default function ArtifactDetailPage({
     if (!artifactId || !workspaceId) return;
     try {
       setError(null);
+      let resolvedArticleId = artifactId;
+      try {
+        const artifactRecord = await getArtifact(artifactId);
+        const artifactType = String(artifactRecord.artifact_type || "").trim().toLowerCase();
+        if (artifactType && artifactType !== "article") {
+          throw new Error(`Artifact type '${artifactType}' is not supported in the Article editor.`);
+        }
+        const source = ((artifactRecord.source || {}) as Record<string, unknown>) || {};
+        const sourceId = String(source.id || artifactRecord.source_ref_id || "").trim();
+        if (sourceId) {
+          resolvedArticleId = sourceId;
+        }
+      } catch (artifactErr) {
+        const message = String((artifactErr as Error)?.message || "");
+        if (message.toLowerCase().includes("not supported in the article editor")) {
+          throw artifactErr;
+        }
+        // Fall back to direct article lookup for legacy IDs/routes.
+      }
       const [articleRes, revisionsRes, categoriesRes] = await Promise.all([
-        getArticle(artifactId),
-        listArticleRevisions(artifactId),
+        getArticle(resolvedArticleId),
+        listArticleRevisions(resolvedArticleId),
         listArticleCategories(),
       ]);
       try {
@@ -612,7 +632,7 @@ export default function ArtifactDetailPage({
       setVideoSpec(article.video_spec_json ? (article.video_spec_json as VideoSpec) : createDefaultVideoSpec(article.title || "", article.summary || ""));
       if (nextFormat === "video_explainer") {
         const [renderData, packsData] = await Promise.all([
-          listArticleVideoRenders(artifactId),
+          listArticleVideoRenders(resolvedArticleId),
           loadVideoContextPacks(),
         ]);
         try {
@@ -3327,6 +3347,11 @@ export default function ArtifactDetailPage({
 
   return (
     <>
+      {error ? (
+        <div className="card">
+          <p className="error-message">{error}</p>
+        </div>
+      ) : null}
       <EditorCentricLayout
         top={topSection}
         main={mainSection}
