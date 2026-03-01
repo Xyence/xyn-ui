@@ -322,7 +322,7 @@ export default function ArtifactDetailPage({
   const [showPreview, setShowPreview] = useState(false);
   const [editorMode, setEditorMode] = useState<EditorMode>("edit");
   const [videoTab, setVideoTab] = useState<VideoTab>("scenes");
-  const [articleEditorCollapsed, setArticleEditorCollapsed] = useState(true);
+  const [articleEditorCollapsed, setArticleEditorCollapsed] = useState(false);
   const [videoPanelCollapsed, setVideoPanelCollapsed] = useState(false);
   const [videoSpec, setVideoSpec] = useState<VideoSpec | null>(null);
   const [videoRenders, setVideoRenders] = useState<VideoRender[]>([]);
@@ -373,6 +373,7 @@ export default function ArtifactDetailPage({
     unregisterEditorBridge,
   } = useXynConsole();
   const videoPanelRef = useRef<HTMLElement | null>(null);
+  const articleEditorCollapseInitializedForRef = useRef<string>("");
   const videoIntentFieldRef = useRef<HTMLTextAreaElement | null>(null);
   const videoDurationFieldRef = useRef<HTMLInputElement | null>(null);
   const titleFieldRef = useRef<HTMLInputElement | null>(null);
@@ -590,6 +591,10 @@ export default function ArtifactDetailPage({
       setSummary(article.summary || "");
       const nextFormat = (article.format as ArticleFormat) || "standard";
       setArticleFormat(nextFormat);
+      if (artifactId && articleEditorCollapseInitializedForRef.current !== artifactId) {
+        setArticleEditorCollapsed(nextFormat === "video_explainer");
+        articleEditorCollapseInitializedForRef.current = artifactId;
+      }
       setVideoSpec(article.video_spec_json ? (article.video_spec_json as VideoSpec) : createDefaultVideoSpec(article.title || "", article.summary || ""));
       if (nextFormat === "video_explainer") {
         const [renderData, packsData] = await Promise.all([
