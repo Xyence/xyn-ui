@@ -100,10 +100,10 @@ import type {
   VideoAdapterTestResponse,
   WorkspaceSummary,
   WorkspaceListResponse,
+  WorkspaceInstalledArtifactSummary,
   ArtifactRawMetadataResponse,
   RawFilesListResponse,
   RawFilePreviewResponse,
-  ArtifactSummary,
   ArtifactDetail,
   ArticleSummary,
   ArticleDetail,
@@ -468,13 +468,13 @@ export async function updateWorkspace(
 export async function listWorkspaceArtifacts(
   workspaceId: string,
   filters?: { type?: string; status?: string }
-): Promise<{ artifacts: ArtifactSummary[] }> {
+): Promise<{ artifacts: WorkspaceInstalledArtifactSummary[] }> {
   const apiBaseUrl = resolveApiBaseUrl();
   const url = new URL(`${apiBaseUrl}/xyn/api/workspaces/${workspaceId}/artifacts`);
   if (filters?.type) url.searchParams.set("type", filters.type);
   if (filters?.status) url.searchParams.set("status", filters.status);
   const response = await apiFetch(url.toString(), { credentials: "include" });
-  return handle<{ artifacts: ArtifactSummary[] }>(response);
+  return handle<{ artifacts: WorkspaceInstalledArtifactSummary[] }>(response);
 }
 
 export async function createWorkspaceArtifact(
@@ -543,9 +543,13 @@ export async function listArtifactRuntimeRoles(artifactId: string): Promise<{ ar
   return handle<{ artifact_id: string; runtime_roles: ArtifactRuntimeRole[] }>(response);
 }
 
-export async function listArtifactNavSurfaces(): Promise<{ surfaces: ArtifactSurface[] }> {
+export async function listArtifactNavSurfaces(workspaceId?: string): Promise<{ surfaces: ArtifactSurface[] }> {
   const apiBaseUrl = resolveApiBaseUrl();
-  const response = await apiFetch(`${apiBaseUrl}/xyn/api/artifact-surfaces/nav`, {
+  const url = new URL(`${apiBaseUrl}/xyn/api/artifact-surfaces/nav`);
+  if (workspaceId && workspaceId.trim().length > 0) {
+    url.searchParams.set("workspace_id", workspaceId);
+  }
+  const response = await apiFetch(url.toString(), {
     credentials: "include",
   });
   return handle<{ surfaces: ArtifactSurface[] }>(response);

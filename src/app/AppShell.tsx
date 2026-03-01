@@ -228,7 +228,7 @@ export default function AppShell() {
     let mounted = true;
     (async () => {
       try {
-        const payload = await listArtifactNavSurfaces();
+        const payload = await listArtifactNavSurfaces(activeWorkspaceId || undefined);
         if (!mounted) return;
         setSurfaceNavItems(payload.surfaces || []);
       } catch {
@@ -239,7 +239,7 @@ export default function AppShell() {
     return () => {
       mounted = false;
     };
-  }, [authed]);
+  }, [authed, activeWorkspaceId]);
 
   useEffect(() => {
     if (activeWorkspaceId) localStorage.setItem("xyn.activeWorkspaceId", activeWorkspaceId);
@@ -544,7 +544,7 @@ export default function AppShell() {
               path="artifacts/workflows"
               element={<RedirectWithNotice to="/app/a/workflows" notice="Workflows moved to Surface route /app/a/workflows." />}
             />
-            <Route path="artifacts/all" element={<ArtifactsRegistryPage workspaceId={activeWorkspace?.id || ""} />} />
+            <Route path="artifacts/all" element={<ArtifactsRegistryPage workspaceId={activeWorkspace?.id || ""} workspaceName={activeWorkspace?.name || ""} />} />
             <Route path="artifacts/library" element={<ArtifactsLibraryPage />} />
             <Route
               path="artifacts/:artifactId"

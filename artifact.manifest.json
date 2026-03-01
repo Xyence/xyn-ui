@@ -1,0 +1,15 @@
+{
+  "artifact": {
+    "id": "xyn-ui",
+    "name": "xyn-ui",
+    "version": "phase1"
+  },
+  "roles": [
+    {
+      "role": "ui_mount",
+      "mount_path": "/",
+      "static_dir": "xyn-ui/dist",
+      "dev_proxy_url": "http://localhost:5173"
+    }
+  ]
+}
