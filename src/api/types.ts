@@ -911,6 +911,20 @@ export type WorkspaceListResponse = {
   workspaces: WorkspaceSummary[];
 };
 
+export type WorkspaceInstalledArtifactSummary = {
+  binding_id: string;
+  artifact_id: string;
+  name: string;
+  title: string;
+  kind?: string | null;
+  category?: string | null;
+  description?: string | null;
+  enabled: boolean;
+  installed_state: string;
+  version?: number;
+  updated_at?: string;
+};
+
 export type ArtifactSummary = {
   id: string;
   workspace_id: string;
