@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
-import { useParams } from "react-router-dom";
+import { useLocation, useParams } from "react-router-dom";
 import { ChevronDown, ChevronUp, History, Lock, MessageSquareMore, Pencil, Plus, SlidersHorizontal, Sparkles, Trash2 } from "lucide-react";
 import { renderMarkdown } from "../../public/markdown";
 import {
@@ -277,7 +277,14 @@ export default function ArtifactDetailPage({
   workspaceRole: string;
   canManageArticleLifecycle: boolean;
 }) {
-  const { artifactId = "" } = useParams();
+  const params = useParams();
+  const location = useLocation();
+  const artifactId = useMemo(() => {
+    const direct = String(params.artifactId || "").trim();
+    if (direct) return direct;
+    const fromSurfaceRoute = location.pathname.match(/^\/app\/a\/(?:articles|workflows)\/([^/?#]+)/i)?.[1];
+    return decodeURIComponent(String(fromSurfaceRoute || "").trim());
+  }, [location.pathname, params.artifactId]);
   const [item, setItem] = useState<ArticleDetail | null>(null);
   const [title, setTitle] = useState("");
   const [revisions, setRevisions] = useState<ArticleRevision[]>([]);
