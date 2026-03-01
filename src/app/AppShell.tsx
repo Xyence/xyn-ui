@@ -152,6 +152,7 @@ export default function AppShell() {
   const [preferredWorkspaceId, setPreferredWorkspaceId] = useState<string>(() => localStorage.getItem("xyn.activeWorkspaceId") || "");
   const [helpOpen, setHelpOpen] = useState(false);
   const [surfaceNavItems, setSurfaceNavItems] = useState<ArtifactSurface[]>([]);
+  const [navRefreshToken, setNavRefreshToken] = useState(0);
   const [tourSlug, setTourSlug] = useState<string | null>(null);
   const [tourLaunchToken, setTourLaunchToken] = useState(0);
   const [agentActivityOpen, setAgentActivityOpen] = useState(false);
@@ -250,7 +251,13 @@ export default function AppShell() {
     return () => {
       mounted = false;
     };
-  }, [authed, activeWorkspaceId]);
+  }, [authed, activeWorkspaceId, navRefreshToken]);
+
+  useEffect(() => {
+    const onWorkspaceArtifactsChanged = () => setNavRefreshToken((value) => value + 1);
+    window.addEventListener("xyn:workspace-artifacts-changed", onWorkspaceArtifactsChanged);
+    return () => window.removeEventListener("xyn:workspace-artifacts-changed", onWorkspaceArtifactsChanged);
+  }, []);
 
   useEffect(() => {
     if (activeWorkspaceId) localStorage.setItem("xyn.activeWorkspaceId", activeWorkspaceId);

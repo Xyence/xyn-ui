@@ -491,6 +491,32 @@ export async function createWorkspaceArtifact(
   return handle<{ id: string }>(response);
 }
 
+export async function installWorkspaceArtifact(
+  workspaceId: string,
+  payload: { artifact_id?: string; slug?: string; enabled?: boolean }
+): Promise<{ artifact: WorkspaceInstalledArtifactSummary; created: boolean }> {
+  const apiBaseUrl = resolveApiBaseUrl();
+  const response = await apiFetch(`${apiBaseUrl}/xyn/api/workspaces/${workspaceId}/artifacts`, {
+    method: "POST",
+    headers: buildHeaders(),
+    credentials: "include",
+    body: JSON.stringify(payload),
+  });
+  return handle<{ artifact: WorkspaceInstalledArtifactSummary; created: boolean }>(response);
+}
+
+export async function uninstallWorkspaceArtifact(
+  workspaceId: string,
+  bindingId: string
+): Promise<{ deleted: boolean; artifact: WorkspaceInstalledArtifactSummary }> {
+  const apiBaseUrl = resolveApiBaseUrl();
+  const response = await apiFetch(`${apiBaseUrl}/xyn/api/workspaces/${workspaceId}/artifacts/${bindingId}`, {
+    method: "DELETE",
+    credentials: "include",
+  });
+  return handle<{ deleted: boolean; artifact: WorkspaceInstalledArtifactSummary }>(response);
+}
+
 export async function getWorkspaceArtifact(workspaceId: string, artifactId: string): Promise<ArtifactDetail> {
   const apiBaseUrl = resolveApiBaseUrl();
   const response = await apiFetch(`${apiBaseUrl}/xyn/api/workspaces/${workspaceId}/artifacts/${artifactId}`, {
