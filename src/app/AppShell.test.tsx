@@ -83,13 +83,11 @@ vi.mock("./components/console/XynConsoleNode", () => ({
 describe("AppShell nav surfaces", () => {
   beforeEach(() => {
     vi.clearAllMocks();
+    const scrollToMock = ((..._args: unknown[]) => {}) as typeof window.scrollTo;
     if (!window.scrollTo) {
-      Object.defineProperty(window, "scrollTo", {
-        value: vi.fn(),
-        writable: true,
-      });
+      Object.defineProperty(window, "scrollTo", { value: scrollToMock, writable: true });
     } else {
-      window.scrollTo = vi.fn();
+      window.scrollTo = scrollToMock;
     }
     apiMocks.getMe.mockResolvedValue({
       user: { email: "staff@example.com", subject: "staff" },
