@@ -1,4 +1,4 @@
-import { Route, Routes } from "react-router-dom";
+import { Navigate, Route, Routes } from "react-router-dom";
 import AppShell from "./app/AppShell";
 import PublicShell from "./public/PublicShell";
 import HomePage from "./public/pages/HomePage";
@@ -9,6 +9,8 @@ import ArticleDetail from "./public/pages/ArticleDetail";
 export default function App() {
   return (
     <Routes>
+      <Route path="/w/:workspaceId/*" element={<AppShell />} />
+      <Route path="/workspaces" element={<Navigate to="/app/workspaces" replace />} />
       <Route path="/app/*" element={<AppShell />} />
       <Route path="/*" element={<PublicShell />}>
         <Route index element={<HomePage />} />

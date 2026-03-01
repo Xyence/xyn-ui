@@ -10,7 +10,6 @@ import BlueprintsPage from "./pages/BlueprintsPage";
 import DraftSessionsPage from "./pages/DraftSessionsPage";
 import InstancesPage from "./pages/InstancesPage";
 import ModulesPage from "./pages/ModulesPage";
-import RegistriesPage from "./pages/RegistriesPage";
 import EnvironmentsPage from "./pages/EnvironmentsPage";
 import SecretConfigurationPage from "./pages/SecretConfigurationPage";
 import AIConfigPage from "./pages/AIConfigPage";
@@ -33,7 +32,6 @@ import XynMapPage from "./pages/XynMapPage";
 import PlatformSettingsPage from "./pages/PlatformSettingsPage";
 import VideoAdapterConfigPage from "./pages/VideoAdapterConfigPage";
 import SeedPacksPage from "./pages/SeedPacksPage";
-import WorkspaceHomePage from "./pages/WorkspaceHomePage";
 import ArtifactsRegistryPage from "./pages/ArtifactsRegistryPage";
 import ArtifactsLibraryPage from "./pages/ArtifactsLibraryPage";
 import ArtifactDetailPage from "./pages/ArtifactDetailPage";
@@ -58,6 +56,15 @@ import HeaderPreviewControl from "./components/preview/HeaderPreviewControl";
 import PreviewBanner from "./components/preview/PreviewBanner";
 import XynConsoleNode from "./components/console/XynConsoleNode";
 import { useXynConsole } from "./state/xynConsoleStore";
+import useWorkspaceFromRoute from "./hooks/useWorkspaceFromRoute";
+import {
+  DEFAULT_WORKSPACE_SUBPATH,
+  isWorkspaceScopedPath,
+  swapWorkspaceInPath,
+  toWorkspacePath,
+  toWorkspaceScopedPath,
+  withWorkspaceInNavPath,
+} from "./routing/workspaceRouting";
 
 function RedirectLegacyAiRoute({ tab }: { tab: "credentials" | "model-configs" | "agents" | "purposes" }) {
   const location = useLocation();
@@ -142,7 +149,7 @@ export default function AppShell() {
   const [brandLogo, setBrandLogo] = useState<string>("/xyence-logo.png");
   const [reportOpen, setReportOpen] = useState(false);
   const [workspaces, setWorkspaces] = useState<Array<{ id: string; slug: string; name: string; role: string; termination_authority?: boolean }>>([]);
-  const [activeWorkspaceId, setActiveWorkspaceId] = useState<string>(() => localStorage.getItem("xyn.activeWorkspaceId") || "");
+  const [preferredWorkspaceId, setPreferredWorkspaceId] = useState<string>(() => localStorage.getItem("xyn.activeWorkspaceId") || "");
   const [helpOpen, setHelpOpen] = useState(false);
   const [surfaceNavItems, setSurfaceNavItems] = useState<ArtifactSurface[]>([]);
   const [tourSlug, setTourSlug] = useState<string | null>(null);
@@ -152,7 +159,11 @@ export default function AppShell() {
   const { runningAiCount } = useOperations();
   const { preview, disablePreviewMode } = usePreview();
   const { handleRouteChange } = useXynConsole();
-  const hideFloatingConsoleNode = location.pathname === "/app/console" || location.pathname === "/app/initiate";
+  const hideFloatingConsoleNode = location.pathname === "/app/console" || location.pathname.includes("/console");
+  const workspaceRoute = useWorkspaceFromRoute(workspaces);
+  const workspaceIdFromRoute = workspaceRoute.workspaceId;
+  const activeWorkspaceId = workspaceIdFromRoute || preferredWorkspaceId;
+  const inWorkspaceScope = isWorkspaceScopedPath(location.pathname);
 
   useEffect(() => {
     let mounted = true;
@@ -172,13 +183,13 @@ export default function AppShell() {
         const meWorkspaces = me?.workspaces || [];
         if (Array.isArray(meWorkspaces) && meWorkspaces.length > 0) {
           setWorkspaces(meWorkspaces);
-          setActiveWorkspaceId((current) => current || meWorkspaces[0].id);
+          setPreferredWorkspaceId((current) => current || meWorkspaces[0].id);
         } else {
           try {
             const ws = await listWorkspaces();
             if (!mounted) return;
             setWorkspaces(ws.workspaces || []);
-            setActiveWorkspaceId((current) => current || ws.workspaces?.[0]?.id || "");
+            setPreferredWorkspaceId((current) => current || ws.workspaces?.[0]?.id || "");
           } catch {
             // Keep empty workspaces in bootstrap errors.
           }
@@ -245,6 +256,38 @@ export default function AppShell() {
     if (activeWorkspaceId) localStorage.setItem("xyn.activeWorkspaceId", activeWorkspaceId);
   }, [activeWorkspaceId]);
 
+  useEffect(() => {
+    if (workspaceIdFromRoute) {
+      setPreferredWorkspaceId(workspaceIdFromRoute);
+    }
+  }, [workspaceIdFromRoute]);
+
+  useEffect(() => {
+    if (!workspaces.length) return;
+    const fallbackWorkspaceId = preferredWorkspaceId || workspaces[0]?.id || "";
+    if (!fallbackWorkspaceId) return;
+
+    if (inWorkspaceScope) {
+      const valid = workspaces.some((workspace) => workspace.id === workspaceIdFromRoute);
+      if (!valid) {
+        navigate(toWorkspacePath(fallbackWorkspaceId, DEFAULT_WORKSPACE_SUBPATH), { replace: true });
+      }
+      return;
+    }
+
+    const redirected = toWorkspaceScopedPath(location.pathname, fallbackWorkspaceId);
+    if (redirected) {
+      navigate(
+        {
+          pathname: redirected,
+          search: location.search,
+          hash: location.hash,
+        },
+        { replace: true }
+      );
+    }
+  }, [inWorkspaceScope, location.hash, location.pathname, location.search, navigate, preferredWorkspaceId, workspaceIdFromRoute, workspaces]);
+
   const startLogin = () => {
     const returnTo = window.location.pathname || "/app";
     window.location.href = `/auth/login?appId=xyn-ui&returnTo=${encodeURIComponent(returnTo)}`;
@@ -272,10 +315,19 @@ export default function AppShell() {
 
   const navUser: NavUserContext = useMemo(() => ({ roles: effectiveRoles, permissions }), [effectiveRoles, permissions]);
   const navGroups: NavGroup[] = useMemo(() => {
+    const mapNavPath = (path: string): string => {
+      if (!activeWorkspaceId) return path;
+      return withWorkspaceInNavPath(path, activeWorkspaceId);
+    };
     const baseGroups = NAV_GROUPS.map((group) => ({
       ...group,
-      items: group.items ? [...group.items] : [],
-      subgroups: group.subgroups ? [...group.subgroups] : [],
+      items: group.items ? group.items.map((item) => ({ ...item, path: mapNavPath(item.path) })) : [],
+      subgroups: group.subgroups
+        ? group.subgroups.map((subgroup) => ({
+            ...subgroup,
+            items: subgroup.items.map((item) => ({ ...item, path: mapNavPath(item.path) })),
+          }))
+        : [],
     }));
     if (!surfaceNavItems.length) return baseGroups;
     const idToGroup = new Map(baseGroups.map((group) => [group.id, group]));
@@ -304,7 +356,7 @@ export default function AppShell() {
         const navItem: NavItem = {
           id: `surface-${surface.id}`,
           label: String(surface.nav_label || surface.title || "Surface"),
-          path: route,
+          path: mapNavPath(route),
           icon: String(surface.nav_icon || "").trim() || "Sparkles",
           requiredRoles: requiredRoles.length ? requiredRoles : undefined,
           requiredPermissions: requiredPermissions.length ? requiredPermissions : undefined,
@@ -314,7 +366,15 @@ export default function AppShell() {
       });
 
     return baseGroups;
-  }, [surfaceNavItems]);
+  }, [activeWorkspaceId, surfaceNavItems]);
+  const createActions = useMemo(
+    () =>
+      CREATE_ACTIONS.map((action) => ({
+        ...action,
+        path: activeWorkspaceId ? withWorkspaceInNavPath(action.path, activeWorkspaceId) : action.path,
+      })),
+    [activeWorkspaceId]
+  );
   const activeWorkspace = useMemo(
     () => workspaces.find((workspace) => workspace.id === activeWorkspaceId) || workspaces[0] || null,
     [workspaces, activeWorkspaceId]
@@ -327,10 +387,27 @@ export default function AppShell() {
   }, [location.pathname, navGroups, navUser]);
   const routeId = useMemo(() => resolveRouteId(location.pathname), [location.pathname]);
   const artifactRouteId = useMemo(() => {
-    const match = location.pathname.match(/^\/app\/artifacts\/([^/]+)/);
+    const match = location.pathname.match(/^\/w\/[^/]+\/build\/artifacts\/([^/]+)/) || location.pathname.match(/^\/app\/artifacts\/([^/]+)/);
     const candidate = match?.[1] || "";
     return /^[0-9a-f-]{36}$/i.test(candidate) ? candidate : "";
   }, [location.pathname]);
+  const handleWorkspaceChange = (nextWorkspaceId: string) => {
+    if (!nextWorkspaceId) return;
+    setPreferredWorkspaceId(nextWorkspaceId);
+    if (inWorkspaceScope && isWorkspaceScopedPath(location.pathname)) {
+      navigate({
+        pathname: swapWorkspaceInPath(location.pathname, nextWorkspaceId),
+        search: location.search,
+        hash: location.hash,
+      });
+      return;
+    }
+    navigate(toWorkspacePath(nextWorkspaceId, DEFAULT_WORKSPACE_SUBPATH));
+  };
+  const workspaceScopedTarget = (subpath: string): string => {
+    if (!activeWorkspace?.id) return "/app/workspaces";
+    return toWorkspacePath(activeWorkspace.id, subpath);
+  };
 
   useGlobalHotkeys((event) => {
     const target = event.target as HTMLElement | null;
@@ -500,10 +577,10 @@ export default function AppShell() {
         <Sidebar
           user={navUser}
           navGroups={navGroups}
-          createActions={CREATE_ACTIONS}
+          createActions={createActions}
           workspaces={workspaces.map((workspace) => ({ id: workspace.id, name: workspace.name }))}
           activeWorkspaceId={activeWorkspace?.id || ""}
-          onWorkspaceChange={setActiveWorkspaceId}
+          onWorkspaceChange={handleWorkspaceChange}
         />
         <main className="app-content" ref={contentRef}>
           <div className={`preview-banner-slot ${preview.enabled ? "active" : ""}`}>
@@ -521,8 +598,7 @@ export default function AppShell() {
             </div>
           )}
           <Routes>
-            <Route path="/" element={<Navigate to="home" replace />} />
-            <Route path="home" element={<WorkspaceHomePage workspaceName={activeWorkspace?.name || "Workspace"} />} />
+            <Route path="/" element={<Navigate to={inWorkspaceScope ? DEFAULT_WORKSPACE_SUBPATH : "workspaces"} replace />} />
             <Route path="console" element={<InitiatePage />} />
             <Route
               path="a/*"
@@ -535,19 +611,10 @@ export default function AppShell() {
                 />
               }
             />
-            <Route path="artifacts" element={<Navigate to="/app/artifacts/all" replace />} />
+            <Route path="build/artifacts" element={<ArtifactsRegistryPage workspaceId={activeWorkspace?.id || ""} workspaceName={activeWorkspace?.name || ""} workspaceColor={workspaceRoute.workspaceColor} />} />
+            <Route path="build/artifacts/library" element={<ArtifactsLibraryPage />} />
             <Route
-              path="artifacts/articles"
-              element={<RedirectWithNotice to="/app/a/articles" notice="Articles moved to Surface route /app/a/articles." />}
-            />
-            <Route
-              path="artifacts/workflows"
-              element={<RedirectWithNotice to="/app/a/workflows" notice="Workflows moved to Surface route /app/a/workflows." />}
-            />
-            <Route path="artifacts/all" element={<ArtifactsRegistryPage workspaceId={activeWorkspace?.id || ""} workspaceName={activeWorkspace?.name || ""} />} />
-            <Route path="artifacts/library" element={<ArtifactsLibraryPage />} />
-            <Route
-              path="artifacts/:artifactId"
+              path="build/artifacts/:artifactId"
               element={
                 <ArtifactDetailPage
                   workspaceId={activeWorkspace?.id || ""}
@@ -556,8 +623,46 @@ export default function AppShell() {
                 />
               }
             />
-            <Route path="activity" element={<ActivityPage workspaceId={activeWorkspace?.id || ""} />} />
+            <Route path="build/modules" element={<ModulesPage />} />
+            <Route
+              path="build/blueprints"
+              element={<RedirectWithNotice to={workspaceScopedTarget("build/blueprints/versions")} notice="Blueprints moved to Build / Blueprints / Versions." />}
+            />
+            <Route path="build/blueprints/drafts" element={<BlueprintsPage mode="drafts" />} />
+            <Route path="build/blueprints/versions" element={<BlueprintsPage mode="versions" />} />
+            <Route path="build/blueprints/:blueprintId" element={<BlueprintsPage />} />
+            <Route
+              path="build/drafts"
+              element={<RedirectWithNotice to={workspaceScopedTarget("build/blueprints/drafts")} notice="Draft Sessions moved to Build / Blueprints / Drafts." />}
+            />
+            <Route
+              path="build/draft-sessions"
+              element={<RedirectWithNotice to={workspaceScopedTarget("build/blueprints/drafts")} notice="Draft Sessions moved to Build / Blueprints / Drafts." />}
+            />
+            <Route path="build/drafts/:draftId" element={<DraftSessionsPage />} />
+            <Route path="build/context-packs" element={<ContextPacksPage />} />
+            <Route path="build/context-packs/drafts/:draftId" element={<ContextPackDraftEditorPage />} />
+            <Route path="package/release-plans" element={<ReleasePlansPage />} />
+            <Route path="package/releases" element={<ReleasesPage />} />
+            <Route path="run/instances" element={<InstancesPage />} />
+            <Route path="run/runs" element={<RunsPage />} />
+            <Route path="govern/activity" element={<ActivityPage workspaceId={activeWorkspace?.id || ""} />} />
             <Route path="govern/contributions" element={<ActivityPage workspaceId={activeWorkspace?.id || ""} defaultTab="contributions" />} />
+
+            <Route path="artifacts" element={<Navigate to={workspaceScopedTarget("build/artifacts")} replace />} />
+            <Route
+              path="artifacts/articles"
+              element={<RedirectWithNotice to={workspaceScopedTarget("a/articles")} notice="Articles moved to Surface route /w/:workspaceId/a/articles." />}
+            />
+            <Route
+              path="artifacts/workflows"
+              element={<RedirectWithNotice to={workspaceScopedTarget("a/workflows")} notice="Workflows moved to Surface route /w/:workspaceId/a/workflows." />}
+            />
+            <Route path="artifacts/all" element={<Navigate to={workspaceScopedTarget("build/artifacts")} replace />} />
+            <Route path="artifacts/library" element={<Navigate to={workspaceScopedTarget("build/artifacts/library")} replace />} />
+            <Route path="artifacts/:artifactId" element={<Navigate to={workspaceScopedTarget("build/artifacts")} replace />} />
+            <Route path="activity" element={<Navigate to={workspaceScopedTarget("govern/activity")} replace />} />
+            <Route path="home" element={<Navigate to={workspaceScopedTarget(DEFAULT_WORKSPACE_SUBPATH)} replace />} />
             <Route
               path="workspaces"
               element={
@@ -575,32 +680,28 @@ export default function AppShell() {
             <Route path="tours" element={<ToursPage />} />
             <Route path="tours/:workflowId" element={<TourDetailPage />} />
             <Route path="map" element={<XynMapPage />} />
-            <Route
-              path="blueprints"
-              element={<RedirectWithNotice to="/app/blueprints/versions" notice="Blueprints moved to Build / Blueprints / Versions." />}
-            />
-            <Route path="blueprints/drafts" element={<BlueprintsPage mode="drafts" />} />
-            <Route path="blueprints/versions" element={<BlueprintsPage mode="versions" />} />
-            <Route path="blueprints/:blueprintId" element={<BlueprintsPage />} />
+            <Route path="blueprints" element={<Navigate to={workspaceScopedTarget("build/blueprints/versions")} replace />} />
+            <Route path="blueprints/drafts" element={<Navigate to={workspaceScopedTarget("build/blueprints/drafts")} replace />} />
+            <Route path="blueprints/versions" element={<Navigate to={workspaceScopedTarget("build/blueprints/versions")} replace />} />
+            <Route path="blueprints/:blueprintId" element={<Navigate to={workspaceScopedTarget("build/blueprints")} replace />} />
             <Route
               path="drafts"
-              element={<RedirectWithNotice to="/app/blueprints/drafts" notice="Draft Sessions moved to Build / Blueprints / Drafts." />}
+              element={<Navigate to={workspaceScopedTarget("build/drafts")} replace />}
             />
             <Route
               path="draft-sessions"
-              element={<RedirectWithNotice to="/app/blueprints/drafts" notice="Draft Sessions moved to Build / Blueprints / Drafts." />}
+              element={<Navigate to={workspaceScopedTarget("build/drafts")} replace />}
             />
-            <Route path="drafts/:draftId" element={<DraftSessionsPage />} />
-            <Route path="modules" element={<ModulesPage />} />
-            <Route path="release-plans" element={<ReleasePlansPage />} />
-            <Route path="releases" element={<ReleasesPage />} />
-            <Route path="instances" element={<InstancesPage />} />
-            <Route path="runs" element={<RunsPage />} />
+            <Route path="drafts/:draftId" element={<Navigate to={workspaceScopedTarget("build/drafts")} replace />} />
+            <Route path="modules" element={<Navigate to={workspaceScopedTarget("build/modules")} replace />} />
+            <Route path="release-plans" element={<Navigate to={workspaceScopedTarget("package/release-plans")} replace />} />
+            <Route path="releases" element={<Navigate to={workspaceScopedTarget("package/releases")} replace />} />
+            <Route path="instances" element={<Navigate to={workspaceScopedTarget("run/instances")} replace />} />
+            <Route path="runs" element={<Navigate to={workspaceScopedTarget("run/runs")} replace />} />
             <Route path="dev-tasks" element={<DevTasksPage />} />
             <Route path="environments" element={<EnvironmentsPage />} />
-            <Route path="registries" element={<RegistriesPage />} />
-            <Route path="context-packs" element={<ContextPacksPage />} />
-            <Route path="context-packs/drafts/:draftId" element={<ContextPackDraftEditorPage />} />
+            <Route path="context-packs" element={<Navigate to={workspaceScopedTarget("build/context-packs")} replace />} />
+            <Route path="context-packs/drafts/:draftId" element={<Navigate to={workspaceScopedTarget("build/context-packs")} replace />} />
             <Route path="my-tenants" element={<RedirectLegacyTenantsRoute view="my" />} />
             <Route path="control-plane" element={<ControlPlanePage />} />
             <Route path="platform/tenants" element={<PlatformTenantsPage />} />
@@ -629,7 +730,7 @@ export default function AppShell() {
             <Route path="platform/ai/agents" element={<RedirectLegacyAiRoute tab="agents" />} />
             <Route path="platform/ai/purposes" element={<RedirectLegacyAiRoute tab="purposes" />} />
             <Route path="settings" element={<WorkspaceSettingsPage workspaceName={activeWorkspace?.name || "Workspace"} />} />
-            <Route path="*" element={<Navigate to="home" replace />} />
+            <Route path="*" element={<Navigate to={inWorkspaceScope ? DEFAULT_WORKSPACE_SUBPATH : "workspaces"} replace />} />
           </Routes>
         </main>
       </div>

@@ -120,7 +120,7 @@ describe("AppShell nav surfaces", () => {
 
   it("renders Hello nav item from nav surfaces response", async () => {
     render(
-      <MemoryRouter initialEntries={["/app/home"]}>
+      <MemoryRouter initialEntries={["/w/ws-1/build/artifacts"]}>
         <AppShell />
       </MemoryRouter>
     );

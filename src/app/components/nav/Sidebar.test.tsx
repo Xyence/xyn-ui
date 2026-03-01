@@ -23,9 +23,8 @@ describe("Sidebar", () => {
   it("renders groups and items from nav config", async () => {
     renderSidebar("/app/artifacts/articles");
     expect(screen.getByRole("link", { name: /^Initiate$/i })).toBeInTheDocument();
-    expect(screen.getByRole("link", { name: /^Home$/i })).toBeInTheDocument();
-    expect(screen.getByRole("link", { name: /^Articles$/i })).toBeInTheDocument();
     expect(screen.getByRole("link", { name: /^Artifact Explorer$/i })).toBeInTheDocument();
+    expect(screen.getByRole("link", { name: /^Artifacts Library$/i })).toBeInTheDocument();
     expect(screen.getByRole("link", { name: /^Workspaces$/i })).toBeInTheDocument();
   });
 
@@ -36,7 +35,7 @@ describe("Sidebar", () => {
 
   it("persists collapsed mode to localStorage", async () => {
     const user = userEvent.setup();
-    renderSidebar("/app/home");
+    renderSidebar("/app/console");
     await user.click(screen.getByRole("button", { name: /Collapse sidebar/i }));
     const stored = window.localStorage.getItem(NAV_STATE_STORAGE_KEY) || "";
     expect(stored).toContain('"collapsed":true');
@@ -44,7 +43,7 @@ describe("Sidebar", () => {
 
   it("search filtering reduces visible items and expands matching groups", async () => {
     const user = userEvent.setup();
-    renderSidebar("/app/home", ["admin"]);
+    renderSidebar("/app/console", ["admin"]);
 
     const search = screen.getByRole("textbox", { name: "Search" });
     await user.type(search, "artifact");
@@ -55,7 +54,7 @@ describe("Sidebar", () => {
 
   it("keeps role-gated settings hidden for non-admin users", async () => {
     const user = userEvent.setup();
-    renderSidebar("/app/home", []);
+    renderSidebar("/app/console", []);
     await user.type(screen.getByRole("textbox", { name: "Search" }), "settings");
     expect(screen.queryByRole("link", { name: /^Platform Settings$/i })).not.toBeInTheDocument();
   });

@@ -92,7 +92,6 @@ export const NAV_GROUPS: NavGroup[] = [
     icon: "Compass",
     items: [
       { id: "initiate", label: "Initiate", path: "/app/console", icon: "Sparkles", keywords: ["console", "intent", "start"] },
-      { id: "home", label: "Home", path: "/app/home", icon: "Compass", keywords: ["overview", "workspace"] },
     ],
   },
   {
@@ -109,7 +108,6 @@ export const NAV_GROUPS: NavGroup[] = [
     items: [
       { id: "release-plans", label: "Release Plans", path: "/app/release-plans", icon: "Route", keywords: ["deploy plan"] },
       { id: "releases", label: "Releases", path: "/app/releases", icon: "PackageCheck", keywords: ["versions"] },
-      { id: "registries", label: "Registries", path: "/app/registries", icon: "Database", keywords: ["sync"] },
     ],
   },
   {

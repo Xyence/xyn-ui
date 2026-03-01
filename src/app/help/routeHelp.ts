@@ -155,22 +155,24 @@ const HELP_BY_ROUTE: Record<string, RouteHelp> = {
 };
 
 export function resolveRouteId(pathname: string): string {
-  if (pathname.startsWith("/app/blueprints")) return "app.blueprints";
-  if (pathname.startsWith("/app/drafts")) return "app.drafts";
-  if (pathname.startsWith("/app/release-plans")) return "app.release-plans";
-  if (pathname.startsWith("/app/releases")) return "app.releases";
-  if (pathname.startsWith("/app/instances")) return "app.instances";
-  if (pathname.startsWith("/app/runs")) return "app.runs";
-  if (pathname.startsWith("/app/guides")) return "app.guides";
-  if (pathname.startsWith("/app/tours")) return "app.tours";
-  if (pathname.startsWith("/app/artifacts/all")) return "app.artifacts.all";
-  if (pathname.startsWith("/app/artifacts/articles")) return "app.artifacts.articles";
-  if (pathname.startsWith("/app/artifacts/")) return "app.artifacts.articles";
-  if (pathname === "/app/artifacts") return "app.artifacts.articles";
-  if (pathname.startsWith("/app/activity")) return "app.activity";
-  if (pathname.startsWith("/app/workspaces")) return "app.workspaces";
-  if (pathname.startsWith("/app/people-roles")) return "app.workspaces";
-  if (pathname.startsWith("/app/settings")) return "app.settings";
+  const workspaceNormalized = pathname.replace(/^\/w\/[^/]+/, "/app");
+  const current = workspaceNormalized;
+  if (current.startsWith("/app/build/blueprints") || current.startsWith("/app/blueprints")) return "app.blueprints";
+  if (current.startsWith("/app/build/drafts") || current.startsWith("/app/drafts")) return "app.drafts";
+  if (current.startsWith("/app/package/release-plans") || current.startsWith("/app/release-plans")) return "app.release-plans";
+  if (current.startsWith("/app/package/releases") || current.startsWith("/app/releases")) return "app.releases";
+  if (current.startsWith("/app/run/instances") || current.startsWith("/app/instances")) return "app.instances";
+  if (current.startsWith("/app/run/runs") || current.startsWith("/app/runs")) return "app.runs";
+  if (current.startsWith("/app/guides")) return "app.guides";
+  if (current.startsWith("/app/tours")) return "app.tours";
+  if (current.startsWith("/app/build/artifacts") || current.startsWith("/app/artifacts/all")) return "app.artifacts.all";
+  if (current.startsWith("/app/artifacts/articles")) return "app.artifacts.articles";
+  if (current.startsWith("/app/artifacts/")) return "app.artifacts.articles";
+  if (current === "/app/artifacts") return "app.artifacts.articles";
+  if (current.startsWith("/app/govern/activity") || current.startsWith("/app/activity")) return "app.activity";
+  if (current.startsWith("/app/workspaces")) return "app.workspaces";
+  if (current.startsWith("/app/people-roles")) return "app.workspaces";
+  if (current.startsWith("/app/settings")) return "app.settings";
   return "app.home";
 }
 

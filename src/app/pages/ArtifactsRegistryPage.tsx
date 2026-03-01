@@ -1,62 +1,49 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import InlineMessage from "../../components/InlineMessage";
-import { listArtifacts } from "../../api/xyn";
-import type { UnifiedArtifact, UnifiedArtifactState, UnifiedArtifactType } from "../../api/types";
-
-const TYPE_OPTIONS: Array<{ value: "" | UnifiedArtifactType; label: string }> = [
-  { value: "", label: "All" },
-  { value: "draft_session", label: "Draft Sessions" },
-  { value: "blueprint", label: "Blueprints" },
-];
-
-const STATE_OPTIONS: Array<{ value: UnifiedArtifactState; label: string }> = [
-  { value: "provisional", label: "Provisional" },
-  { value: "canonical", label: "Canonical" },
-  { value: "immutable", label: "Immutable" },
-  { value: "deprecated", label: "Deprecated" },
-];
+import { listWorkspaceArtifacts } from "../../api/xyn";
+import type { WorkspaceInstalledArtifactSummary } from "../../api/types";
+import WorkspaceContextBar from "../components/common/WorkspaceContextBar";
+import { toWorkspacePath } from "../routing/workspaceRouting";
 
 function formatDate(value?: string): string {
-  if (!value) return "—";
+  if (!value) return "-";
   const date = new Date(value);
-  if (Number.isNaN(date.getTime())) return "—";
+  if (Number.isNaN(date.getTime())) return "-";
   return date.toLocaleString();
 }
 
-function formatOwner(item: UnifiedArtifact): string {
-  if (!item.owner) return "—";
-  return item.owner.display_name || item.owner.email || item.owner.id;
-}
-
-export default function ArtifactsRegistryPage({ workspaceId: _workspaceId }: { workspaceId: string }) {
+export default function ArtifactsRegistryPage({
+  workspaceId,
+  workspaceName,
+  workspaceColor,
+}: {
+  workspaceId: string;
+  workspaceName: string;
+  workspaceColor?: string;
+}) {
   const navigate = useNavigate();
-  const [items, setItems] = useState<UnifiedArtifact[]>([]);
+  const [items, setItems] = useState<WorkspaceInstalledArtifactSummary[]>([]);
   const [query, setQuery] = useState("");
-  const [typeFilter, setTypeFilter] = useState<"" | UnifiedArtifactType>("");
-  const [stateFilter, setStateFilter] = useState<Set<UnifiedArtifactState>>(
-    () => new Set<UnifiedArtifactState>(["provisional", "canonical", "immutable"])
-  );
   const [error, setError] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
 
   const load = useCallback(async () => {
+    if (!workspaceId) {
+      setItems([]);
+      return;
+    }
     try {
       setLoading(true);
       setError(null);
-      const payload = await listArtifacts({
-        type: typeFilter || undefined,
-        query: query.trim() || undefined,
-        limit: 500,
-        offset: 0,
-      });
+      const payload = await listWorkspaceArtifacts(workspaceId);
       setItems(payload.artifacts || []);
     } catch (err) {
       setError((err as Error).message);
     } finally {
       setLoading(false);
     }
-  }, [query, typeFilter]);
+  }, [workspaceId]);
 
   useEffect(() => {
     void load();
@@ -65,157 +52,76 @@ export default function ArtifactsRegistryPage({ workspaceId: _workspaceId }: { w
   const filtered = useMemo(() => {
     const text = query.trim().toLowerCase();
     return items.filter((item) => {
-      const state = String(item.artifact_state || "").toLowerCase() as UnifiedArtifactState;
-      if (!stateFilter.has(state)) return false;
       if (!text) return true;
-      const haystack = `${item.title} ${item.summary || ""} ${item.source_ref_type || ""} ${item.source_ref_id || ""}`.toLowerCase();
+      const haystack = `${item.title || item.name || ""} ${item.description || ""} ${item.kind || ""} ${item.installed_state || ""}`.toLowerCase();
       return haystack.includes(text);
     });
-  }, [items, query, stateFilter]);
-
-  const stateCounts = useMemo(() => {
-    const counts: Record<string, number> = {};
-    for (const item of items) {
-      const key = String(item.artifact_state || "").toLowerCase();
-      if (!key) continue;
-      counts[key] = (counts[key] || 0) + 1;
-    }
-    return counts;
-  }, [items]);
-
-  const toggleStateFilter = (state: UnifiedArtifactState, checked: boolean) => {
-    setStateFilter((current) => {
-      const next = new Set(current);
-      if (checked) next.add(state);
-      else next.delete(state);
-      return next;
-    });
-  };
-
-  const navigateForArtifact = (item: UnifiedArtifact) => {
-    const source = (item.source || {}) as Record<string, unknown>;
-    if (item.artifact_type === "draft_session") {
-      const sessionId = String(source.id || item.source_ref_id || "").trim();
-      if (sessionId) navigate(`/app/drafts/${sessionId}`);
-      return;
-    }
-    if (item.artifact_type === "blueprint") {
-      const blueprintId = String(source.id || item.source_ref_id || "").trim();
-      if (blueprintId) navigate(`/app/blueprints/${blueprintId}`);
-      return;
-    }
-    if (item.artifact_type === "article") {
-      const artifactId = String(item.artifact_id || item.id || "").trim();
-      if (artifactId) navigate(`/app/artifacts/${artifactId}`);
-      return;
-    }
-    if (item.artifact_type === "context_pack") {
-      const packId = String(source.id || item.source_ref_id || "").trim();
-      if (packId) navigate(`/app/context-packs?pack=${encodeURIComponent(packId)}`);
-      else navigate("/app/context-packs");
-      return;
-    }
-    if (item.artifact_type === "workflow") {
-      const workflowId = String(source.id || item.source_ref_id || "").trim();
-      navigate(`/app/artifacts/workflows${workflowId ? `?workflow=${encodeURIComponent(workflowId)}` : ""}`);
-      return;
-    }
-    if (item.artifact_type === "module") {
-      navigate("/app/modules");
-      return;
-    }
-    const artifactId = String(item.artifact_id || item.id || "").trim();
-    if (artifactId) {
-      navigate(`/app/artifacts/${artifactId}`);
-    }
-  };
+  }, [items, query]);
 
   return (
     <>
+      <WorkspaceContextBar workspaceName={workspaceName} workspaceColor={workspaceColor} />
+
       <div className="page-header">
         <div>
           <h2>Artifact Explorer</h2>
-          <p className="muted">Unified artifacts index across Draft Sessions and Blueprints.</p>
-        </div>
-        <div className="inline-actions">
-          <button className="ghost" onClick={() => void load()} disabled={loading}>
-            Refresh
-          </button>
+          <p className="muted">Workspace-installed artifacts.</p>
         </div>
       </div>
 
+      {!workspaceId && <InlineMessage tone="error" title="Workspace required" body="Select a workspace to view installed artifacts." />}
       {error && <InlineMessage tone="error" title="Request failed" body={error} />}
 
       <section className="card">
-        <div className="form-grid">
-          <label>
-            Search
+        <div className="card-header">
+          <h3>Installed Artifacts</h3>
+          <div className="inline-actions">
             <input
-              className="input"
+              className="input artifacts-registry-search"
               value={query}
               onChange={(event) => setQuery(event.target.value)}
-              placeholder="Search title"
+              placeholder="Search installed artifacts"
+              aria-label="Search installed artifacts"
             />
-          </label>
-          <label>
-            Type
-            <select value={typeFilter} onChange={(event) => setTypeFilter(event.target.value as "" | UnifiedArtifactType)}>
-              {TYPE_OPTIONS.map((option) => (
-                <option key={option.label} value={option.value}>
-                  {option.label}
-                </option>
-              ))}
-            </select>
-          </label>
-          <div>
-            <span className="muted small">State</span>
-            <div className="inline-actions artifact-state-multiselect">
-              {STATE_OPTIONS.map((option) => (
-                <label key={option.value} className="muted small">
-                  <input
-                    type="checkbox"
-                    checked={stateFilter.has(option.value)}
-                    onChange={(event) => toggleStateFilter(option.value, event.target.checked)}
-                  />{" "}
-                  {option.label} ({stateCounts[option.value] || 0})
-                </label>
-              ))}
-            </div>
+            <button className="ghost" onClick={() => void load()} disabled={loading || !workspaceId}>
+              Refresh
+            </button>
           </div>
         </div>
-      </section>
-
-      <section className="card">
-        <div className="card-header">
-          <h3>Artifacts</h3>
-        </div>
-        <div className="instance-list" role="table" aria-label="Artifact Explorer">
+        <div className="instance-list" role="table" aria-label="Workspace installed artifacts">
           <div className="instance-row" role="row">
             <div role="columnheader">
               <strong>Title</strong>
             </div>
             <div role="columnheader" className="muted small">
-              Type · State · Updated · Owner
+              Kind · State · Enabled · Updated
             </div>
           </div>
           {filtered.map((item) => (
             <button
-              key={item.id}
+              key={item.binding_id}
               className="instance-row"
               role="row"
-              onClick={() => navigateForArtifact(item)}
+              onClick={() => navigate(toWorkspacePath(workspaceId, `build/artifacts/${item.artifact_id}`))}
               type="button"
             >
               <div role="cell">
-                <strong>{item.title}</strong>
-                <span className="muted small">{item.summary || "—"}</span>
+                <strong>{item.title || item.name}</strong>
+                <span className="muted small">{item.description || "-"}</span>
               </div>
               <div role="cell" className="muted small">
-                {item.artifact_type} · {item.artifact_state} · {formatDate(item.updated_at)} · {formatOwner(item)}
+                {item.kind || "-"} · {item.installed_state || "installed"} · {item.enabled ? "yes" : "no"} · {formatDate(item.updated_at)}
               </div>
             </button>
           ))}
-          {filtered.length === 0 && <p className="muted">No artifacts matched your filters.</p>}
+          {!loading && filtered.length === 0 && (
+            <div className="instance-row" role="row">
+              <div role="cell">
+                <strong>No artifacts installed in this workspace.</strong>
+                <span className="muted small">You'll be able to browse and install from the Catalog in a later phase.</span>
+              </div>
+            </div>
+          )}
         </div>
       </section>
     </>
