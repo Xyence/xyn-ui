@@ -16,7 +16,6 @@ import AccessControlPage from "./pages/AccessControlPage";
 import RunsPage from "./pages/RunsPage";
 import ActivityPage from "./pages/ActivityPage";
 import DevTasksPage from "./pages/DevTasksPage";
-import PlatformTenantsPage from "./pages/PlatformTenantsPage";
 import PlatformBrandingPage from "./pages/PlatformBrandingPage";
 import ControlPlanePage from "./pages/ControlPlanePage";
 import GuidesPage from "./pages/GuidesPage";
@@ -30,7 +29,6 @@ import ArtifactsRegistryPage from "./pages/ArtifactsRegistryPage";
 import ArtifactsLibraryPage from "./pages/ArtifactsLibraryPage";
 import ArtifactDetailPage from "./pages/ArtifactDetailPage";
 import ArtifactSurfaceRoutePage from "./pages/ArtifactSurfaceRoutePage";
-import WorkspacesPage from "./pages/WorkspacesPage";
 import WorkspaceSettingsPage from "./pages/WorkspaceSettingsPage";
 import InitiatePage from "./pages/InitiatePage";
 import { useGlobalHotkeys } from "./hooks/useGlobalHotkeys";
@@ -89,14 +87,6 @@ function RedirectLegacyIdentityRoute({ tab }: { tab: "identity-providers" | "oid
   return <Navigate to={{ pathname: "/app/platform/identity-configuration", search: `?${currentParams.toString()}` }} replace />;
 }
 
-function RedirectLegacyTenantsRoute({ view }: { view: "all" | "my" }) {
-  const location = useLocation();
-  const currentParams = new URLSearchParams(location.search);
-  if (view === "my") currentParams.set("view", "my");
-  else currentParams.delete("view");
-  return <Navigate to={{ pathname: "/app/platform/tenants", search: `?${currentParams.toString()}` }} replace />;
-}
-
 function RedirectLegacyAccessControlRoute({ tab }: { tab: "roles" | "users" | "explorer" }) {
   const location = useLocation();
   const currentParams = new URLSearchParams(location.search);
@@ -107,8 +97,18 @@ function RedirectLegacyAccessControlRoute({ tab }: { tab: "roles" | "users" | "e
 function RedirectLegacyWorkspaceAccessRoute() {
   const location = useLocation();
   const currentParams = new URLSearchParams(location.search);
-  currentParams.set("tab", "people_roles");
-  return <Navigate to={{ pathname: "/app/workspaces", search: `?${currentParams.toString()}` }} replace />;
+  currentParams.set("tab", "workspaces");
+  currentParams.set("wsTab", "members");
+  return <Navigate to={{ pathname: "/app/platform/settings", search: `?${currentParams.toString()}` }} replace />;
+}
+
+function RedirectLegacyWorkspacesRoute() {
+  const location = useLocation();
+  const currentParams = new URLSearchParams(location.search);
+  const legacyTab = String(currentParams.get("tab") || "").toLowerCase();
+  currentParams.set("tab", "workspaces");
+  currentParams.set("wsTab", legacyTab === "people_roles" ? "members" : "profile");
+  return <Navigate to={{ pathname: "/app/platform/settings", search: `?${currentParams.toString()}` }} replace />;
 }
 
 function RedirectWithNotice({ to, notice }: { to: string; notice: string }) {
@@ -125,14 +125,10 @@ function RedirectWithNotice({ to, notice }: { to: string; notice: string }) {
 }
 
 function RedirectLegacyTenantContactsDetailRoute() {
-  const { pathname, search } = useLocation();
-  const match = pathname.match(/\/app\/platform\/tenant-contacts\/([^/?#]+)/);
-  const tenantId = match?.[1] || "";
-  const currentParams = new URLSearchParams(search);
-  currentParams.set("tab", "contacts");
-  const searchString = currentParams.toString();
-  const destination = tenantId ? `/app/platform/tenants/${tenantId}` : "/app/platform/tenants";
-  return <Navigate to={{ pathname: destination, search: searchString ? `?${searchString}` : "" }} replace />;
+  const currentParams = new URLSearchParams();
+  currentParams.set("tab", "workspaces");
+  currentParams.set("wsTab", "all");
+  return <Navigate to={{ pathname: "/app/platform/settings", search: `?${currentParams.toString()}` }} replace />;
 }
 
 function LegacyStatePanel({
@@ -444,7 +440,7 @@ export default function AppShell() {
     navigate(toWorkspacePath(nextWorkspaceId, DEFAULT_WORKSPACE_SUBPATH));
   };
   const workspaceScopedTarget = (subpath: string): string => {
-    if (!activeWorkspace?.id) return "/app/workspaces";
+    if (!activeWorkspace?.id) return "/app/platform/settings?tab=workspaces&wsTab=profile";
     return toWorkspacePath(activeWorkspace.id, subpath);
   };
   const settingsPath = workspaceScopedTarget("platform/settings");
@@ -770,14 +766,7 @@ export default function AppShell() {
             <Route path="home" element={<Navigate to={workspaceScopedTarget(DEFAULT_WORKSPACE_SUBPATH)} replace />} />
             <Route
               path="workspaces"
-              element={
-                <WorkspacesPage
-                  activeWorkspaceId={activeWorkspace?.id || ""}
-                  activeWorkspaceName={activeWorkspace?.name || "Workspace"}
-                  canWorkspaceAdmin={canWorkspaceAdmin && !isPreviewReadOnly}
-                  canManageWorkspaces={isPlatformAdmin && !isPreviewReadOnly}
-                />
-              }
+              element={<RedirectLegacyWorkspacesRoute />}
             />
             <Route path="people-roles" element={<RedirectLegacyWorkspaceAccessRoute />} />
             <Route
@@ -849,7 +838,7 @@ export default function AppShell() {
             <Route path="environments" element={<Navigate to={runsPath} replace />} />
             <Route path="context-packs" element={<Navigate to={workspaceScopedTarget("build/artifacts")} replace />} />
             <Route path="context-packs/drafts/:draftId" element={<Navigate to={workspaceScopedTarget("build/artifacts")} replace />} />
-            <Route path="my-tenants" element={<RedirectLegacyTenantsRoute view="my" />} />
+            <Route path="my-tenants" element={<RedirectLegacyWorkspacesRoute />} />
             <Route
               path="control-plane"
               element={
@@ -865,9 +854,9 @@ export default function AppShell() {
                 )
               }
             />
-            <Route path="platform/tenants" element={<PlatformTenantsPage />} />
-            <Route path="platform/tenants/:tenantId" element={<PlatformTenantsPage />} />
-            <Route path="platform/tenant-contacts" element={<RedirectLegacyTenantsRoute view="all" />} />
+            <Route path="platform/tenants" element={<RedirectLegacyWorkspacesRoute />} />
+            <Route path="platform/tenants/:tenantId" element={<RedirectLegacyWorkspacesRoute />} />
+            <Route path="platform/tenant-contacts" element={<RedirectLegacyWorkspacesRoute />} />
             <Route path="platform/tenant-contacts/:tenantId" element={<RedirectLegacyTenantContactsDetailRoute />} />
             <Route path="platform/access-control" element={<AccessControlPage />} />
             <Route path="platform/access-explorer" element={<RedirectLegacyAccessControlRoute tab="explorer" />} />

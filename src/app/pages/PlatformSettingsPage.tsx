@@ -3,6 +3,7 @@ import { useNavigate, useParams, useSearchParams } from "react-router-dom";
 import InlineMessage from "../../components/InlineMessage";
 import {
   addWorkspaceMember,
+  createWorkspace,
   createVideoAdapterConfig,
   deleteWorkspaceMember,
   getWorkspaceAuthPolicy,
@@ -15,6 +16,7 @@ import {
   testWorkspaceOidcDiscovery,
   updatePlatformConfig,
   updateWorkspaceAuthPolicy,
+  updateWorkspace,
 } from "../../api/xyn";
 import type {
   PlatformConfig,
@@ -27,6 +29,7 @@ import type {
 import { toWorkspacePath } from "../routing/workspaceRouting";
 
 type SettingsTab = "general" | "security" | "integrations" | "deploy" | "workspaces";
+type WorkspaceSubTab = "profile" | "members" | "authentication" | "hierarchy" | "all";
 
 type SettingsCard = {
   title: string;
@@ -56,6 +59,17 @@ const SETTINGS_TABS: Array<{ value: SettingsTab; label: string }> = [
   { value: "deploy", label: "Deploy" },
   { value: "workspaces", label: "Workspaces" },
 ];
+
+const WORKSPACE_SUB_TABS: Array<{ value: WorkspaceSubTab; label: string }> = [
+  { value: "profile", label: "Profile" },
+  { value: "members", label: "Members" },
+  { value: "authentication", label: "Authentication" },
+  { value: "hierarchy", label: "Hierarchy" },
+  { value: "all", label: "All Workspaces" },
+];
+
+const LIFECYCLE_OPTIONS = ["lead", "prospect", "customer", "churned", "internal"];
+const KIND_OPTIONS = ["customer", "operator", "reseller", "internal"];
 
 const defaultConfig: PlatformConfig = {
   storage: {
@@ -177,6 +191,7 @@ export default function PlatformSettingsPage() {
   const [adapterConfigs, setAdapterConfigs] = useState<VideoAdapterConfigRecord[]>([]);
   const [renderViaModelEnabled, setRenderViaModelEnabled] = useState(false);
   const [workspaceMembers, setWorkspaceMembers] = useState<WorkspaceMembershipSummary[]>([]);
+  const [workspaceRows, setWorkspaceRows] = useState<WorkspaceSummary[]>([]);
   const [workspaceSummary, setWorkspaceSummary] = useState<WorkspaceSummary | null>(null);
   const [workspaceAuthPolicy, setWorkspaceAuthPolicy] = useState<WorkspaceAuthPolicy>(defaultWorkspaceAuthPolicy);
   const [memberEmail, setMemberEmail] = useState("");
@@ -186,6 +201,29 @@ export default function PlatformSettingsPage() {
   const [demoCredentialNotice, setDemoCredentialNotice] = useState<string | null>(null);
   const [authPolicySaving, setAuthPolicySaving] = useState(false);
   const [authPolicyTesting, setAuthPolicyTesting] = useState(false);
+  const [workspaceProfileSaving, setWorkspaceProfileSaving] = useState(false);
+  const [workspaceHierarchySaving, setWorkspaceHierarchySaving] = useState(false);
+  const [allWorkspaceCreating, setAllWorkspaceCreating] = useState(false);
+  const [allWorkspaceSearch, setAllWorkspaceSearch] = useState("");
+  const [focusWorkspaceId, setFocusWorkspaceId] = useState("");
+  const [profileForm, setProfileForm] = useState({
+    name: "",
+    org_name: "",
+    slug: "",
+    description: "",
+    kind: "customer",
+    lifecycle_stage: "prospect",
+    metadata_text: "{}",
+  });
+  const [createForm, setCreateForm] = useState({
+    name: "",
+    org_name: "",
+    slug: "",
+    description: "",
+    kind: "customer",
+    lifecycle_stage: "prospect",
+    parent_workspace_id: "",
+  });
 
   const load = async () => {
     try {
@@ -247,7 +285,9 @@ export default function PlatformSettingsPage() {
         listWorkspaces(),
       ]);
       setWorkspaceMembers(membersResult.memberships || []);
-      const row = (workspaceResult.workspaces || []).find((item) => item.id === workspaceId) || null;
+      const allRows = workspaceResult.workspaces || [];
+      setWorkspaceRows(allRows);
+      const row = allRows.find((item) => item.id === workspaceId) || null;
       setWorkspaceSummary(row);
       try {
         const authResult = await getWorkspaceAuthPolicy(workspaceId);
@@ -401,18 +441,48 @@ export default function PlatformSettingsPage() {
   const requestedTab = (searchParams.get("tab") || "general").toLowerCase();
   const activeTab: SettingsTab =
     SETTINGS_TABS.find((tab) => tab.value === requestedTab)?.value || "general";
+  const requestedWorkspaceSubTab = (searchParams.get("wsTab") || "profile").toLowerCase();
+  const activeWorkspaceSubTab: WorkspaceSubTab =
+    WORKSPACE_SUB_TABS.find((tab) => tab.value === requestedWorkspaceSubTab)?.value || "profile";
 
   const setActiveTab = (tab: SettingsTab) => {
     const next = new URLSearchParams(searchParams);
     if (tab === "general") next.delete("tab");
     else next.set("tab", tab);
+    if (tab !== "workspaces") next.delete("wsTab");
+    if (tab === "workspaces" && !next.get("wsTab")) next.set("wsTab", "profile");
+    setSearchParams(next);
+  };
+
+  const setActiveWorkspaceSubTab = (tab: WorkspaceSubTab) => {
+    const next = new URLSearchParams(searchParams);
+    next.set("tab", "workspaces");
+    next.set("wsTab", tab);
+    if (tab !== "all") next.delete("focusWorkspaceId");
     setSearchParams(next);
   };
 
   useEffect(() => {
-    if (activeTab !== "security") return;
+    if (activeTab !== "workspaces") return;
     void loadWorkspaceSecurity();
   }, [activeTab, workspaceId]);
+
+  useEffect(() => {
+    setFocusWorkspaceId(String(searchParams.get("focusWorkspaceId") || "").trim());
+  }, [searchParams]);
+
+  useEffect(() => {
+    if (!workspaceSummary) return;
+    setProfileForm({
+      name: workspaceSummary.name || "",
+      org_name: workspaceSummary.org_name || workspaceSummary.name || "",
+      slug: workspaceSummary.slug || "",
+      description: workspaceSummary.description || "",
+      kind: workspaceSummary.kind || "customer",
+      lifecycle_stage: workspaceSummary.lifecycle_stage || "prospect",
+      metadata_text: JSON.stringify(workspaceSummary.metadata || {}, null, 2),
+    });
+  }, [workspaceSummary]);
 
   const addMember = async () => {
     if (!workspaceId || !memberEmail.trim()) return;
@@ -497,6 +567,89 @@ export default function PlatformSettingsPage() {
     }
   };
 
+  const saveWorkspaceProfile = async () => {
+    if (!workspaceId) return;
+    try {
+      setWorkspaceProfileSaving(true);
+      let metadata: Record<string, unknown> = {};
+      try {
+        metadata = profileForm.metadata_text.trim()
+          ? (JSON.parse(profileForm.metadata_text) as Record<string, unknown>)
+          : {};
+      } catch {
+        setError("Metadata must be valid JSON object.");
+        return;
+      }
+      await updateWorkspace(workspaceId, {
+        name: profileForm.name.trim(),
+        org_name: profileForm.org_name.trim(),
+        slug: profileForm.slug.trim(),
+        description: profileForm.description,
+        kind: profileForm.kind,
+        lifecycle_stage: profileForm.lifecycle_stage,
+        metadata,
+      });
+      await loadWorkspaceSecurity();
+      setMessage("Workspace profile saved.");
+    } catch (err) {
+      setError((err as Error).message);
+    } finally {
+      setWorkspaceProfileSaving(false);
+    }
+  };
+
+  const saveWorkspaceHierarchy = async () => {
+    if (!workspaceId) return;
+    try {
+      setWorkspaceHierarchySaving(true);
+      await updateWorkspace(workspaceId, {
+        parent_workspace_id: focusWorkspaceId || null,
+      });
+      await loadWorkspaceSecurity();
+      setMessage("Workspace hierarchy updated.");
+    } catch (err) {
+      setError((err as Error).message);
+    } finally {
+      setWorkspaceHierarchySaving(false);
+    }
+  };
+
+  const createWorkspaceFromHub = async () => {
+    if (!createForm.name.trim()) return;
+    try {
+      setAllWorkspaceCreating(true);
+      const result = await createWorkspace({
+        name: createForm.name.trim(),
+        org_name: createForm.org_name.trim() || undefined,
+        slug: createForm.slug.trim() || undefined,
+        description: createForm.description.trim() || undefined,
+        kind: createForm.kind,
+        lifecycle_stage: createForm.lifecycle_stage,
+        parent_workspace_id: createForm.parent_workspace_id || undefined,
+      });
+      setCreateForm({
+        name: "",
+        org_name: "",
+        slug: "",
+        description: "",
+        kind: "customer",
+        lifecycle_stage: "prospect",
+        parent_workspace_id: "",
+      });
+      await loadWorkspaceSecurity();
+      const next = new URLSearchParams(searchParams);
+      next.set("tab", "workspaces");
+      next.set("wsTab", "all");
+      next.set("focusWorkspaceId", result.workspace.id);
+      setSearchParams(next);
+      setMessage(`Workspace "${result.workspace.name}" created.`);
+    } catch (err) {
+      setError((err as Error).message);
+    } finally {
+      setAllWorkspaceCreating(false);
+    }
+  };
+
   const toScopedPath = (subpath: string, query?: Record<string, string>): string => {
     const rest = subpath.replace(/^\/+/, "");
     const base = workspaceId ? toWorkspacePath(workspaceId, rest) : `/app/${rest}`;
@@ -525,6 +678,15 @@ export default function PlatformSettingsPage() {
       : renderingMode === "render_via_endpoint" && activeVideoConfig.endpoint_url
       ? "Configured"
       : "Needs setup";
+  const filteredWorkspaceRows = workspaceRows.filter((row) => {
+    const q = allWorkspaceSearch.trim().toLowerCase();
+    if (!q) return true;
+    return (
+      row.name.toLowerCase().includes(q) ||
+      row.slug.toLowerCase().includes(q) ||
+      (row.org_name || "").toLowerCase().includes(q)
+    );
+  });
 
   const securityCards: SettingsCard[] = [
     {
@@ -614,30 +776,6 @@ export default function PlatformSettingsPage() {
     },
   ];
 
-  const workspaceCards: SettingsCard[] = [
-    {
-      title: "Workspace Management",
-      description: "Create and maintain workspace records, including lifecycle metadata and hierarchy.",
-      actionLabel: "Open Workspaces",
-      path: toScopedPath("workspaces", { tab: "management" }),
-      status: "Available",
-    },
-    {
-      title: "People & Roles",
-      description: "Manage workspace memberships and role assignments for selected workspaces.",
-      actionLabel: "Open People & Roles",
-      path: toScopedPath("workspaces", { tab: "people_roles" }),
-      status: "Available",
-    },
-    {
-      title: "Tenants",
-      description: "Manage tenant records and tenant-level metadata associated with workspace operations.",
-      actionLabel: "Open Tenants",
-      path: toScopedPath("platform/tenants"),
-      status: "Available",
-    },
-  ];
-
   return (
     <>
       <div className="page-header">
@@ -671,188 +809,325 @@ export default function PlatformSettingsPage() {
       {error && <InlineMessage tone="error" title="Request failed" body={error} />}
       {message && <InlineMessage tone="info" title="Update" body={message} />}
 
-      {activeTab === "security" ? (
+      {activeTab === "security" ? <HubCards cards={securityCards} onOpen={(path) => navigate(path)} /> : null}
+      {activeTab === "integrations" ? <HubCards cards={integrationsCards} onOpen={(path) => navigate(path)} /> : null}
+      {activeTab === "deploy" ? <HubCards cards={deployCards} onOpen={(path) => navigate(path)} /> : null}
+      {activeTab === "workspaces" ? (
         <>
           <section className="card" style={{ marginBottom: 12 }}>
             <div className="card-header">
-              <h3>Authentication</h3>
-              <span className={`status-chip ${workspaceSummary?.tenant_auth_status?.sso === "ready" ? "active" : ""}`}>
-                SSO: {workspaceSummary?.tenant_auth_status?.sso === "ready" ? "Ready" : "Not configured"}
+              <h3>Workspaces Hub</h3>
+              <span className="status-chip active">
+                {(workspaceSummary?.name || "Workspace")} · {(workspaceSummary?.slug || "n/a")} · kind: {(workspaceSummary?.kind || "customer")} · stage:{" "}
+                {(workspaceSummary?.lifecycle_stage || "prospect")}
               </span>
             </div>
-            <p className="muted">Configure per-workspace sign-in policy. OIDC is the primary posture; local is optional bootstrap/break-glass.</p>
-            <div className="form-grid">
-              <label>
-                Auth mode
-                <select
-                  value={workspaceAuthPolicy.auth_mode}
-                  onChange={(event) => setWorkspaceAuthPolicy((current) => ({ ...current, auth_mode: event.target.value as "local" | "oidc" | "mixed" }))}
+            <div className="inline-actions">
+              {WORKSPACE_SUB_TABS.map((tab) => (
+                <button
+                  key={tab.value}
+                  type="button"
+                  className={activeWorkspaceSubTab === tab.value ? "primary" : "ghost"}
+                  onClick={() => setActiveWorkspaceSubTab(tab.value)}
                 >
-                  <option value="oidc">OIDC</option>
-                  <option value="local">Local</option>
-                  <option value="mixed">Mixed</option>
-                </select>
-              </label>
-              <label>
-                OIDC enabled
-                <select
-                  value={workspaceAuthPolicy.oidc_enabled ? "yes" : "no"}
-                  onChange={(event) => setWorkspaceAuthPolicy((current) => ({ ...current, oidc_enabled: event.target.value === "yes" }))}
-                >
-                  <option value="no">No</option>
-                  <option value="yes">Yes</option>
-                </select>
-              </label>
-              <label>
-                Issuer URL
-                <input
-                  className="input"
-                  value={workspaceAuthPolicy.oidc_issuer_url || ""}
-                  placeholder="https://issuer.example.com"
-                  onChange={(event) => setWorkspaceAuthPolicy((current) => ({ ...current, oidc_issuer_url: event.target.value }))}
-                />
-              </label>
-              <label>
-                Client ID
-                <input
-                  className="input"
-                  value={workspaceAuthPolicy.oidc_client_id || ""}
-                  onChange={(event) => setWorkspaceAuthPolicy((current) => ({ ...current, oidc_client_id: event.target.value }))}
-                />
-              </label>
-              <label>
-                Client SecretRef ID
-                <input
-                  className="input"
-                  value={workspaceAuthPolicy.oidc_client_secret_ref_id || ""}
-                  placeholder="SecretRef UUID"
-                  onChange={(event) => setWorkspaceAuthPolicy((current) => ({ ...current, oidc_client_secret_ref_id: event.target.value || null }))}
-                />
-              </label>
-              <label>
-                Scopes
-                <input
-                  className="input"
-                  value={workspaceAuthPolicy.oidc_scopes || "openid profile email"}
-                  onChange={(event) => setWorkspaceAuthPolicy((current) => ({ ...current, oidc_scopes: event.target.value }))}
-                />
-              </label>
-              <label>
-                Email claim
-                <input
-                  className="input"
-                  value={workspaceAuthPolicy.oidc_claim_email || "email"}
-                  onChange={(event) => setWorkspaceAuthPolicy((current) => ({ ...current, oidc_claim_email: event.target.value }))}
-                />
-              </label>
-              <label>
-                Auto-provision membership
-                <select
-                  value={workspaceAuthPolicy.oidc_allow_auto_provision ? "yes" : "no"}
-                  onChange={(event) => setWorkspaceAuthPolicy((current) => ({ ...current, oidc_allow_auto_provision: event.target.value === "yes" }))}
-                >
-                  <option value="no">No</option>
-                  <option value="yes">Yes</option>
-                </select>
-              </label>
-              <label className="span-full">
-                Allowed email domains (comma-separated)
-                <input
-                  className="input"
-                  value={(workspaceAuthPolicy.oidc_allowed_email_domains || []).join(", ")}
-                  onChange={(event) =>
-                    setWorkspaceAuthPolicy((current) => ({
-                      ...current,
-                      oidc_allowed_email_domains: event.target.value
-                        .split(",")
-                        .map((item) => item.trim().toLowerCase())
-                        .filter(Boolean),
-                    }))
-                  }
-                />
-              </label>
+                  {tab.label}
+                </button>
+              ))}
             </div>
-            <div className="form-actions">
-              <button className="ghost" onClick={() => void testDiscovery()} disabled={authPolicyTesting || !workspaceId}>
-                {authPolicyTesting ? "Testing..." : "Test OIDC discovery"}
-              </button>
-              <button className="primary" onClick={() => void saveWorkspaceAuthPolicy()} disabled={authPolicySaving || !workspaceId}>
-                {authPolicySaving ? "Saving..." : "Save Authentication"}
-              </button>
-            </div>
-            <p className="muted small">
-              Tenant Auth Status: SSO {workspaceSummary?.tenant_auth_status?.sso === "ready" ? "Ready" : "Not configured"} · Local login{" "}
-              {workspaceSummary?.tenant_auth_status?.local_login === "enabled" ? "enabled" : "disabled"}.
-            </p>
           </section>
-          <section className="card" style={{ marginBottom: 12 }}>
-            <div className="card-header">
-              <h3>Users</h3>
-              <span className="status-chip active">Auth mode: {workspaceSummary?.auth_mode || "local"}</span>
-            </div>
-            <p className="muted">
-              Workspace memberships control tenant access. Demo mode can create local users with temporary passwords.
-            </p>
-            <div className="form-grid" style={{ gridTemplateColumns: "2fr 1fr auto" }}>
-              <label>
-                Email
-                <input
-                  className="input"
-                  placeholder="user@example.com"
-                  value={memberEmail}
-                  onChange={(event) => setMemberEmail(event.target.value)}
-                />
-              </label>
-              <label>
-                Role
-                <select value={memberRole} onChange={(event) => setMemberRole(event.target.value as "admin" | "member")}>
-                  <option value="member">Member</option>
-                  <option value="admin">Admin</option>
-                </select>
-              </label>
-              <div className="form-actions" style={{ alignSelf: "end" }}>
-                <button className="primary" onClick={() => void addMember()} disabled={memberActionLoading || !workspaceId}>
-                  {memberActionLoading ? "Adding..." : "Add member"}
+
+          {activeWorkspaceSubTab === "profile" ? (
+            <section className="card">
+              <h3>Workspace Profile</h3>
+              <div className="form-grid">
+                <label>
+                  Name
+                  <input className="input" value={profileForm.name} onChange={(event) => setProfileForm((current) => ({ ...current, name: event.target.value }))} />
+                </label>
+                <label>
+                  Org name
+                  <input className="input" value={profileForm.org_name} onChange={(event) => setProfileForm((current) => ({ ...current, org_name: event.target.value }))} />
+                </label>
+                <label>
+                  Slug
+                  <input className="input" value={profileForm.slug} onChange={(event) => setProfileForm((current) => ({ ...current, slug: event.target.value }))} />
+                </label>
+                <label>
+                  Kind
+                  <select value={profileForm.kind} onChange={(event) => setProfileForm((current) => ({ ...current, kind: event.target.value }))}>
+                    {KIND_OPTIONS.map((option) => (
+                      <option key={option} value={option}>
+                        {option}
+                      </option>
+                    ))}
+                  </select>
+                </label>
+                <label>
+                  Lifecycle stage
+                  <select value={profileForm.lifecycle_stage} onChange={(event) => setProfileForm((current) => ({ ...current, lifecycle_stage: event.target.value }))}>
+                    {LIFECYCLE_OPTIONS.map((option) => (
+                      <option key={option} value={option}>
+                        {option}
+                      </option>
+                    ))}
+                  </select>
+                </label>
+                <label className="span-full">
+                  Description
+                  <textarea rows={3} value={profileForm.description} onChange={(event) => setProfileForm((current) => ({ ...current, description: event.target.value }))} />
+                </label>
+                <label className="span-full">
+                  Metadata (JSON)
+                  <textarea rows={4} value={profileForm.metadata_text} onChange={(event) => setProfileForm((current) => ({ ...current, metadata_text: event.target.value }))} />
+                </label>
+              </div>
+              <div className="form-actions">
+                <button className="primary" onClick={() => void saveWorkspaceProfile()} disabled={workspaceProfileSaving || !workspaceId}>
+                  {workspaceProfileSaving ? "Saving..." : "Save Profile"}
                 </button>
               </div>
-            </div>
-            {demoCredentialNotice ? <InlineMessage tone="info" title="Demo credentials" body={demoCredentialNotice} /> : null}
-            <div style={{ marginTop: 10 }}>
-              {membersLoading ? <p className="muted">Loading members...</p> : null}
-              {!membersLoading && workspaceMembers.length === 0 ? <p className="muted">No members yet.</p> : null}
-              {!membersLoading && workspaceMembers.length > 0 ? (
-                <div style={{ display: "grid", gap: 8 }}>
-                  {workspaceMembers.map((member) => (
-                    <div
-                      key={member.id}
-                      className="instance-row"
-                      style={{ display: "grid", gridTemplateColumns: "minmax(220px, 1fr) auto auto", alignItems: "center", gap: 10 }}
+            </section>
+          ) : null}
+
+          {activeWorkspaceSubTab === "members" ? (
+            <>
+              <section className="card" style={{ marginBottom: 12 }}>
+                <h3>Workspace Members</h3>
+                <div className="form-grid" style={{ gridTemplateColumns: "2fr 1fr auto" }}>
+                  <label>
+                    Email
+                    <input className="input" placeholder="user@example.com" value={memberEmail} onChange={(event) => setMemberEmail(event.target.value)} />
+                  </label>
+                  <label>
+                    Workspace role
+                    <select value={memberRole} onChange={(event) => setMemberRole(event.target.value as "admin" | "member")}>
+                      <option value="admin">Workspace Admin</option>
+                      <option value="member">Workspace Member</option>
+                    </select>
+                  </label>
+                  <div className="form-actions" style={{ alignSelf: "end" }}>
+                    <button className="primary" onClick={() => void addMember()} disabled={memberActionLoading || !workspaceId}>
+                      {memberActionLoading ? "Adding..." : "Add member"}
+                    </button>
+                  </div>
+                </div>
+                {demoCredentialNotice ? <InlineMessage tone="info" title="Demo credentials" body={demoCredentialNotice} /> : null}
+                <div style={{ marginTop: 10 }}>
+                  {membersLoading ? <p className="muted">Loading members...</p> : null}
+                  {!membersLoading && workspaceMembers.length === 0 ? <p className="muted">No members yet.</p> : null}
+                  {!membersLoading && workspaceMembers.length > 0
+                    ? workspaceMembers.map((member) => (
+                        <div key={member.id} className="instance-row" style={{ display: "grid", gridTemplateColumns: "minmax(220px, 1fr) auto auto", gap: 10 }}>
+                          <div>
+                            <strong>{member.email || member.display_name || member.user_identity_id}</strong>
+                            <div className="muted small">{member.display_name || member.user_identity_id}</div>
+                          </div>
+                          <span className="status-chip">{member.role === "admin" ? "Workspace Admin" : "Workspace Member"}</span>
+                          <button className="ghost" onClick={() => void removeMember(member.id)} disabled={memberActionLoading}>
+                            Remove
+                          </button>
+                        </div>
+                      ))
+                    : null}
+                </div>
+              </section>
+              <section className="card">
+                <h3>Roles</h3>
+                <p className="muted">Workspace roles are currently Admin/Member. Custom roles will appear here later.</p>
+              </section>
+            </>
+          ) : null}
+
+          {activeWorkspaceSubTab === "authentication" ? (
+            <section className="card">
+              <h3>Authentication</h3>
+              <div className="form-grid">
+                <label>
+                  Auth mode
+                  <select value={workspaceAuthPolicy.auth_mode} onChange={(event) => setWorkspaceAuthPolicy((current) => ({ ...current, auth_mode: event.target.value as "local" | "oidc" | "mixed" }))}>
+                    <option value="oidc">OIDC</option>
+                    <option value="local">Local</option>
+                    <option value="mixed">Mixed</option>
+                  </select>
+                </label>
+                <label>
+                  OIDC enabled
+                  <select value={workspaceAuthPolicy.oidc_enabled ? "yes" : "no"} onChange={(event) => setWorkspaceAuthPolicy((current) => ({ ...current, oidc_enabled: event.target.value === "yes" }))}>
+                    <option value="no">No</option>
+                    <option value="yes">Yes</option>
+                  </select>
+                </label>
+                <label>
+                  Issuer URL
+                  <input className="input" value={workspaceAuthPolicy.oidc_issuer_url || ""} onChange={(event) => setWorkspaceAuthPolicy((current) => ({ ...current, oidc_issuer_url: event.target.value }))} />
+                </label>
+                <label>
+                  Client ID
+                  <input className="input" value={workspaceAuthPolicy.oidc_client_id || ""} onChange={(event) => setWorkspaceAuthPolicy((current) => ({ ...current, oidc_client_id: event.target.value }))} />
+                </label>
+                <label>
+                  Client SecretRef ID
+                  <input className="input" value={workspaceAuthPolicy.oidc_client_secret_ref_id || ""} onChange={(event) => setWorkspaceAuthPolicy((current) => ({ ...current, oidc_client_secret_ref_id: event.target.value || null }))} />
+                </label>
+                <label>
+                  Scopes
+                  <input className="input" value={workspaceAuthPolicy.oidc_scopes || ""} onChange={(event) => setWorkspaceAuthPolicy((current) => ({ ...current, oidc_scopes: event.target.value }))} />
+                </label>
+                <label>
+                  Email claim
+                  <input className="input" value={workspaceAuthPolicy.oidc_claim_email || ""} onChange={(event) => setWorkspaceAuthPolicy((current) => ({ ...current, oidc_claim_email: event.target.value }))} />
+                </label>
+                <label>
+                  Auto-provision
+                  <select value={workspaceAuthPolicy.oidc_allow_auto_provision ? "yes" : "no"} onChange={(event) => setWorkspaceAuthPolicy((current) => ({ ...current, oidc_allow_auto_provision: event.target.value === "yes" }))}>
+                    <option value="no">No</option>
+                    <option value="yes">Yes</option>
+                  </select>
+                </label>
+                <label className="span-full">
+                  Allowed domains (comma-separated)
+                  <input
+                    className="input"
+                    value={(workspaceAuthPolicy.oidc_allowed_email_domains || []).join(", ")}
+                    onChange={(event) =>
+                      setWorkspaceAuthPolicy((current) => ({
+                        ...current,
+                        oidc_allowed_email_domains: event.target.value.split(",").map((token) => token.trim().toLowerCase()).filter(Boolean),
+                      }))
+                    }
+                  />
+                </label>
+              </div>
+              <div className="form-actions">
+                <button className="ghost" onClick={() => void testDiscovery()} disabled={authPolicyTesting || !workspaceId}>
+                  {authPolicyTesting ? "Testing..." : "Test OIDC discovery"}
+                </button>
+                <button className="primary" onClick={() => void saveWorkspaceAuthPolicy()} disabled={authPolicySaving || !workspaceId}>
+                  {authPolicySaving ? "Saving..." : "Save Authentication"}
+                </button>
+              </div>
+            </section>
+          ) : null}
+
+          {activeWorkspaceSubTab === "hierarchy" ? (
+            <section className="card">
+              <h3>Hierarchy</h3>
+              <div className="form-grid">
+                <label>
+                  Parent workspace
+                  <select value={focusWorkspaceId || workspaceSummary?.parent_workspace_id || ""} onChange={(event) => setFocusWorkspaceId(event.target.value)}>
+                    <option value="">(none)</option>
+                    {workspaceRows
+                      .filter((row) => row.id !== workspaceId)
+                      .map((row) => (
+                        <option key={row.id} value={row.id}>
+                          {row.name}
+                        </option>
+                      ))}
+                  </select>
+                </label>
+              </div>
+              <div className="form-actions">
+                <button className="primary" onClick={() => void saveWorkspaceHierarchy()} disabled={workspaceHierarchySaving || !workspaceId}>
+                  {workspaceHierarchySaving ? "Saving..." : "Save Hierarchy"}
+                </button>
+              </div>
+              <p className="muted">
+                Child workspaces: {workspaceRows.filter((row) => row.parent_workspace_id === workspaceId).map((row) => row.name).join(", ") || "none"}
+              </p>
+            </section>
+          ) : null}
+
+          {activeWorkspaceSubTab === "all" ? (
+            <div style={{ display: "grid", gap: 12, gridTemplateColumns: "minmax(260px, 1fr) minmax(320px, 1.2fr)" }}>
+              <section className="card">
+                <div className="card-header">
+                  <h3>All Workspaces</h3>
+                </div>
+                <input className="input" placeholder="Search workspaces" value={allWorkspaceSearch} onChange={(event) => setAllWorkspaceSearch(event.target.value)} />
+                <div className="instance-list" style={{ marginTop: 10 }}>
+                  {filteredWorkspaceRows.map((row) => (
+                    <button
+                      key={row.id}
+                      type="button"
+                      className={`instance-row ${focusWorkspaceId === row.id ? "active" : ""}`}
+                      onClick={() => {
+                        setFocusWorkspaceId(row.id);
+                        const next = new URLSearchParams(searchParams);
+                        next.set("focusWorkspaceId", row.id);
+                        setSearchParams(next);
+                      }}
                     >
                       <div>
-                        <strong>{member.email || member.display_name || member.user_identity_id}</strong>
-                        <div className="muted small">{member.display_name || member.user_identity_id}</div>
+                        <strong>{row.name}</strong>
+                        <div className="muted small">{row.slug}</div>
                       </div>
-                      <span className="status-chip">{member.role}</span>
-                      <button
-                        className="ghost"
-                        onClick={() => void removeMember(member.id)}
-                        disabled={memberActionLoading}
-                        aria-label={`Remove ${member.email || member.user_identity_id}`}
-                      >
-                        Remove
-                      </button>
-                    </div>
+                      <span className="status-chip">{row.lifecycle_stage || "prospect"}</span>
+                    </button>
                   ))}
                 </div>
-              ) : null}
+              </section>
+              <section className="card">
+                <h3>Create Workspace</h3>
+                <div className="form-grid">
+                  <label>
+                    Name
+                    <input className="input" value={createForm.name} onChange={(event) => setCreateForm((current) => ({ ...current, name: event.target.value }))} />
+                  </label>
+                  <label>
+                    Org name
+                    <input className="input" value={createForm.org_name} onChange={(event) => setCreateForm((current) => ({ ...current, org_name: event.target.value }))} />
+                  </label>
+                  <label>
+                    Slug
+                    <input className="input" value={createForm.slug} onChange={(event) => setCreateForm((current) => ({ ...current, slug: event.target.value }))} />
+                  </label>
+                  <label>
+                    Kind
+                    <select value={createForm.kind} onChange={(event) => setCreateForm((current) => ({ ...current, kind: event.target.value }))}>
+                      {KIND_OPTIONS.map((option) => (
+                        <option key={option} value={option}>
+                          {option}
+                        </option>
+                      ))}
+                    </select>
+                  </label>
+                  <label>
+                    Lifecycle stage
+                    <select value={createForm.lifecycle_stage} onChange={(event) => setCreateForm((current) => ({ ...current, lifecycle_stage: event.target.value }))}>
+                      {LIFECYCLE_OPTIONS.map((option) => (
+                        <option key={option} value={option}>
+                          {option}
+                        </option>
+                      ))}
+                    </select>
+                  </label>
+                  <label>
+                    Parent workspace
+                    <select value={createForm.parent_workspace_id} onChange={(event) => setCreateForm((current) => ({ ...current, parent_workspace_id: event.target.value }))}>
+                      <option value="">(none)</option>
+                      {workspaceRows.map((row) => (
+                        <option key={row.id} value={row.id}>
+                          {row.name}
+                        </option>
+                      ))}
+                    </select>
+                  </label>
+                  <label className="span-full">
+                    Description
+                    <textarea rows={3} value={createForm.description} onChange={(event) => setCreateForm((current) => ({ ...current, description: event.target.value }))} />
+                  </label>
+                </div>
+                <div className="form-actions">
+                  <button className="primary" onClick={() => void createWorkspaceFromHub()} disabled={allWorkspaceCreating || !createForm.name.trim()}>
+                    {allWorkspaceCreating ? "Creating..." : "Create workspace"}
+                  </button>
+                </div>
+              </section>
             </div>
-          </section>
-          <HubCards cards={securityCards} onOpen={(path) => navigate(path)} />
+          ) : null}
         </>
       ) : null}
-      {activeTab === "integrations" ? <HubCards cards={integrationsCards} onOpen={(path) => navigate(path)} /> : null}
-      {activeTab === "deploy" ? <HubCards cards={deployCards} onOpen={(path) => navigate(path)} /> : null}
-      {activeTab === "workspaces" ? <HubCards cards={workspaceCards} onOpen={(path) => navigate(path)} /> : null}
 
       {activeTab === "general" ? (
         <div className="layout">
@@ -861,7 +1136,7 @@ export default function PlatformSettingsPage() {
               <h3>Branding</h3>
               <span className="status-chip active">Configured</span>
             </div>
-            <p className="muted">Tenant branding and theme settings are managed in the dedicated Branding surface.</p>
+            <p className="muted">Workspace branding and theme settings are managed in the dedicated Branding surface.</p>
             <div className="form-actions">
               <button className="ghost" onClick={() => navigate(toScopedPath("platform/branding"))}>
                 Open Branding

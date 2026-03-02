@@ -101,6 +101,17 @@ function renderWorkspaceApp(initialEntry: string) {
   );
 }
 
+function renderGlobalApp(initialEntry: string) {
+  return render(
+    <MemoryRouter initialEntries={[initialEntry]}>
+      <Routes>
+        <Route path="/app/*" element={<AppShell />} />
+      </Routes>
+      <LocationProbe />
+    </MemoryRouter>
+  );
+}
+
 describe("AppShell nav surfaces", () => {
   beforeEach(() => {
     vi.clearAllMocks();
@@ -163,6 +174,16 @@ describe("AppShell nav surfaces", () => {
     renderWorkspaceApp("/w/ws-1/run/dev-tasks");
     await waitFor(() =>
       expect(screen.getByTestId("location-probe").textContent).toContain("/w/ws-1/run/runs?filter=dev_task")
+    );
+  });
+
+  it("redirects legacy /app/workspaces route to Platform Settings Workspaces hub", async () => {
+    apiMocks.listArtifactNavSurfaces.mockResolvedValueOnce({ surfaces: [] });
+    renderGlobalApp("/app/workspaces?tab=people_roles");
+    await waitFor(() =>
+      expect(screen.getByTestId("location-probe").textContent).toContain(
+        "/app/platform/settings?tab=workspaces&wsTab=members"
+      )
     );
   });
 });
