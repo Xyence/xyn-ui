@@ -5,18 +5,22 @@ import {
   addWorkspaceMember,
   createVideoAdapterConfig,
   deleteWorkspaceMember,
+  getWorkspaceAuthPolicy,
   getPlatformConfig,
   listWorkspaceMembers,
   listWorkspaces,
   listVideoAdapterConfigs,
   listVideoAdapters,
   testVideoAdapterConnection,
+  testWorkspaceOidcDiscovery,
   updatePlatformConfig,
+  updateWorkspaceAuthPolicy,
 } from "../../api/xyn";
 import type {
   PlatformConfig,
   VideoAdapterConfigRecord,
   VideoAdapterDefinition,
+  WorkspaceAuthPolicy,
   WorkspaceMembershipSummary,
   WorkspaceSummary,
 } from "../../api/types";
@@ -30,6 +34,19 @@ type SettingsCard = {
   actionLabel: string;
   path: string;
   status?: "Configured" | "Needs setup" | "Disabled" | "Available" | "Legacy";
+};
+
+const defaultWorkspaceAuthPolicy: WorkspaceAuthPolicy = {
+  workspace_id: "",
+  auth_mode: "oidc",
+  oidc_enabled: false,
+  oidc_issuer_url: "",
+  oidc_client_id: "",
+  oidc_client_secret_ref_id: null,
+  oidc_scopes: "openid profile email",
+  oidc_claim_email: "email",
+  oidc_allow_auto_provision: false,
+  oidc_allowed_email_domains: [],
 };
 
 const SETTINGS_TABS: Array<{ value: SettingsTab; label: string }> = [
@@ -161,11 +178,14 @@ export default function PlatformSettingsPage() {
   const [renderViaModelEnabled, setRenderViaModelEnabled] = useState(false);
   const [workspaceMembers, setWorkspaceMembers] = useState<WorkspaceMembershipSummary[]>([]);
   const [workspaceSummary, setWorkspaceSummary] = useState<WorkspaceSummary | null>(null);
+  const [workspaceAuthPolicy, setWorkspaceAuthPolicy] = useState<WorkspaceAuthPolicy>(defaultWorkspaceAuthPolicy);
   const [memberEmail, setMemberEmail] = useState("");
   const [memberRole, setMemberRole] = useState<"admin" | "member">("member");
   const [membersLoading, setMembersLoading] = useState(false);
   const [memberActionLoading, setMemberActionLoading] = useState(false);
   const [demoCredentialNotice, setDemoCredentialNotice] = useState<string | null>(null);
+  const [authPolicySaving, setAuthPolicySaving] = useState(false);
+  const [authPolicyTesting, setAuthPolicyTesting] = useState(false);
 
   const load = async () => {
     try {
@@ -229,6 +249,24 @@ export default function PlatformSettingsPage() {
       setWorkspaceMembers(membersResult.memberships || []);
       const row = (workspaceResult.workspaces || []).find((item) => item.id === workspaceId) || null;
       setWorkspaceSummary(row);
+      try {
+        const authResult = await getWorkspaceAuthPolicy(workspaceId);
+        setWorkspaceAuthPolicy(authResult.auth_policy || { ...defaultWorkspaceAuthPolicy, workspace_id: workspaceId });
+      } catch {
+        setWorkspaceAuthPolicy({
+          ...defaultWorkspaceAuthPolicy,
+          workspace_id: workspaceId,
+          auth_mode: row?.auth_mode || "oidc",
+          oidc_enabled: Boolean(row?.oidc_enabled),
+          oidc_issuer_url: row?.oidc_issuer_url || "",
+          oidc_client_id: row?.oidc_client_id || "",
+          oidc_client_secret_ref_id: row?.oidc_client_secret_ref_id || null,
+          oidc_scopes: row?.oidc_scopes || "openid profile email",
+          oidc_claim_email: row?.oidc_claim_email || "email",
+          oidc_allow_auto_provision: Boolean(row?.oidc_allow_auto_provision),
+          oidc_allowed_email_domains: row?.oidc_allowed_email_domains || [],
+        });
+      }
     } catch (err) {
       setError((err as Error).message);
     } finally {
@@ -416,6 +454,49 @@ export default function PlatformSettingsPage() {
     }
   };
 
+  const saveWorkspaceAuthPolicy = async () => {
+    if (!workspaceId) return;
+    try {
+      setAuthPolicySaving(true);
+      const payload: Partial<WorkspaceAuthPolicy> = {
+        auth_mode: workspaceAuthPolicy.auth_mode,
+        oidc_enabled: workspaceAuthPolicy.oidc_enabled,
+        oidc_issuer_url: workspaceAuthPolicy.oidc_issuer_url,
+        oidc_client_id: workspaceAuthPolicy.oidc_client_id,
+        oidc_client_secret_ref_id: workspaceAuthPolicy.oidc_client_secret_ref_id || null,
+        oidc_scopes: workspaceAuthPolicy.oidc_scopes,
+        oidc_claim_email: workspaceAuthPolicy.oidc_claim_email,
+        oidc_allow_auto_provision: workspaceAuthPolicy.oidc_allow_auto_provision,
+        oidc_allowed_email_domains: workspaceAuthPolicy.oidc_allowed_email_domains,
+      };
+      const result = await updateWorkspaceAuthPolicy(workspaceId, payload);
+      setWorkspaceAuthPolicy(result.auth_policy);
+      setMessage("Authentication policy saved.");
+      await loadWorkspaceSecurity();
+    } catch (err) {
+      setError((err as Error).message);
+    } finally {
+      setAuthPolicySaving(false);
+    }
+  };
+
+  const testDiscovery = async () => {
+    if (!workspaceId) return;
+    try {
+      setAuthPolicyTesting(true);
+      const result = await testWorkspaceOidcDiscovery(workspaceId);
+      if (result.ok) {
+        setMessage(`OIDC discovery succeeded: ${result.issuer || "issuer resolved"}`);
+      } else {
+        setError(result.error || "OIDC discovery failed");
+      }
+    } catch (err) {
+      setError((err as Error).message);
+    } finally {
+      setAuthPolicyTesting(false);
+    }
+  };
+
   const toScopedPath = (subpath: string, query?: Record<string, string>): string => {
     const rest = subpath.replace(/^\/+/, "");
     const base = workspaceId ? toWorkspacePath(workspaceId, rest) : `/app/${rest}`;
@@ -592,6 +673,118 @@ export default function PlatformSettingsPage() {
 
       {activeTab === "security" ? (
         <>
+          <section className="card" style={{ marginBottom: 12 }}>
+            <div className="card-header">
+              <h3>Authentication</h3>
+              <span className={`status-chip ${workspaceSummary?.tenant_auth_status?.sso === "ready" ? "active" : ""}`}>
+                SSO: {workspaceSummary?.tenant_auth_status?.sso === "ready" ? "Ready" : "Not configured"}
+              </span>
+            </div>
+            <p className="muted">Configure per-workspace sign-in policy. OIDC is the primary posture; local is optional bootstrap/break-glass.</p>
+            <div className="form-grid">
+              <label>
+                Auth mode
+                <select
+                  value={workspaceAuthPolicy.auth_mode}
+                  onChange={(event) => setWorkspaceAuthPolicy((current) => ({ ...current, auth_mode: event.target.value as "local" | "oidc" | "mixed" }))}
+                >
+                  <option value="oidc">OIDC</option>
+                  <option value="local">Local</option>
+                  <option value="mixed">Mixed</option>
+                </select>
+              </label>
+              <label>
+                OIDC enabled
+                <select
+                  value={workspaceAuthPolicy.oidc_enabled ? "yes" : "no"}
+                  onChange={(event) => setWorkspaceAuthPolicy((current) => ({ ...current, oidc_enabled: event.target.value === "yes" }))}
+                >
+                  <option value="no">No</option>
+                  <option value="yes">Yes</option>
+                </select>
+              </label>
+              <label>
+                Issuer URL
+                <input
+                  className="input"
+                  value={workspaceAuthPolicy.oidc_issuer_url || ""}
+                  placeholder="https://issuer.example.com"
+                  onChange={(event) => setWorkspaceAuthPolicy((current) => ({ ...current, oidc_issuer_url: event.target.value }))}
+                />
+              </label>
+              <label>
+                Client ID
+                <input
+                  className="input"
+                  value={workspaceAuthPolicy.oidc_client_id || ""}
+                  onChange={(event) => setWorkspaceAuthPolicy((current) => ({ ...current, oidc_client_id: event.target.value }))}
+                />
+              </label>
+              <label>
+                Client SecretRef ID
+                <input
+                  className="input"
+                  value={workspaceAuthPolicy.oidc_client_secret_ref_id || ""}
+                  placeholder="SecretRef UUID"
+                  onChange={(event) => setWorkspaceAuthPolicy((current) => ({ ...current, oidc_client_secret_ref_id: event.target.value || null }))}
+                />
+              </label>
+              <label>
+                Scopes
+                <input
+                  className="input"
+                  value={workspaceAuthPolicy.oidc_scopes || "openid profile email"}
+                  onChange={(event) => setWorkspaceAuthPolicy((current) => ({ ...current, oidc_scopes: event.target.value }))}
+                />
+              </label>
+              <label>
+                Email claim
+                <input
+                  className="input"
+                  value={workspaceAuthPolicy.oidc_claim_email || "email"}
+                  onChange={(event) => setWorkspaceAuthPolicy((current) => ({ ...current, oidc_claim_email: event.target.value }))}
+                />
+              </label>
+              <label>
+                Auto-provision membership
+                <select
+                  value={workspaceAuthPolicy.oidc_allow_auto_provision ? "yes" : "no"}
+                  onChange={(event) => setWorkspaceAuthPolicy((current) => ({ ...current, oidc_allow_auto_provision: event.target.value === "yes" }))}
+                >
+                  <option value="no">No</option>
+                  <option value="yes">Yes</option>
+                </select>
+              </label>
+              <label className="span-full">
+                Allowed email domains (comma-separated)
+                <input
+                  className="input"
+                  value={(workspaceAuthPolicy.oidc_allowed_email_domains || []).join(", ")}
+                  onChange={(event) =>
+                    setWorkspaceAuthPolicy((current) => ({
+                      ...current,
+                      oidc_allowed_email_domains: event.target.value
+                        .split(",")
+                        .map((item) => item.trim().toLowerCase())
+                        .filter(Boolean),
+                    }))
+                  }
+                />
+              </label>
+            </div>
+            <div className="form-actions">
+              <button className="ghost" onClick={() => void testDiscovery()} disabled={authPolicyTesting || !workspaceId}>
+                {authPolicyTesting ? "Testing..." : "Test OIDC discovery"}
+              </button>
+              <button className="primary" onClick={() => void saveWorkspaceAuthPolicy()} disabled={authPolicySaving || !workspaceId}>
+                {authPolicySaving ? "Saving..." : "Save Authentication"}
+              </button>
+            </div>
+            <p className="muted small">
+              Tenant Auth Status: SSO {workspaceSummary?.tenant_auth_status?.sso === "ready" ? "Ready" : "Not configured"} · Local login{" "}
+              {workspaceSummary?.tenant_auth_status?.local_login === "enabled" ? "enabled" : "disabled"}.
+            </p>
+          </section>
           <section className="card" style={{ marginBottom: 12 }}>
             <div className="card-header">
               <h3>Users</h3>

@@ -1,14 +1,44 @@
-import { Navigate, Route, Routes } from "react-router-dom";
+import { useEffect } from "react";
+import { Navigate, Route, Routes, useParams } from "react-router-dom";
 import AppShell from "./app/AppShell";
 import PublicShell from "./public/PublicShell";
 import HomePage from "./public/pages/HomePage";
 import PageRoute from "./public/pages/PageRoute";
 import ArticlesIndex from "./public/pages/ArticlesIndex";
 import ArticleDetail from "./public/pages/ArticleDetail";
+import { resolveApiBaseUrl } from "./api/client";
+
+function WorkspaceAuthLoginBridge() {
+  const params = useParams();
+  const workspaceId = String(params.workspaceId || "").trim();
+  useEffect(() => {
+    if (!workspaceId) return;
+    const apiBase = resolveApiBaseUrl();
+    const returnTo = `${window.location.origin}/w/${workspaceId}/build/artifacts`;
+    window.location.replace(
+      `${apiBase}/xyn/api/workspaces/${workspaceId}/auth/login?returnTo=${encodeURIComponent(returnTo)}`
+    );
+  }, [workspaceId]);
+  return <div style={{ padding: 24 }}>Starting workspace sign-in…</div>;
+}
+
+function WorkspaceAuthCallbackBridge() {
+  const params = useParams();
+  const workspaceId = String(params.workspaceId || "").trim();
+  useEffect(() => {
+    if (!workspaceId) return;
+    const apiBase = resolveApiBaseUrl();
+    const query = window.location.search || "";
+    window.location.replace(`${apiBase}/xyn/api/workspaces/${workspaceId}/auth/callback${query}`);
+  }, [workspaceId]);
+  return <div style={{ padding: 24 }}>Completing workspace sign-in…</div>;
+}
 
 export default function App() {
   return (
     <Routes>
+      <Route path="/w/:workspaceId/auth/login" element={<WorkspaceAuthLoginBridge />} />
+      <Route path="/w/:workspaceId/auth/callback" element={<WorkspaceAuthCallbackBridge />} />
       <Route path="/w/:workspaceId/*" element={<AppShell />} />
       <Route path="/workspaces" element={<Navigate to="/app/workspaces" replace />} />
       <Route path="/app/*" element={<AppShell />} />

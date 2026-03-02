@@ -116,6 +116,7 @@ import type {
   ArtifactEventSummary,
   AiActivityEntry,
   WorkspaceMembershipSummary,
+  WorkspaceAuthPolicy,
   DocPage,
   TourDefinition,
   WorkflowActionCatalogResponse,
@@ -487,6 +488,39 @@ export async function updateWorkspace(
     body: JSON.stringify(payload),
   });
   return handle<{ workspace: WorkspaceSummary }>(response);
+}
+
+export async function getWorkspaceAuthPolicy(workspaceId: string): Promise<{ auth_policy: WorkspaceAuthPolicy }> {
+  const apiBaseUrl = resolveApiBaseUrl();
+  const response = await apiFetch(`${apiBaseUrl}/xyn/api/workspaces/${workspaceId}/auth-policy`, {
+    credentials: "include",
+  });
+  return handle<{ auth_policy: WorkspaceAuthPolicy }>(response);
+}
+
+export async function updateWorkspaceAuthPolicy(
+  workspaceId: string,
+  payload: Partial<WorkspaceAuthPolicy>
+): Promise<{ auth_policy: WorkspaceAuthPolicy }> {
+  const apiBaseUrl = resolveApiBaseUrl();
+  const response = await apiFetch(`${apiBaseUrl}/xyn/api/workspaces/${workspaceId}/auth-policy`, {
+    method: "PATCH",
+    headers: buildHeaders(),
+    credentials: "include",
+    body: JSON.stringify(payload),
+  });
+  return handle<{ auth_policy: WorkspaceAuthPolicy }>(response);
+}
+
+export async function testWorkspaceOidcDiscovery(
+  workspaceId: string
+): Promise<{ ok: boolean; discovery_url: string; issuer?: string; authorization_endpoint?: string; token_endpoint?: string; jwks_uri?: string; error?: string }> {
+  const apiBaseUrl = resolveApiBaseUrl();
+  const response = await apiFetch(`${apiBaseUrl}/xyn/api/workspaces/${workspaceId}/auth-policy/test-discovery`, {
+    method: "POST",
+    credentials: "include",
+  });
+  return handle<{ ok: boolean; discovery_url: string; issuer?: string; authorization_endpoint?: string; token_endpoint?: string; jwks_uri?: string; error?: string }>(response);
 }
 
 export async function listWorkspaceArtifacts(

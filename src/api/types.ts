@@ -906,6 +906,18 @@ export type WorkspaceSummary = {
   lifecycle_stage?: "lead" | "prospect" | "customer" | "churned" | "internal" | string;
   auth_mode?: "local" | "oidc" | "mixed" | string;
   oidc_config_ref?: string;
+  oidc_enabled?: boolean;
+  oidc_issuer_url?: string;
+  oidc_client_id?: string;
+  oidc_client_secret_ref_id?: string | null;
+  oidc_scopes?: string;
+  oidc_claim_email?: string;
+  oidc_allow_auto_provision?: boolean;
+  oidc_allowed_email_domains?: string[];
+  tenant_auth_status?: {
+    sso: "ready" | "not_configured" | string;
+    local_login: "enabled" | "disabled" | string;
+  };
   parent_workspace_id?: string | null;
   metadata?: Record<string, unknown>;
   description?: string;
@@ -1854,6 +1866,19 @@ export type WorkspaceMembershipSummary = {
   role: "admin" | "member";
   termination_authority: boolean;
   created_at?: string;
+};
+
+export type WorkspaceAuthPolicy = {
+  workspace_id: string;
+  auth_mode: "local" | "oidc" | "mixed" | string;
+  oidc_enabled: boolean;
+  oidc_issuer_url: string;
+  oidc_client_id: string;
+  oidc_client_secret_ref_id?: string | null;
+  oidc_scopes: string;
+  oidc_claim_email: string;
+  oidc_allow_auto_provision: boolean;
+  oidc_allowed_email_domains: string[];
 };
 
 export type OidcAppClient = {

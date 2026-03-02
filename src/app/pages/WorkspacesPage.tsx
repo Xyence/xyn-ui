@@ -260,6 +260,16 @@ export default function WorkspacesPage({
               ) : null}
             </div>
             {selectedWorkspace ? (
+              <div className="inline-actions" style={{ marginBottom: 10 }}>
+                <span className={`status-chip ${selectedWorkspace.tenant_auth_status?.sso === "ready" ? "active" : ""}`}>
+                  SSO: {selectedWorkspace.tenant_auth_status?.sso === "ready" ? "Ready" : "Not configured"}
+                </span>
+                <span className={`status-chip ${selectedWorkspace.tenant_auth_status?.local_login === "enabled" ? "active" : ""}`}>
+                  Local login: {selectedWorkspace.tenant_auth_status?.local_login === "enabled" ? "enabled" : "disabled"}
+                </span>
+              </div>
+            ) : null}
+            {selectedWorkspace ? (
               <form onSubmit={(event) => void submitUpdate(event)} className="form-grid">
                 <label>
                   Name
