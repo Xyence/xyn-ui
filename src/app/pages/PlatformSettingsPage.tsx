@@ -30,7 +30,6 @@ import type {
 import { toWorkspacePath } from "../routing/workspaceRouting";
 
 type SettingsTab = "general" | "security" | "integrations" | "deploy" | "workspaces";
-type WorkspaceSubTab = "profile" | "members" | "authentication" | "hierarchy" | "all";
 
 type SettingsCard = {
   title: string;
@@ -61,16 +60,21 @@ const SETTINGS_TABS: Array<{ value: SettingsTab; label: string }> = [
   { value: "workspaces", label: "Workspaces" },
 ];
 
-const WORKSPACE_SUB_TABS: Array<{ value: WorkspaceSubTab; label: string }> = [
-  { value: "profile", label: "Profile" },
-  { value: "members", label: "Members" },
-  { value: "authentication", label: "Authentication" },
-  { value: "hierarchy", label: "Hierarchy" },
-  { value: "all", label: "All Workspaces" },
-];
-
 const LIFECYCLE_OPTIONS = ["lead", "prospect", "customer", "churned", "internal"];
 const KIND_OPTIONS = ["customer", "operator", "reseller", "internal"];
+const WORKSPACES_PAGE_SIZE = 5;
+const MEMBERS_PAGE_SIZE = 5;
+
+function inferMemberAuthSource(member: WorkspaceMembershipSummary): string {
+  const token = String(member.user_identity_id || "").toLowerCase();
+  if (!token) return "Unknown";
+  if (token.includes("google")) return "Google IdP";
+  if (token.includes("aws")) return "Xyn/AWS IdP";
+  if (token.includes("local")) return "Local";
+  if (token.includes("oidc")) return "OIDC";
+  if (token.includes(":")) return token.split(":", 1)[0].toUpperCase();
+  return "Identity";
+}
 
 const defaultConfig: PlatformConfig = {
   storage: {
@@ -203,10 +207,13 @@ export default function PlatformSettingsPage() {
   const [authPolicySaving, setAuthPolicySaving] = useState(false);
   const [authPolicyTesting, setAuthPolicyTesting] = useState(false);
   const [workspaceProfileSaving, setWorkspaceProfileSaving] = useState(false);
-  const [workspaceHierarchySaving, setWorkspaceHierarchySaving] = useState(false);
   const [allWorkspaceCreating, setAllWorkspaceCreating] = useState(false);
   const [allWorkspaceSearch, setAllWorkspaceSearch] = useState("");
-  const [focusWorkspaceId, setFocusWorkspaceId] = useState("");
+  const [allWorkspacePage, setAllWorkspacePage] = useState(1);
+  const [membersSearch, setMembersSearch] = useState("");
+  const [membersPage, setMembersPage] = useState(1);
+  const [selectedWorkspaceId, setSelectedWorkspaceId] = useState("");
+  const [createModalOpen, setCreateModalOpen] = useState(false);
   const [profileForm, setProfileForm] = useState({
     name: "",
     org_name: "",
@@ -214,6 +221,7 @@ export default function PlatformSettingsPage() {
     description: "",
     kind: "customer",
     lifecycle_stage: "prospect",
+    parent_workspace_id: "",
     metadata_text: "{}",
   });
   const [createForm, setCreateForm] = useState({
@@ -273,30 +281,41 @@ export default function PlatformSettingsPage() {
     void loadVideoAdapters();
   }, []);
 
-  const loadWorkspaceSecurity = async () => {
-    if (!workspaceId) {
+  const loadWorkspaceDirectory = async () => {
+    try {
+      const workspaceResult = await listWorkspaces();
+      const allRows = workspaceResult.workspaces || [];
+      setWorkspaceRows(allRows);
+      setSelectedWorkspaceId((current) => {
+        if (workspaceId && allRows.some((row) => row.id === workspaceId)) return workspaceId;
+        if (current && allRows.some((row) => row.id === current)) return current;
+        return allRows[0]?.id || "";
+      });
+    } catch (err) {
+      setError((err as Error).message);
+    }
+  };
+
+  const loadSelectedWorkspace = async (targetWorkspaceId: string) => {
+    if (!targetWorkspaceId) {
       setWorkspaceMembers([]);
       setWorkspaceSummary(null);
+      setWorkspaceAuthPolicy(defaultWorkspaceAuthPolicy);
       return;
     }
     try {
       setMembersLoading(true);
-      const [membersResult, workspaceResult] = await Promise.all([
-        listWorkspaceMembers(workspaceId),
-        listWorkspaces(),
-      ]);
+      const membersResult = await listWorkspaceMembers(targetWorkspaceId);
       setWorkspaceMembers(membersResult.memberships || []);
-      const allRows = workspaceResult.workspaces || [];
-      setWorkspaceRows(allRows);
-      const row = allRows.find((item) => item.id === workspaceId) || null;
+      const row = workspaceRows.find((item) => item.id === targetWorkspaceId) || null;
       setWorkspaceSummary(row);
       try {
-        const authResult = await getWorkspaceAuthPolicy(workspaceId);
-        setWorkspaceAuthPolicy(authResult.auth_policy || { ...defaultWorkspaceAuthPolicy, workspace_id: workspaceId });
+        const authResult = await getWorkspaceAuthPolicy(targetWorkspaceId);
+        setWorkspaceAuthPolicy(authResult.auth_policy || { ...defaultWorkspaceAuthPolicy, workspace_id: targetWorkspaceId });
       } catch {
         setWorkspaceAuthPolicy({
           ...defaultWorkspaceAuthPolicy,
-          workspace_id: workspaceId,
+          workspace_id: targetWorkspaceId,
           auth_mode: row?.auth_mode || "oidc",
           oidc_enabled: Boolean(row?.oidc_enabled),
           oidc_issuer_url: row?.oidc_issuer_url || "",
@@ -442,35 +461,29 @@ export default function PlatformSettingsPage() {
   const requestedTab = (searchParams.get("tab") || "general").toLowerCase();
   const activeTab: SettingsTab =
     SETTINGS_TABS.find((tab) => tab.value === requestedTab)?.value || "general";
-  const requestedWorkspaceSubTab = (searchParams.get("wsTab") || "profile").toLowerCase();
-  const activeWorkspaceSubTab: WorkspaceSubTab =
-    WORKSPACE_SUB_TABS.find((tab) => tab.value === requestedWorkspaceSubTab)?.value || "profile";
 
   const setActiveTab = (tab: SettingsTab) => {
     const next = new URLSearchParams(searchParams);
     if (tab === "general") next.delete("tab");
     else next.set("tab", tab);
-    if (tab !== "workspaces") next.delete("wsTab");
-    if (tab === "workspaces" && !next.get("wsTab")) next.set("wsTab", "profile");
-    setSearchParams(next);
-  };
-
-  const setActiveWorkspaceSubTab = (tab: WorkspaceSubTab) => {
-    const next = new URLSearchParams(searchParams);
-    next.set("tab", "workspaces");
-    next.set("wsTab", tab);
-    if (tab !== "all") next.delete("focusWorkspaceId");
     setSearchParams(next);
   };
 
   useEffect(() => {
     if (activeTab !== "workspaces") return;
-    void loadWorkspaceSecurity();
+    void loadWorkspaceDirectory();
   }, [activeTab, workspaceId]);
 
   useEffect(() => {
-    setFocusWorkspaceId(String(searchParams.get("focusWorkspaceId") || "").trim());
-  }, [searchParams]);
+    if (activeTab !== "workspaces") return;
+    if (!selectedWorkspaceId) return;
+    void loadSelectedWorkspace(selectedWorkspaceId);
+  }, [activeTab, selectedWorkspaceId, workspaceRows]);
+
+  useEffect(() => {
+    setMembersSearch("");
+    setMembersPage(1);
+  }, [selectedWorkspaceId]);
 
   useEffect(() => {
     if (!workspaceSummary) return;
@@ -481,16 +494,17 @@ export default function PlatformSettingsPage() {
       description: workspaceSummary.description || "",
       kind: workspaceSummary.kind || "customer",
       lifecycle_stage: workspaceSummary.lifecycle_stage || "prospect",
+      parent_workspace_id: workspaceSummary.parent_workspace_id || "",
       metadata_text: JSON.stringify(workspaceSummary.metadata || {}, null, 2),
     });
   }, [workspaceSummary]);
 
   const addMember = async () => {
-    if (!workspaceId || !memberEmail.trim()) return;
+    if (!selectedWorkspaceId || !memberEmail.trim()) return;
     try {
       setMemberActionLoading(true);
       setDemoCredentialNotice(null);
-      const result = await addWorkspaceMember(workspaceId, {
+      const result = await addWorkspaceMember(selectedWorkspaceId, {
         email: memberEmail.trim(),
         role: memberRole,
       });
@@ -502,7 +516,7 @@ export default function PlatformSettingsPage() {
         setDemoCredentialNotice(`Invite link: ${result.invite_link}`);
       }
       setMemberEmail("");
-      await loadWorkspaceSecurity();
+      await loadSelectedWorkspace(selectedWorkspaceId);
       setMessage("Workspace member added.");
     } catch (err) {
       setError((err as Error).message);
@@ -512,11 +526,11 @@ export default function PlatformSettingsPage() {
   };
 
   const removeMember = async (memberId: string) => {
-    if (!workspaceId || !memberId) return;
+    if (!selectedWorkspaceId || !memberId) return;
     try {
       setMemberActionLoading(true);
-      await deleteWorkspaceMember(workspaceId, memberId);
-      await loadWorkspaceSecurity();
+      await deleteWorkspaceMember(selectedWorkspaceId, memberId);
+      await loadSelectedWorkspace(selectedWorkspaceId);
       setMessage("Workspace member removed.");
     } catch (err) {
       setError((err as Error).message);
@@ -526,7 +540,7 @@ export default function PlatformSettingsPage() {
   };
 
   const saveWorkspaceAuthPolicy = async () => {
-    if (!workspaceId) return;
+    if (!selectedWorkspaceId) return;
     try {
       setAuthPolicySaving(true);
       const payload: Partial<WorkspaceAuthPolicy> = {
@@ -540,10 +554,10 @@ export default function PlatformSettingsPage() {
         oidc_allow_auto_provision: workspaceAuthPolicy.oidc_allow_auto_provision,
         oidc_allowed_email_domains: workspaceAuthPolicy.oidc_allowed_email_domains,
       };
-      const result = await updateWorkspaceAuthPolicy(workspaceId, payload);
+      const result = await updateWorkspaceAuthPolicy(selectedWorkspaceId, payload);
       setWorkspaceAuthPolicy(result.auth_policy);
       setMessage("Authentication policy saved.");
-      await loadWorkspaceSecurity();
+      await loadSelectedWorkspace(selectedWorkspaceId);
     } catch (err) {
       setError((err as Error).message);
     } finally {
@@ -552,10 +566,10 @@ export default function PlatformSettingsPage() {
   };
 
   const testDiscovery = async () => {
-    if (!workspaceId) return;
+    if (!selectedWorkspaceId) return;
     try {
       setAuthPolicyTesting(true);
-      const result = await testWorkspaceOidcDiscovery(workspaceId);
+      const result = await testWorkspaceOidcDiscovery(selectedWorkspaceId);
       if (result.ok) {
         setMessage(`OIDC discovery succeeded: ${result.issuer || "issuer resolved"}`);
       } else {
@@ -569,7 +583,7 @@ export default function PlatformSettingsPage() {
   };
 
   const saveWorkspaceProfile = async () => {
-    if (!workspaceId) return;
+    if (!selectedWorkspaceId) return;
     try {
       setWorkspaceProfileSaving(true);
       let metadata: Record<string, unknown> = {};
@@ -581,37 +595,23 @@ export default function PlatformSettingsPage() {
         setError("Metadata must be valid JSON object.");
         return;
       }
-      await updateWorkspace(workspaceId, {
+      await updateWorkspace(selectedWorkspaceId, {
         name: profileForm.name.trim(),
         org_name: profileForm.org_name.trim(),
         slug: profileForm.slug.trim(),
         description: profileForm.description,
         kind: profileForm.kind,
         lifecycle_stage: profileForm.lifecycle_stage,
+        parent_workspace_id: profileForm.parent_workspace_id || null,
         metadata,
       });
-      await loadWorkspaceSecurity();
+      await loadWorkspaceDirectory();
+      await loadSelectedWorkspace(selectedWorkspaceId);
       setMessage("Workspace profile saved.");
     } catch (err) {
       setError((err as Error).message);
     } finally {
       setWorkspaceProfileSaving(false);
-    }
-  };
-
-  const saveWorkspaceHierarchy = async () => {
-    if (!workspaceId) return;
-    try {
-      setWorkspaceHierarchySaving(true);
-      await updateWorkspace(workspaceId, {
-        parent_workspace_id: focusWorkspaceId || null,
-      });
-      await loadWorkspaceSecurity();
-      setMessage("Workspace hierarchy updated.");
-    } catch (err) {
-      setError((err as Error).message);
-    } finally {
-      setWorkspaceHierarchySaving(false);
     }
   };
 
@@ -637,12 +637,9 @@ export default function PlatformSettingsPage() {
         lifecycle_stage: "prospect",
         parent_workspace_id: "",
       });
-      await loadWorkspaceSecurity();
-      const next = new URLSearchParams(searchParams);
-      next.set("tab", "workspaces");
-      next.set("wsTab", "all");
-      next.set("focusWorkspaceId", result.workspace.id);
-      setSearchParams(next);
+      await loadWorkspaceDirectory();
+      setSelectedWorkspaceId(result.workspace.id);
+      setCreateModalOpen(false);
       setMessage(`Workspace "${result.workspace.name}" created.`);
     } catch (err) {
       setError((err as Error).message);
@@ -688,6 +685,34 @@ export default function PlatformSettingsPage() {
       (row.org_name || "").toLowerCase().includes(q)
     );
   });
+  const workspacePageCount = Math.max(1, Math.ceil(filteredWorkspaceRows.length / WORKSPACES_PAGE_SIZE));
+  const safeWorkspacePage = Math.min(allWorkspacePage, workspacePageCount);
+  const workspacePageRows = filteredWorkspaceRows.slice(
+    (safeWorkspacePage - 1) * WORKSPACES_PAGE_SIZE,
+    safeWorkspacePage * WORKSPACES_PAGE_SIZE
+  );
+  const filteredMembers = workspaceMembers.filter((member) => {
+    const q = membersSearch.trim().toLowerCase();
+    if (!q) return true;
+    return (
+      String(member.email || "").toLowerCase().includes(q) ||
+      String(member.display_name || "").toLowerCase().includes(q) ||
+      String(member.user_identity_id || "").toLowerCase().includes(q) ||
+      inferMemberAuthSource(member).toLowerCase().includes(q)
+    );
+  });
+  const membersPageCount = Math.max(1, Math.ceil(filteredMembers.length / MEMBERS_PAGE_SIZE));
+  const safeMembersPage = Math.min(membersPage, membersPageCount);
+  const memberPageRows = filteredMembers.slice(
+    (safeMembersPage - 1) * MEMBERS_PAGE_SIZE,
+    safeMembersPage * MEMBERS_PAGE_SIZE
+  );
+  useEffect(() => {
+    if (allWorkspacePage > workspacePageCount) setAllWorkspacePage(workspacePageCount);
+  }, [allWorkspacePage, workspacePageCount]);
+  useEffect(() => {
+    if (membersPage > membersPageCount) setMembersPage(membersPageCount);
+  }, [membersPage, membersPageCount]);
 
   const securityCards: SettingsCard[] = [
     {
@@ -811,27 +836,66 @@ export default function PlatformSettingsPage() {
       {activeTab === "deploy" ? <HubCards cards={deployCards} onOpen={(path) => navigate(path)} /> : null}
       {activeTab === "workspaces" ? (
         <>
-          <section className="card" style={{ marginBottom: 12, paddingBottom: 14 }}>
+          <section className="card">
             <div className="card-header">
-              <h3>Workspaces Hub</h3>
-              <span className="status-chip active">
-                {(workspaceSummary?.name || "Unknown")} · {(workspaceSummary?.slug || "--")} · kind: {(workspaceSummary?.kind || "customer")} · stage:{" "}
-                {(workspaceSummary?.lifecycle_stage || "prospect")}
-              </span>
+              <h3>Workspace Management</h3>
+              <button className="primary" type="button" onClick={() => setCreateModalOpen(true)}>
+                Create Workspace
+              </button>
             </div>
-            <div className="page-tabs" style={{ margin: 0 }}>
-              <Tabs
-                ariaLabel="Workspace hub tabs"
-                value={activeWorkspaceSubTab}
-                onChange={setActiveWorkspaceSubTab}
-                options={WORKSPACE_SUB_TABS.map((tab) => ({ value: tab.value, label: tab.label }))}
-              />
-            </div>
+            <p className="muted small">Workspace is the tenant container. Select a workspace to edit details, members, and authentication in one place.</p>
           </section>
 
-          {activeWorkspaceSubTab === "profile" ? (
-            <section className="card">
-              <h3>Workspace Profile</h3>
+          <div style={{ display: "grid", gap: 12, gridTemplateColumns: "minmax(260px, 1fr) minmax(360px, 1.2fr)" }}>
+            <section className="card" style={{ marginBottom: 0 }}>
+              <div className="card-header">
+                <h3>All Workspaces</h3>
+                <span className="status-chip">{filteredWorkspaceRows.length}</span>
+              </div>
+              <input
+                className="input"
+                placeholder="Search workspaces"
+                value={allWorkspaceSearch}
+                onChange={(event) => {
+                  setAllWorkspaceSearch(event.target.value);
+                  setAllWorkspacePage(1);
+                }}
+              />
+              <div className="instance-list" style={{ marginTop: 10 }}>
+                {workspacePageRows.map((row) => (
+                  <button
+                    key={row.id}
+                    type="button"
+                    className={`instance-row ${selectedWorkspaceId === row.id ? "active" : ""}`}
+                    onClick={() => setSelectedWorkspaceId(row.id)}
+                  >
+                    <div>
+                      <strong>{row.name}</strong>
+                      <div className="muted small">{row.slug}</div>
+                    </div>
+                    <span className="status-chip">{row.lifecycle_stage || "prospect"}</span>
+                  </button>
+                ))}
+                {!workspacePageRows.length ? <p className="muted">No workspaces found.</p> : null}
+              </div>
+              <div className="form-actions">
+                <button className="ghost" type="button" onClick={() => setAllWorkspacePage((value) => Math.max(1, value - 1))} disabled={safeWorkspacePage <= 1}>
+                  Previous
+                </button>
+                <span className="muted small">Page {safeWorkspacePage} of {workspacePageCount}</span>
+                <button className="ghost" type="button" onClick={() => setAllWorkspacePage((value) => Math.min(workspacePageCount, value + 1))} disabled={safeWorkspacePage >= workspacePageCount}>
+                  Next
+                </button>
+              </div>
+            </section>
+
+            <section className="card" style={{ marginBottom: 0 }}>
+              <div className="card-header">
+                <h3>Workspace Profile</h3>
+                <span className="status-chip active">
+                  {(workspaceSummary?.name || "--")} · {(workspaceSummary?.slug || "--")} · kind: {(workspaceSummary?.kind || "customer")} · stage: {(workspaceSummary?.lifecycle_stage || "prospect")}
+                </span>
+              </div>
               <div className="form-grid">
                 <label>
                   Name
@@ -844,6 +908,19 @@ export default function PlatformSettingsPage() {
                 <label>
                   Slug
                   <input className="input" value={profileForm.slug} onChange={(event) => setProfileForm((current) => ({ ...current, slug: event.target.value }))} />
+                </label>
+                <label>
+                  Parent workspace
+                  <select value={profileForm.parent_workspace_id} onChange={(event) => setProfileForm((current) => ({ ...current, parent_workspace_id: event.target.value }))}>
+                    <option value="">(none)</option>
+                    {workspaceRows
+                      .filter((row) => row.id !== selectedWorkspaceId)
+                      .map((row) => (
+                        <option key={row.id} value={row.id}>
+                          {row.name}
+                        </option>
+                      ))}
+                  </select>
                 </label>
                 <label>
                   Kind
@@ -875,194 +952,155 @@ export default function PlatformSettingsPage() {
                 </label>
               </div>
               <div className="form-actions">
-                <button className="primary" onClick={() => void saveWorkspaceProfile()} disabled={workspaceProfileSaving || !workspaceId}>
+                <button className="primary" onClick={() => void saveWorkspaceProfile()} disabled={workspaceProfileSaving || !selectedWorkspaceId}>
                   {workspaceProfileSaving ? "Saving..." : "Save Profile"}
                 </button>
               </div>
             </section>
-          ) : null}
+          </div>
 
-          {activeWorkspaceSubTab === "members" ? (
-            <>
-              <section className="card" style={{ marginBottom: 12 }}>
-                <h3>Workspace Members</h3>
-                <div className="form-grid" style={{ gridTemplateColumns: "2fr 1fr auto" }}>
-                  <label>
-                    Email
-                    <input className="input" placeholder="user@example.com" value={memberEmail} onChange={(event) => setMemberEmail(event.target.value)} />
-                  </label>
-                  <label>
-                    Workspace role
-                    <select value={memberRole} onChange={(event) => setMemberRole(event.target.value as "admin" | "member")}>
-                      <option value="admin">Workspace Admin</option>
-                      <option value="member">Workspace Member</option>
-                    </select>
-                  </label>
-                  <div className="form-actions" style={{ alignSelf: "end" }}>
-                    <button className="primary" onClick={() => void addMember()} disabled={memberActionLoading || !workspaceId}>
-                      {memberActionLoading ? "Adding..." : "Add member"}
-                    </button>
-                  </div>
-                </div>
-                {demoCredentialNotice ? <InlineMessage tone="info" title="Demo credentials" body={demoCredentialNotice} /> : null}
-                <div style={{ marginTop: 10 }}>
-                  {membersLoading ? <p className="muted">Loading members...</p> : null}
-                  {!membersLoading && workspaceMembers.length === 0 ? <p className="muted">No members yet.</p> : null}
-                  {!membersLoading && workspaceMembers.length > 0
-                    ? workspaceMembers.map((member) => (
-                        <div key={member.id} className="instance-row" style={{ display: "grid", gridTemplateColumns: "minmax(220px, 1fr) auto auto", gap: 10 }}>
-                          <div>
-                            <strong>{member.email || member.display_name || member.user_identity_id}</strong>
-                            <div className="muted small">{member.display_name || member.user_identity_id}</div>
-                          </div>
-                          <span className="status-chip">{member.role === "admin" ? "Workspace Admin" : "Workspace Member"}</span>
-                          <button className="ghost" onClick={() => void removeMember(member.id)} disabled={memberActionLoading}>
-                            Remove
-                          </button>
-                        </div>
-                      ))
-                    : null}
-                </div>
-              </section>
-              <section className="card">
-                <h3>Roles</h3>
-                <p className="muted">Workspace roles are currently Admin/Member. Custom roles will appear here later.</p>
-              </section>
-            </>
-          ) : null}
-
-          {activeWorkspaceSubTab === "authentication" ? (
-            <section className="card">
-              <h3>Authentication</h3>
-              <div className="form-grid">
-                <label>
-                  Auth mode
-                  <select value={workspaceAuthPolicy.auth_mode} onChange={(event) => setWorkspaceAuthPolicy((current) => ({ ...current, auth_mode: event.target.value as "local" | "oidc" | "mixed" }))}>
-                    <option value="oidc">OIDC</option>
-                    <option value="local">Local</option>
-                    <option value="mixed">Mixed</option>
-                  </select>
-                </label>
-                <label>
-                  OIDC enabled
-                  <select value={workspaceAuthPolicy.oidc_enabled ? "yes" : "no"} onChange={(event) => setWorkspaceAuthPolicy((current) => ({ ...current, oidc_enabled: event.target.value === "yes" }))}>
-                    <option value="no">No</option>
-                    <option value="yes">Yes</option>
-                  </select>
-                </label>
-                <label>
-                  Issuer URL
-                  <input className="input" value={workspaceAuthPolicy.oidc_issuer_url || ""} onChange={(event) => setWorkspaceAuthPolicy((current) => ({ ...current, oidc_issuer_url: event.target.value }))} />
-                </label>
-                <label>
-                  Client ID
-                  <input className="input" value={workspaceAuthPolicy.oidc_client_id || ""} onChange={(event) => setWorkspaceAuthPolicy((current) => ({ ...current, oidc_client_id: event.target.value }))} />
-                </label>
-                <label>
-                  Client SecretRef ID
-                  <input className="input" value={workspaceAuthPolicy.oidc_client_secret_ref_id || ""} onChange={(event) => setWorkspaceAuthPolicy((current) => ({ ...current, oidc_client_secret_ref_id: event.target.value || null }))} />
-                </label>
-                <label>
-                  Scopes
-                  <input className="input" value={workspaceAuthPolicy.oidc_scopes || ""} onChange={(event) => setWorkspaceAuthPolicy((current) => ({ ...current, oidc_scopes: event.target.value }))} />
-                </label>
-                <label>
-                  Email claim
-                  <input className="input" value={workspaceAuthPolicy.oidc_claim_email || ""} onChange={(event) => setWorkspaceAuthPolicy((current) => ({ ...current, oidc_claim_email: event.target.value }))} />
-                </label>
-                <label>
-                  Auto-provision
-                  <select value={workspaceAuthPolicy.oidc_allow_auto_provision ? "yes" : "no"} onChange={(event) => setWorkspaceAuthPolicy((current) => ({ ...current, oidc_allow_auto_provision: event.target.value === "yes" }))}>
-                    <option value="no">No</option>
-                    <option value="yes">Yes</option>
-                  </select>
-                </label>
-                <label className="span-full">
-                  Allowed domains (comma-separated)
-                  <input
-                    className="input"
-                    value={(workspaceAuthPolicy.oidc_allowed_email_domains || []).join(", ")}
-                    onChange={(event) =>
-                      setWorkspaceAuthPolicy((current) => ({
-                        ...current,
-                        oidc_allowed_email_domains: event.target.value.split(",").map((token) => token.trim().toLowerCase()).filter(Boolean),
-                      }))
-                    }
-                  />
-                </label>
-              </div>
-              <div className="form-actions">
-                <button className="ghost" onClick={() => void testDiscovery()} disabled={authPolicyTesting || !workspaceId}>
-                  {authPolicyTesting ? "Testing..." : "Test OIDC discovery"}
-                </button>
-                <button className="primary" onClick={() => void saveWorkspaceAuthPolicy()} disabled={authPolicySaving || !workspaceId}>
-                  {authPolicySaving ? "Saving..." : "Save Authentication"}
+          <section className="card">
+            <div className="card-header">
+              <h3>Workspace Members</h3>
+              <span className="status-chip">Workspace role</span>
+            </div>
+            <div className="form-grid" style={{ gridTemplateColumns: "2fr 1fr auto" }}>
+              <label>
+                Email
+                <input className="input" placeholder="user@example.com" value={memberEmail} onChange={(event) => setMemberEmail(event.target.value)} />
+              </label>
+              <label>
+                Workspace role
+                <select value={memberRole} onChange={(event) => setMemberRole(event.target.value as "admin" | "member")}>
+                  <option value="admin">Workspace Admin</option>
+                  <option value="member">Workspace Member</option>
+                </select>
+              </label>
+              <div className="form-actions" style={{ alignSelf: "end" }}>
+                <button className="primary" onClick={() => void addMember()} disabled={memberActionLoading || !selectedWorkspaceId}>
+                  {memberActionLoading ? "Adding..." : "Add member"}
                 </button>
               </div>
-            </section>
-          ) : null}
-
-          {activeWorkspaceSubTab === "hierarchy" ? (
-            <section className="card">
-              <h3>Hierarchy</h3>
-              <div className="form-grid">
-                <label>
-                  Parent workspace
-                  <select value={focusWorkspaceId || workspaceSummary?.parent_workspace_id || ""} onChange={(event) => setFocusWorkspaceId(event.target.value)}>
-                    <option value="">(none)</option>
-                    {workspaceRows
-                      .filter((row) => row.id !== workspaceId)
-                      .map((row) => (
-                        <option key={row.id} value={row.id}>
-                          {row.name}
-                        </option>
-                      ))}
-                  </select>
-                </label>
-              </div>
-              <div className="form-actions">
-                <button className="primary" onClick={() => void saveWorkspaceHierarchy()} disabled={workspaceHierarchySaving || !workspaceId}>
-                  {workspaceHierarchySaving ? "Saving..." : "Save Hierarchy"}
-                </button>
-              </div>
-              <p className="muted">
-                Child workspaces: {workspaceRows.filter((row) => row.parent_workspace_id === workspaceId).map((row) => row.name).join(", ") || "none"}
-              </p>
-            </section>
-          ) : null}
-
-          {activeWorkspaceSubTab === "all" ? (
-            <div style={{ display: "grid", gap: 12, gridTemplateColumns: "minmax(260px, 1fr) minmax(320px, 1.2fr)" }}>
-              <section className="card">
-                <div className="card-header">
-                  <h3>All Workspaces</h3>
-                </div>
-                <input className="input" placeholder="Search workspaces" value={allWorkspaceSearch} onChange={(event) => setAllWorkspaceSearch(event.target.value)} />
-                <div className="instance-list" style={{ marginTop: 10 }}>
-                  {filteredWorkspaceRows.map((row) => (
-                    <button
-                      key={row.id}
-                      type="button"
-                      className={`instance-row ${focusWorkspaceId === row.id ? "active" : ""}`}
-                      onClick={() => {
-                        setFocusWorkspaceId(row.id);
-                        const next = new URLSearchParams(searchParams);
-                        next.set("focusWorkspaceId", row.id);
-                        setSearchParams(next);
-                      }}
-                    >
+            </div>
+            {demoCredentialNotice ? <InlineMessage tone="info" title="Demo credentials" body={demoCredentialNotice} /> : null}
+            <div className="form-grid" style={{ gridTemplateColumns: "2fr auto", alignItems: "end" }}>
+              <label>
+                Search members
+                <input
+                  className="input"
+                  placeholder="Search email, identity, or auth source"
+                  value={membersSearch}
+                  onChange={(event) => {
+                    setMembersSearch(event.target.value);
+                    setMembersPage(1);
+                  }}
+                />
+              </label>
+            </div>
+            <div style={{ marginTop: 10 }}>
+              {membersLoading ? <p className="muted">Loading members...</p> : null}
+              {!membersLoading && !memberPageRows.length ? <p className="muted">No members yet.</p> : null}
+              {!membersLoading && memberPageRows.length
+                ? memberPageRows.map((member) => (
+                    <div key={member.id} className="instance-row" style={{ display: "grid", gridTemplateColumns: "minmax(240px, 1fr) auto auto auto", gap: 10 }}>
                       <div>
-                        <strong>{row.name}</strong>
-                        <div className="muted small">{row.slug}</div>
+                        <strong>{member.email || member.display_name || member.user_identity_id}</strong>
+                        <div className="muted small">{member.display_name || member.user_identity_id}</div>
                       </div>
-                      <span className="status-chip">{row.lifecycle_stage || "prospect"}</span>
-                    </button>
-                  ))}
-                </div>
-              </section>
-              <section className="card">
+                      <span className="status-chip">{inferMemberAuthSource(member)}</span>
+                      <span className="status-chip">{member.role === "admin" ? "Workspace Admin" : "Workspace Member"}</span>
+                      <button className="ghost" onClick={() => void removeMember(member.id)} disabled={memberActionLoading}>
+                        Remove
+                      </button>
+                    </div>
+                  ))
+                : null}
+            </div>
+            <div className="form-actions">
+              <button className="ghost" type="button" onClick={() => setMembersPage((value) => Math.max(1, value - 1))} disabled={safeMembersPage <= 1}>
+                Previous
+              </button>
+              <span className="muted small">Page {safeMembersPage} of {membersPageCount}</span>
+              <button className="ghost" type="button" onClick={() => setMembersPage((value) => Math.min(membersPageCount, value + 1))} disabled={safeMembersPage >= membersPageCount}>
+                Next
+              </button>
+            </div>
+          </section>
+
+          <section className="card">
+            <h3>Authentication</h3>
+            <div className="form-grid">
+              <label>
+                Auth mode
+                <select value={workspaceAuthPolicy.auth_mode} onChange={(event) => setWorkspaceAuthPolicy((current) => ({ ...current, auth_mode: event.target.value as "local" | "oidc" | "mixed" }))}>
+                  <option value="oidc">OIDC</option>
+                  <option value="local">Local</option>
+                  <option value="mixed">Mixed</option>
+                </select>
+              </label>
+              <label>
+                OIDC enabled
+                <select value={workspaceAuthPolicy.oidc_enabled ? "yes" : "no"} onChange={(event) => setWorkspaceAuthPolicy((current) => ({ ...current, oidc_enabled: event.target.value === "yes" }))}>
+                  <option value="no">No</option>
+                  <option value="yes">Yes</option>
+                </select>
+              </label>
+              <label>
+                Issuer URL
+                <input className="input" value={workspaceAuthPolicy.oidc_issuer_url || ""} onChange={(event) => setWorkspaceAuthPolicy((current) => ({ ...current, oidc_issuer_url: event.target.value }))} />
+              </label>
+              <label>
+                Client ID
+                <input className="input" value={workspaceAuthPolicy.oidc_client_id || ""} onChange={(event) => setWorkspaceAuthPolicy((current) => ({ ...current, oidc_client_id: event.target.value }))} />
+              </label>
+              <label>
+                Client SecretRef ID
+                <input className="input" value={workspaceAuthPolicy.oidc_client_secret_ref_id || ""} onChange={(event) => setWorkspaceAuthPolicy((current) => ({ ...current, oidc_client_secret_ref_id: event.target.value || null }))} />
+              </label>
+              <label>
+                Scopes
+                <input className="input" value={workspaceAuthPolicy.oidc_scopes || ""} onChange={(event) => setWorkspaceAuthPolicy((current) => ({ ...current, oidc_scopes: event.target.value }))} />
+              </label>
+              <label>
+                Email claim
+                <input className="input" value={workspaceAuthPolicy.oidc_claim_email || ""} onChange={(event) => setWorkspaceAuthPolicy((current) => ({ ...current, oidc_claim_email: event.target.value }))} />
+              </label>
+              <label>
+                Auto-provision
+                <select value={workspaceAuthPolicy.oidc_allow_auto_provision ? "yes" : "no"} onChange={(event) => setWorkspaceAuthPolicy((current) => ({ ...current, oidc_allow_auto_provision: event.target.value === "yes" }))}>
+                  <option value="no">No</option>
+                  <option value="yes">Yes</option>
+                </select>
+              </label>
+              <label className="span-full">
+                Allowed domains (comma-separated)
+                <input
+                  className="input"
+                  value={(workspaceAuthPolicy.oidc_allowed_email_domains || []).join(", ")}
+                  onChange={(event) =>
+                    setWorkspaceAuthPolicy((current) => ({
+                      ...current,
+                      oidc_allowed_email_domains: event.target.value.split(",").map((token) => token.trim().toLowerCase()).filter(Boolean),
+                    }))
+                  }
+                />
+              </label>
+            </div>
+            <div className="form-actions">
+              <button className="ghost" onClick={() => void testDiscovery()} disabled={authPolicyTesting || !selectedWorkspaceId}>
+                {authPolicyTesting ? "Testing..." : "Test OIDC discovery"}
+              </button>
+              <button className="primary" onClick={() => void saveWorkspaceAuthPolicy()} disabled={authPolicySaving || !selectedWorkspaceId}>
+                {authPolicySaving ? "Saving..." : "Save Authentication"}
+              </button>
+            </div>
+          </section>
+
+          {createModalOpen ? (
+            <div className="modal-backdrop" onClick={allWorkspaceCreating ? undefined : () => setCreateModalOpen(false)}>
+              <section className="modal" role="dialog" aria-modal="true" aria-label="Create workspace" onClick={(event) => event.stopPropagation()}>
                 <h3>Create Workspace</h3>
-                <div className="form-grid">
+                <div className="form-grid" style={{ gridTemplateColumns: "2fr 1fr auto" }}>
                   <label>
                     Name
                     <input className="input" value={createForm.name} onChange={(event) => setCreateForm((current) => ({ ...current, name: event.target.value }))} />
@@ -1112,6 +1150,9 @@ export default function PlatformSettingsPage() {
                   </label>
                 </div>
                 <div className="form-actions">
+                  <button className="ghost" type="button" onClick={() => setCreateModalOpen(false)} disabled={allWorkspaceCreating}>
+                    Cancel
+                  </button>
                   <button className="primary" onClick={() => void createWorkspaceFromHub()} disabled={allWorkspaceCreating || !createForm.name.trim()}>
                     {allWorkspaceCreating ? "Creating..." : "Create workspace"}
                   </button>
