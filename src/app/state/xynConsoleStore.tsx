@@ -10,7 +10,7 @@ export type XynConsoleContextRef = {
   artifact_type?: string | null;
 };
 
-type SupportedConsoleArtifactType = "ArticleDraft" | "ContextPack";
+type SupportedConsoleArtifactType = "ArticleDraft" | "ContextPack" | "Workspace";
 
 type PendingProposal = {
   patch_object: Record<string, unknown>;
@@ -83,7 +83,13 @@ function toContextKey(context: XynConsoleContextRef): string {
 function normalizeConsoleArtifactType(value: unknown): SupportedConsoleArtifactType {
   const raw = String(value || "").trim().toLowerCase();
   if (raw === "contextpack" || raw === "context_pack") return "ContextPack";
+  if (raw === "workspace") return "Workspace";
   return "ArticleDraft";
+}
+
+function workspaceIdFromPathname(pathname: string): string {
+  const match = String(pathname || "").match(/^\/w\/([^/]+)(?:\/|$)/);
+  return match?.[1] ? decodeURIComponent(match[1]) : "";
 }
 
 function readSessionsFromStorage(): PersistedSessions {
@@ -285,6 +291,7 @@ export function XynConsoleProvider({ children }: { children: ReactNode }) {
         context: {
           artifact_id: context.artifact_id || null,
           artifact_type: context.artifact_type || null,
+          workspace_id: workspaceIdFromPathname(typeof window !== "undefined" ? window.location.pathname : ""),
         },
         snapshot: activeEditorBridge?.getFormSnapshot ? activeEditorBridge.getFormSnapshot() : undefined,
       });
@@ -395,7 +402,7 @@ export function XynConsoleProvider({ children }: { children: ReactNode }) {
     try {
       const result = await applyXynIntent({
         action_type: "CreateDraft",
-        artifact_type: "ArticleDraft",
+        artifact_type: normalizeConsoleArtifactType(session.lastResolution?.artifact_type),
         payload,
       });
       storeResolution(result, session.lastMessage || "");

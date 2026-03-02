@@ -901,6 +901,11 @@ export type WorkspaceSummary = {
   id: string;
   slug: string;
   name: string;
+  org_name?: string;
+  kind?: string;
+  lifecycle_stage?: "lead" | "prospect" | "customer" | "churned" | "internal" | string;
+  parent_workspace_id?: string | null;
+  metadata?: Record<string, unknown>;
   description?: string;
   status?: "active" | "deprecated";
   role: "reader" | "contributor" | "publisher" | "moderator" | "admin";
@@ -2448,7 +2453,7 @@ export type XynIntentResolutionResult = {
   };
   draft_payload?: Record<string, unknown>;
   validation_errors?: string[];
-  next_actions?: Array<{ label: string; action: string; field?: string }>;
+  next_actions?: Array<{ label: string; action: string; field?: string; path?: string }>;
   audit?: {
     request_id?: string;
     confidence?: number;

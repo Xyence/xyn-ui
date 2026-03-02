@@ -224,7 +224,7 @@ export async function getWhoAmI(): Promise<{ authenticated: boolean; username?: 
 
 export async function resolveXynIntent(payload: {
   message: string;
-  context?: { artifact_id?: string | null; artifact_type?: string | null };
+  context?: { artifact_id?: string | null; artifact_type?: string | null; workspace_id?: string | null };
   snapshot?: Record<string, unknown>;
 }): Promise<XynIntentResolutionResult> {
   const apiBaseUrl = resolveApiBaseUrl();
@@ -239,7 +239,7 @@ export async function resolveXynIntent(payload: {
 
 export async function applyXynIntent(payload: {
   action_type: "CreateDraft" | "ApplyPatch";
-  artifact_type: "ArticleDraft" | "ContextPack";
+  artifact_type: "ArticleDraft" | "ContextPack" | "Workspace";
   artifact_id?: string | null;
   payload: Record<string, unknown>;
 }): Promise<XynIntentResolutionResult> {
@@ -441,7 +441,16 @@ export async function listWorkspaces(): Promise<WorkspaceListResponse> {
   return handle<WorkspaceListResponse>(response);
 }
 
-export async function createWorkspace(payload: { name: string; slug?: string; description?: string }): Promise<{ workspace: WorkspaceSummary }> {
+export async function createWorkspace(payload: {
+  name: string;
+  slug?: string;
+  description?: string;
+  org_name?: string;
+  kind?: string;
+  lifecycle_stage?: string;
+  parent_workspace_id?: string | null;
+  metadata?: Record<string, unknown>;
+}): Promise<{ workspace: WorkspaceSummary }> {
   const apiBaseUrl = resolveApiBaseUrl();
   const response = await apiFetch(`${apiBaseUrl}/xyn/api/workspaces`, {
     method: "POST",
@@ -454,7 +463,17 @@ export async function createWorkspace(payload: { name: string; slug?: string; de
 
 export async function updateWorkspace(
   workspaceId: string,
-  payload: Partial<{ name: string; slug: string; description: string; status: "active" | "deprecated" }>
+  payload: Partial<{
+    name: string;
+    slug: string;
+    description: string;
+    status: "active" | "deprecated";
+    org_name: string;
+    kind: string;
+    lifecycle_stage: string;
+    parent_workspace_id: string | null;
+    metadata: Record<string, unknown>;
+  }>
 ): Promise<{ workspace: WorkspaceSummary }> {
   const apiBaseUrl = resolveApiBaseUrl();
   const response = await apiFetch(`${apiBaseUrl}/xyn/api/workspaces/${workspaceId}`, {

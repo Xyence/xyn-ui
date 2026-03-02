@@ -156,6 +156,9 @@ function ResolutionCard({ resolution, onRevise }: { resolution: XynIntentResolut
   const canCreate = resolution.status === "DraftReady" && resolution.action_type === "CreateDraft" && !!resolution.draft_payload;
   const canOpen = Boolean(resolution.artifact_id);
   const showRevise = resolution.status !== "UnsupportedIntent";
+  const deepLinks = (resolution.next_actions || []).filter(
+    (item) => item.action === "OpenPath" && typeof item.path === "string" && item.path.startsWith("/")
+  );
 
   return (
     <section className="xyn-console-card" aria-label="Resolution">
@@ -196,6 +199,11 @@ function ResolutionCard({ resolution, onRevise }: { resolution: XynIntentResolut
             Revise
           </button>
         ) : null}
+        {deepLinks.map((action) => (
+          <button key={`${action.label}:${action.path}`} type="button" className="ghost sm" onClick={() => navigate(String(action.path || "/"))}>
+            {action.label}
+          </button>
+        ))}
       </div>
       {session.localMessage ? <p className="muted small">{session.localMessage}</p> : null}
     </section>
