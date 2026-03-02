@@ -3,17 +3,26 @@ import { fireEvent, render, screen, waitFor } from "@testing-library/react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import ArtifactsRegistryPage from "./ArtifactsRegistryPage";
 
+const mockNavigate = vi.hoisted(() => vi.fn());
 const apiMocks = vi.hoisted(() => ({
   listWorkspaceArtifacts: vi.fn(),
-  installWorkspaceArtifact: vi.fn(),
   uninstallWorkspaceArtifact: vi.fn(),
 }));
+
+vi.mock("react-router-dom", async () => {
+  const actual = await vi.importActual<typeof import("react-router-dom")>("react-router-dom");
+  return {
+    ...actual,
+    useNavigate: () => mockNavigate,
+  };
+});
 
 vi.mock("../../api/xyn", () => apiMocks);
 
 describe("ArtifactsRegistryPage", () => {
   beforeEach(() => {
     vi.clearAllMocks();
+    mockNavigate.mockReset();
     apiMocks.listWorkspaceArtifacts.mockImplementation(async (workspaceId: string) => {
       if (workspaceId === "ws-1") {
         return {
@@ -27,6 +36,7 @@ describe("ArtifactsRegistryPage", () => {
               description: "First",
               enabled: true,
               installed_state: "installed",
+              manifest_summary: { roles: ["article"], surfaces: { nav: [], manage: [] } },
               updated_at: "2026-03-01T00:00:00Z",
             },
           ],
@@ -43,22 +53,11 @@ describe("ArtifactsRegistryPage", () => {
             description: "Second",
             enabled: true,
             installed_state: "installed",
+            manifest_summary: { roles: ["module"], surfaces: { nav: [], manage: [{ label: "Settings", path: "/apps/hello/manage", order: 100 }] } },
             updated_at: "2026-03-01T00:00:00Z",
           },
         ],
       };
-    });
-    apiMocks.installWorkspaceArtifact.mockResolvedValue({
-      artifact: {
-        binding_id: "b-new",
-        artifact_id: "a-new",
-        name: "Hello App",
-        title: "Hello App",
-        kind: "module",
-        enabled: true,
-        installed_state: "installed",
-      },
-      created: true,
     });
     apiMocks.uninstallWorkspaceArtifact.mockResolvedValue({
       deleted: true,
@@ -107,27 +106,46 @@ describe("ArtifactsRegistryPage", () => {
     );
 
     expect(await screen.findByText("No artifacts installed in this workspace.")).toBeInTheDocument();
-    expect(screen.getByText("You'll be able to browse and install from the Catalog in a later phase.")).toBeInTheDocument();
+    expect(screen.getByText("Open Catalog to browse and install artifacts.")).toBeInTheDocument();
   });
 
-  it("installs artifact and emits nav refresh event", async () => {
-    const refreshListener = vi.fn();
-    window.addEventListener("xyn:workspace-artifacts-changed", refreshListener);
-    try {
-      render(
-        <MemoryRouter>
-          <ArtifactsRegistryPage workspaceId="ws-1" workspaceName="Workspace One" />
-        </MemoryRouter>
-      );
+  it("navigates to manage surface when one is declared", async () => {
+    render(
+      <MemoryRouter>
+        <ArtifactsRegistryPage workspaceId="ws-2" workspaceName="Workspace Two" />
+      </MemoryRouter>
+    );
 
-      await screen.findByText("Artifact A");
-      fireEvent.change(screen.getByLabelText("Artifact id or slug"), { target: { value: "xyn-hello-app" } });
-      fireEvent.click(screen.getByRole("button", { name: "Install" }));
+    fireEvent.click(await screen.findByText("Artifact B"));
+    expect(mockNavigate).toHaveBeenCalledWith("/apps/hello/manage");
+  });
 
-      await waitFor(() => expect(apiMocks.installWorkspaceArtifact).toHaveBeenCalledWith("ws-1", { artifact_id: "xyn-hello-app", enabled: true }));
-      await waitFor(() => expect(refreshListener).toHaveBeenCalled());
-    } finally {
-      window.removeEventListener("xyn:workspace-artifacts-changed", refreshListener);
-    }
+  it("opens fallback details for non-article artifacts without manage surface", async () => {
+    apiMocks.listWorkspaceArtifacts.mockResolvedValueOnce({
+      artifacts: [
+        {
+          binding_id: "b-9",
+          artifact_id: "a-9",
+          name: "Artifact C",
+          title: "Artifact C",
+          kind: "module",
+          description: "Third",
+          enabled: true,
+          installed_state: "installed",
+          manifest_summary: { roles: ["module"], surfaces: { nav: [], manage: [] } },
+          updated_at: "2026-03-01T00:00:00Z",
+        },
+      ],
+    });
+
+    render(
+      <MemoryRouter>
+        <ArtifactsRegistryPage workspaceId="ws-3" workspaceName="Workspace Three" />
+      </MemoryRouter>
+    );
+
+    fireEvent.click(await screen.findByText("Artifact C"));
+    expect(await screen.findByText("This artifact does not provide a management UI.")).toBeInTheDocument();
+    expect(mockNavigate).not.toHaveBeenCalled();
   });
 });

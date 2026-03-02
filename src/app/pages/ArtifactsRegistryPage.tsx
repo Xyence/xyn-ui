@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import InlineMessage from "../../components/InlineMessage";
-import { installWorkspaceArtifact, listWorkspaceArtifacts, uninstallWorkspaceArtifact } from "../../api/xyn";
+import { listWorkspaceArtifacts, uninstallWorkspaceArtifact } from "../../api/xyn";
 import type { WorkspaceInstalledArtifactSummary } from "../../api/types";
 import WorkspaceContextBar from "../components/common/WorkspaceContextBar";
 import { toWorkspacePath } from "../routing/workspaceRouting";
@@ -25,11 +25,10 @@ export default function ArtifactsRegistryPage({
   const navigate = useNavigate();
   const [items, setItems] = useState<WorkspaceInstalledArtifactSummary[]>([]);
   const [query, setQuery] = useState("");
-  const [installRef, setInstallRef] = useState("");
-  const [installing, setInstalling] = useState(false);
   const [uninstallingBindingId, setUninstallingBindingId] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
+  const [selectedUnsupported, setSelectedUnsupported] = useState<WorkspaceInstalledArtifactSummary | null>(null);
 
   const load = useCallback(async () => {
     if (!workspaceId) {
@@ -65,24 +64,6 @@ export default function ArtifactsRegistryPage({
     window.dispatchEvent(new Event("xyn:workspace-artifacts-changed"));
   };
 
-  const install = async () => {
-    if (!workspaceId) return;
-    const value = installRef.trim();
-    if (!value) return;
-    try {
-      setInstalling(true);
-      setError(null);
-      await installWorkspaceArtifact(workspaceId, { artifact_id: value, enabled: true });
-      setInstallRef("");
-      await load();
-      notifyWorkspaceArtifactsChanged();
-    } catch (err) {
-      setError((err as Error).message);
-    } finally {
-      setInstalling(false);
-    }
-  };
-
   const uninstall = async (bindingId: string) => {
     if (!workspaceId || !bindingId) return;
     try {
@@ -96,6 +77,20 @@ export default function ArtifactsRegistryPage({
     } finally {
       setUninstallingBindingId(null);
     }
+  };
+
+  const handleArtifactOpen = (item: WorkspaceInstalledArtifactSummary) => {
+    const manage = item.manifest_summary?.surfaces?.manage || [];
+    const firstManage = manage[0];
+    if (firstManage?.path) {
+      navigate(firstManage.path);
+      return;
+    }
+    if (String(item.kind || "").toLowerCase() === "article") {
+      navigate(toWorkspacePath(workspaceId, `build/artifacts/${item.artifact_id}`));
+      return;
+    }
+    setSelectedUnsupported(item);
   };
 
   return (
@@ -116,16 +111,6 @@ export default function ArtifactsRegistryPage({
         <div className="card-header">
           <h3>Installed Artifacts</h3>
           <div className="inline-actions">
-            <input
-              className="input artifacts-registry-search"
-              value={installRef}
-              onChange={(event) => setInstallRef(event.target.value)}
-              placeholder="Artifact ID or slug"
-              aria-label="Artifact id or slug"
-            />
-            <button className="ghost" onClick={() => void install()} disabled={installing || !workspaceId || !installRef.trim()}>
-              {installing ? "Installing..." : "Install"}
-            </button>
             <input
               className="input artifacts-registry-search"
               value={query}
@@ -153,11 +138,11 @@ export default function ArtifactsRegistryPage({
               className="instance-row"
               role="row"
               tabIndex={0}
-              onClick={() => navigate(toWorkspacePath(workspaceId, `build/artifacts/${item.artifact_id}`))}
+              onClick={() => handleArtifactOpen(item)}
               onKeyDown={(event) => {
                 if (event.key === "Enter" || event.key === " ") {
                   event.preventDefault();
-                  navigate(toWorkspacePath(workspaceId, `build/artifacts/${item.artifact_id}`));
+                  handleArtifactOpen(item);
                 }
               }}
             >
@@ -195,12 +180,29 @@ export default function ArtifactsRegistryPage({
             <div className="instance-row" role="row">
               <div role="cell">
                 <strong>No artifacts installed in this workspace.</strong>
-                <span className="muted small">You'll be able to browse and install from the Catalog in a later phase.</span>
+                <span className="muted small">Open Catalog to browse and install artifacts.</span>
               </div>
             </div>
           )}
         </div>
       </section>
+
+      {selectedUnsupported && (
+        <section className="card">
+          <div className="card-header">
+            <h3>{selectedUnsupported.title || selectedUnsupported.name}</h3>
+          </div>
+          <p>This artifact does not provide a management UI.</p>
+          <p className="muted small">
+            Roles: {(selectedUnsupported.manifest_summary?.roles || []).join(", ") || "none"} · nav surfaces:{" "}
+            {selectedUnsupported.manifest_summary?.surfaces?.nav?.length || 0} · manage surfaces:{" "}
+            {selectedUnsupported.manifest_summary?.surfaces?.manage?.length || 0}
+          </p>
+          <button className="ghost" type="button" onClick={() => setSelectedUnsupported(null)}>
+            Close
+          </button>
+        </section>
+      )}
     </>
   );
 }

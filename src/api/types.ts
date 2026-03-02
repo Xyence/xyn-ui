@@ -911,6 +911,22 @@ export type WorkspaceListResponse = {
   workspaces: WorkspaceSummary[];
 };
 
+export type ArtifactManifestSurfaceEntry = {
+  label: string;
+  path: string;
+  order?: number;
+  icon?: string;
+  group?: string;
+};
+
+export type ArtifactManifestSummary = {
+  roles: string[];
+  surfaces: {
+    nav: ArtifactManifestSurfaceEntry[];
+    manage: ArtifactManifestSurfaceEntry[];
+  };
+};
+
 export type WorkspaceInstalledArtifactSummary = {
   binding_id: string;
   artifact_id: string;
@@ -922,7 +938,20 @@ export type WorkspaceInstalledArtifactSummary = {
   enabled: boolean;
   installed_state: string;
   version?: number;
+  slug?: string;
+  manifest_summary?: ArtifactManifestSummary;
   updated_at?: string;
+};
+
+export type CatalogArtifactSummary = {
+  id: string;
+  slug: string;
+  title: string;
+  kind?: string | null;
+  description?: string | null;
+  version?: number | string | null;
+  updated_at?: string;
+  manifest_summary: ArtifactManifestSummary;
 };
 
 export type ArtifactSummary = {

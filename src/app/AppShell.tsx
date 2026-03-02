@@ -619,7 +619,8 @@ export default function AppShell() {
               }
             />
             <Route path="build/artifacts" element={<ArtifactsRegistryPage workspaceId={activeWorkspace?.id || ""} workspaceName={activeWorkspace?.name || ""} workspaceColor={workspaceRoute.workspaceColor} />} />
-            <Route path="build/artifacts/library" element={<ArtifactsLibraryPage />} />
+            <Route path="build/catalog" element={<ArtifactsLibraryPage workspaceId={activeWorkspace?.id || ""} workspaceName={activeWorkspace?.name || ""} />} />
+            <Route path="build/artifacts/library" element={<Navigate to={workspaceScopedTarget("build/catalog")} replace />} />
             <Route
               path="build/artifacts/:artifactId"
               element={
@@ -666,7 +667,8 @@ export default function AppShell() {
               element={<RedirectWithNotice to={workspaceScopedTarget("a/workflows")} notice="Workflows moved to Surface route /w/:workspaceId/a/workflows." />}
             />
             <Route path="artifacts/all" element={<Navigate to={workspaceScopedTarget("build/artifacts")} replace />} />
-            <Route path="artifacts/library" element={<Navigate to={workspaceScopedTarget("build/artifacts/library")} replace />} />
+            <Route path="artifacts/library" element={<Navigate to={workspaceScopedTarget("build/catalog")} replace />} />
+            <Route path="catalog" element={<Navigate to={workspaceScopedTarget("build/catalog")} replace />} />
             <Route path="artifacts/:artifactId" element={<Navigate to={workspaceScopedTarget("build/artifacts")} replace />} />
             <Route path="activity" element={<Navigate to={workspaceScopedTarget("govern/activity")} replace />} />
             <Route path="home" element={<Navigate to={workspaceScopedTarget(DEFAULT_WORKSPACE_SUBPATH)} replace />} />
