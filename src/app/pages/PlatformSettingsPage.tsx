@@ -1,6 +1,7 @@
 import { useEffect, useMemo, useState } from "react";
 import { useNavigate, useParams, useSearchParams } from "react-router-dom";
 import InlineMessage from "../../components/InlineMessage";
+import Tabs from "../components/ui/Tabs";
 import {
   addWorkspaceMember,
   createWorkspace,
@@ -793,17 +794,13 @@ export default function PlatformSettingsPage() {
         </div>
       </div>
 
-      <div className="inline-actions" style={{ marginBottom: 10 }}>
-        {SETTINGS_TABS.map((tab) => (
-          <button
-            key={tab.value}
-            type="button"
-            className={activeTab === tab.value ? "primary" : "ghost"}
-            onClick={() => setActiveTab(tab.value)}
-          >
-            {tab.label}
-          </button>
-        ))}
+      <div className="page-tabs" style={{ marginBottom: 10 }}>
+        <Tabs
+          ariaLabel="Platform settings tabs"
+          value={activeTab}
+          onChange={setActiveTab}
+          options={SETTINGS_TABS.map((tab) => ({ value: tab.value, label: tab.label }))}
+        />
       </div>
 
       {error && <InlineMessage tone="error" title="Request failed" body={error} />}
@@ -814,25 +811,21 @@ export default function PlatformSettingsPage() {
       {activeTab === "deploy" ? <HubCards cards={deployCards} onOpen={(path) => navigate(path)} /> : null}
       {activeTab === "workspaces" ? (
         <>
-          <section className="card" style={{ marginBottom: 12 }}>
+          <section className="card" style={{ marginBottom: 12, paddingBottom: 14 }}>
             <div className="card-header">
               <h3>Workspaces Hub</h3>
               <span className="status-chip active">
-                {(workspaceSummary?.name || "Workspace")} · {(workspaceSummary?.slug || "n/a")} · kind: {(workspaceSummary?.kind || "customer")} · stage:{" "}
+                {(workspaceSummary?.name || "Unknown")} · {(workspaceSummary?.slug || "--")} · kind: {(workspaceSummary?.kind || "customer")} · stage:{" "}
                 {(workspaceSummary?.lifecycle_stage || "prospect")}
               </span>
             </div>
-            <div className="inline-actions">
-              {WORKSPACE_SUB_TABS.map((tab) => (
-                <button
-                  key={tab.value}
-                  type="button"
-                  className={activeWorkspaceSubTab === tab.value ? "primary" : "ghost"}
-                  onClick={() => setActiveWorkspaceSubTab(tab.value)}
-                >
-                  {tab.label}
-                </button>
-              ))}
+            <div className="page-tabs" style={{ margin: 0 }}>
+              <Tabs
+                ariaLabel="Workspace hub tabs"
+                value={activeWorkspaceSubTab}
+                onChange={setActiveWorkspaceSubTab}
+                options={WORKSPACE_SUB_TABS.map((tab) => ({ value: tab.value, label: tab.label }))}
+              />
             </div>
           </section>
 

@@ -186,4 +186,14 @@ describe("AppShell nav surfaces", () => {
       )
     );
   });
+
+  it("redirects /app/platform/settings into workspace-scoped settings route", async () => {
+    apiMocks.listArtifactNavSurfaces.mockResolvedValueOnce({ surfaces: [] });
+    renderGlobalApp("/app/platform/settings?tab=workspaces&wsTab=profile");
+    await waitFor(() =>
+      expect(screen.getByTestId("location-probe").textContent).toContain(
+        "/w/ws-1/platform/settings?tab=workspaces&wsTab=profile"
+      )
+    );
+  });
 });

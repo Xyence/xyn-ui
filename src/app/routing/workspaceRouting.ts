@@ -15,6 +15,7 @@ const LEGACY_SCOPED_PREFIXES = [
   "/app/govern/contributions",
   "/app/settings",
   "/app/catalog",
+  "/app/platform/settings",
   "/app/a/",
 ];
 
@@ -36,6 +37,7 @@ const LEGACY_EXACT_TO_SUBPATH: Record<string, string> = {
   "/app/activity": "govern/activity",
   "/app/govern/contributions": "govern/contributions",
   "/app/settings": "settings",
+  "/app/platform/settings": "platform/settings",
 };
 
 export function toWorkspacePath(workspaceId: string, subpath: string): string {
@@ -86,6 +88,7 @@ export function toWorkspaceScopedPath(pathname: string, workspaceId: string): st
     if (prefix === "/app/govern/contributions") return toWorkspacePath(workspaceId, `govern/contributions${suffix ? `/${suffix}` : ""}`);
     if (prefix === "/app/settings") return toWorkspacePath(workspaceId, `settings${suffix ? `/${suffix}` : ""}`);
     if (prefix === "/app/catalog") return toWorkspacePath(workspaceId, `build/catalog${suffix ? `/${suffix}` : ""}`);
+    if (prefix === "/app/platform/settings") return toWorkspacePath(workspaceId, `platform/settings${suffix ? `/${suffix}` : ""}`);
   }
 
   return null;

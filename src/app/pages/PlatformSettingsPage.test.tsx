@@ -49,12 +49,12 @@ describe("PlatformSettingsPage", () => {
 
   it("renders new IA tabs and removes govern tab", async () => {
     renderPage("/w/ws-1/platform/settings");
-    expect(await screen.findByRole("button", { name: "General" })).toBeInTheDocument();
-    expect(screen.getByRole("button", { name: "Security" })).toBeInTheDocument();
-    expect(screen.getByRole("button", { name: "Integrations" })).toBeInTheDocument();
-    expect(screen.getByRole("button", { name: "Deploy" })).toBeInTheDocument();
-    expect(screen.getByRole("button", { name: "Workspaces" })).toBeInTheDocument();
-    expect(screen.queryByRole("button", { name: "Govern" })).not.toBeInTheDocument();
+    expect(await screen.findByRole("tab", { name: "General" })).toBeInTheDocument();
+    expect(screen.getByRole("tab", { name: "Security" })).toBeInTheDocument();
+    expect(screen.getByRole("tab", { name: "Integrations" })).toBeInTheDocument();
+    expect(screen.getByRole("tab", { name: "Deploy" })).toBeInTheDocument();
+    expect(screen.getByRole("tab", { name: "Workspaces" })).toBeInTheDocument();
+    expect(screen.queryByRole("tab", { name: "Govern" })).not.toBeInTheDocument();
   });
 
   it("deep-links to deploy tab and keeps Instances as power-user link", async () => {
