@@ -192,12 +192,23 @@ export default function ArtifactsRegistryPage({
           <div className="card-header">
             <h3>{selectedUnsupported.title || selectedUnsupported.name}</h3>
           </div>
-          <p>This artifact does not provide a management UI.</p>
+          <p>No management UI provided.</p>
           <p className="muted small">
             Roles: {(selectedUnsupported.manifest_summary?.roles || []).join(", ") || "none"} · nav surfaces:{" "}
             {selectedUnsupported.manifest_summary?.surfaces?.nav?.length || 0} · manage surfaces:{" "}
-            {selectedUnsupported.manifest_summary?.surfaces?.manage?.length || 0}
+            {selectedUnsupported.manifest_summary?.surfaces?.manage?.length || 0} · docs surfaces:{" "}
+            {selectedUnsupported.manifest_summary?.surfaces?.docs?.length || 0}
           </p>
+          {(selectedUnsupported.manifest_summary?.surfaces?.docs?.length || 0) > 0 && (
+            <p className="muted small">
+              Docs:{" "}
+              {selectedUnsupported.manifest_summary?.surfaces?.docs?.map((entry) => (
+                <a key={`${entry.path}-${entry.label}`} href={entry.path} style={{ marginRight: 8 }}>
+                  {entry.label}
+                </a>
+              ))}
+            </p>
+          )}
           <button className="ghost" type="button" onClick={() => setSelectedUnsupported(null)}>
             Close
           </button>

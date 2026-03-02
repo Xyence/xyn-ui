@@ -38,6 +38,7 @@ describe("ArtifactsLibraryPage", () => {
             surfaces: {
               nav: [{ label: "Hello", path: "/apps/hello", order: 900 }],
               manage: [{ label: "Settings", path: "/apps/hello/manage", order: 100 }],
+              docs: [{ label: "Docs", path: "/apps/hello/docs", order: 1000 }],
             },
           },
         },
@@ -65,9 +66,10 @@ describe("ArtifactsLibraryPage", () => {
 
     await waitFor(() =>
       expect(apiMocks.installWorkspaceArtifact).toHaveBeenCalledWith("ws-1", {
-        artifact_id: "hello-id",
+        artifact_id: "hello-app",
         enabled: true,
       })
     );
+    expect(screen.getByRole("link", { name: "Docs" })).toHaveAttribute("href", "/apps/hello/docs");
   });
 });

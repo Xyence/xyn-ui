@@ -52,7 +52,7 @@ export default function ArtifactsLibraryPage({ workspaceId, workspaceName }: { w
       setInstalling(true);
       setError(null);
       setMessage(null);
-      await installWorkspaceArtifact(workspaceId, { artifact_id: selected.id, enabled: true });
+      await installWorkspaceArtifact(workspaceId, { artifact_id: selected.slug || selected.id, enabled: true });
       setMessage(`Installed "${selected.title}" to workspace ${workspaceName || workspaceId}.`);
       window.dispatchEvent(new Event("xyn:workspace-artifacts-changed"));
     } catch (err) {
@@ -133,14 +133,26 @@ export default function ArtifactsLibraryPage({ workspaceId, workspaceName }: { w
               <p className="muted small">
                 Kind: {selected.kind || "-"} · Version: {selected.version || "-"} · Updated: {formatDate(selected.updated_at)}
               </p>
+              <p className="muted small">Slug: {selected.slug || "-"}</p>
 
               <h4>Roles</h4>
               <p className="muted small">{selected.manifest_summary?.roles?.length ? selected.manifest_summary.roles.join(", ") : "None declared"}</p>
 
               <h4>Surfaces</h4>
               <p className="muted small">
-                nav: {selected.manifest_summary?.surfaces?.nav?.length || 0} · manage: {selected.manifest_summary?.surfaces?.manage?.length || 0}
+                nav: {selected.manifest_summary?.surfaces?.nav?.length || 0} · manage: {selected.manifest_summary?.surfaces?.manage?.length || 0} · docs:{" "}
+                {selected.manifest_summary?.surfaces?.docs?.length || 0}
               </p>
+              {(selected.manifest_summary?.surfaces?.docs?.length || 0) > 0 && (
+                <p className="muted small">
+                  Docs:{" "}
+                  {selected.manifest_summary.surfaces.docs.map((entry) => (
+                    <a key={`${entry.path}-${entry.label}`} href={entry.path} style={{ marginRight: 8 }}>
+                      {entry.label}
+                    </a>
+                  ))}
+                </p>
+              )}
               <pre className="code-block">{JSON.stringify(selected.manifest_summary?.surfaces || {}, null, 2)}</pre>
 
               <div className="inline-actions">

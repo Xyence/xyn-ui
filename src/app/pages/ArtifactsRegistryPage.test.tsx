@@ -36,7 +36,7 @@ describe("ArtifactsRegistryPage", () => {
               description: "First",
               enabled: true,
               installed_state: "installed",
-              manifest_summary: { roles: ["article"], surfaces: { nav: [], manage: [] } },
+              manifest_summary: { roles: ["article"], surfaces: { nav: [], manage: [], docs: [] } },
               updated_at: "2026-03-01T00:00:00Z",
             },
           ],
@@ -53,7 +53,10 @@ describe("ArtifactsRegistryPage", () => {
             description: "Second",
             enabled: true,
             installed_state: "installed",
-            manifest_summary: { roles: ["module"], surfaces: { nav: [], manage: [{ label: "Settings", path: "/apps/hello/manage", order: 100 }] } },
+            manifest_summary: {
+              roles: ["module"],
+              surfaces: { nav: [], manage: [{ label: "Settings", path: "/apps/hello/manage", order: 100 }], docs: [] },
+            },
             updated_at: "2026-03-01T00:00:00Z",
           },
         ],
@@ -132,7 +135,7 @@ describe("ArtifactsRegistryPage", () => {
           description: "Third",
           enabled: true,
           installed_state: "installed",
-          manifest_summary: { roles: ["module"], surfaces: { nav: [], manage: [] } },
+          manifest_summary: { roles: ["module"], surfaces: { nav: [], manage: [], docs: [{ label: "Docs", path: "/apps/module/docs" }] } },
           updated_at: "2026-03-01T00:00:00Z",
         },
       ],
@@ -145,7 +148,8 @@ describe("ArtifactsRegistryPage", () => {
     );
 
     fireEvent.click(await screen.findByText("Artifact C"));
-    expect(await screen.findByText("This artifact does not provide a management UI.")).toBeInTheDocument();
+    expect(await screen.findByText("No management UI provided.")).toBeInTheDocument();
+    expect(screen.getByRole("link", { name: "Docs" })).toHaveAttribute("href", "/apps/module/docs");
     expect(mockNavigate).not.toHaveBeenCalled();
   });
 });

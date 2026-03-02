@@ -924,6 +924,7 @@ export type ArtifactManifestSummary = {
   surfaces: {
     nav: ArtifactManifestSurfaceEntry[];
     manage: ArtifactManifestSurfaceEntry[];
+    docs: ArtifactManifestSurfaceEntry[];
   };
 };
 
@@ -933,7 +934,6 @@ export type WorkspaceInstalledArtifactSummary = {
   name: string;
   title: string;
   kind?: string | null;
-  category?: string | null;
   description?: string | null;
   enabled: boolean;
   installed_state: string;
