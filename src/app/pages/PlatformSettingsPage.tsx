@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useState } from "react";
-import { useNavigate, useSearchParams } from "react-router-dom";
+import { useNavigate, useParams, useSearchParams } from "react-router-dom";
 import InlineMessage from "../../components/InlineMessage";
 import {
   createVideoAdapterConfig,
@@ -10,6 +10,7 @@ import {
   updatePlatformConfig,
 } from "../../api/xyn";
 import type { PlatformConfig, VideoAdapterConfigRecord, VideoAdapterDefinition } from "../../api/types";
+import { toWorkspacePath } from "../routing/workspaceRouting";
 
 const defaultConfig: PlatformConfig = {
   storage: {
@@ -89,6 +90,8 @@ function ensureConfig(config?: PlatformConfig): PlatformConfig {
 
 export default function PlatformSettingsPage() {
   const navigate = useNavigate();
+  const params = useParams();
+  const workspaceId = String(params.workspaceId || "").trim();
   const [searchParams, setSearchParams] = useSearchParams();
   const [config, setConfig] = useState<PlatformConfig>(defaultConfig);
   const [version, setVersion] = useState<number>(0);
@@ -271,7 +274,30 @@ export default function PlatformSettingsPage() {
         setLoading(false);
       });
   };
-  const activeTab = (searchParams.get("tab") || "general").toLowerCase() === "deploy" ? "deploy" : "general";
+  const requestedTab = (searchParams.get("tab") || "general").toLowerCase();
+  const activeTab = requestedTab === "deploy" || requestedTab === "govern" ? requestedTab : "general";
+  const setActiveTab = (tab: "general" | "govern" | "deploy") => {
+    const next = new URLSearchParams(searchParams);
+    if (tab === "general") next.delete("tab");
+    else next.set("tab", tab);
+    setSearchParams(next);
+  };
+  const toScopedPath = (subpath: string): string => {
+    if (workspaceId) return toWorkspacePath(workspaceId, subpath);
+    return `/app/${subpath.replace(/^\/+/, "")}`;
+  };
+  const adminLinks: Array<{ label: string; description: string; path: string }> = [
+    { label: "Activity", description: "Workspace-level activity timeline.", path: toScopedPath("govern/activity") },
+    { label: "Workspaces", description: "Workspace membership and defaults.", path: toScopedPath("workspaces") },
+    { label: "Access Control", description: "Users, roles, and access explorer.", path: toScopedPath("platform/access-control") },
+    { label: "Identity Configuration", description: "Identity providers and OIDC app clients.", path: toScopedPath("platform/identity-configuration") },
+    { label: "Secrets", description: "Secret stores and references.", path: toScopedPath("platform/secrets") },
+    { label: "AI Agents", description: "AI credentials, models, and agent settings.", path: toScopedPath("platform/ai-agents") },
+    { label: "Branding", description: "Tenant branding and theme controls.", path: toScopedPath("platform/branding") },
+    { label: "Tenants", description: "Tenant directory and tenant details.", path: toScopedPath("platform/tenants") },
+    { label: "Seed Packs", description: "Manage seed packs and bootstrap assets.", path: toScopedPath("platform/seeds") },
+    { label: "Control Plane", description: "Legacy control-plane surface (may be disabled by flag).", path: toScopedPath("control-plane") },
+  ];
 
   return (
     <>
@@ -279,28 +305,6 @@ export default function PlatformSettingsPage() {
         <div>
           <h2>Platform Settings</h2>
           <p className="muted">Version {version}</p>
-          <div className="inline-actions" style={{ marginTop: 8 }}>
-            <button
-              className={activeTab === "general" ? "primary" : "ghost"}
-              onClick={() => {
-                const next = new URLSearchParams(searchParams);
-                next.delete("tab");
-                setSearchParams(next);
-              }}
-            >
-              General
-            </button>
-            <button
-              className={activeTab === "deploy" ? "primary" : "ghost"}
-              onClick={() => {
-                const next = new URLSearchParams(searchParams);
-                next.set("tab", "deploy");
-                setSearchParams(next);
-              }}
-            >
-              Deploy
-            </button>
-          </div>
         </div>
         <div className="inline-actions">
           <button className="ghost" onClick={load} disabled={loading}>
@@ -311,6 +315,19 @@ export default function PlatformSettingsPage() {
           </button>
         </div>
       </div>
+      <section className="card" style={{ marginBottom: 12 }}>
+        <div className="inline-actions">
+          <button type="button" className={activeTab === "general" ? "primary" : "ghost"} onClick={() => setActiveTab("general")}>
+            General
+          </button>
+          <button type="button" className={activeTab === "govern" ? "primary" : "ghost"} onClick={() => setActiveTab("govern")}>
+            Govern
+          </button>
+          <button type="button" className={activeTab === "deploy" ? "primary" : "ghost"} onClick={() => setActiveTab("deploy")}>
+            Deploy
+          </button>
+        </div>
+      </section>
 
       {error && <InlineMessage tone="error" title="Request failed" body={error} />}
       {message && <InlineMessage tone="info" title="Update" body={message} />}
@@ -340,6 +357,30 @@ export default function PlatformSettingsPage() {
               <button className="ghost" onClick={() => navigate("/app/instances")}>
                 Open Instances
               </button>
+            </div>
+          </section>
+        </div>
+      ) : activeTab === "govern" ? (
+        <div className="layout">
+          <section className="card">
+            <div className="card-header">
+              <h3>Govern</h3>
+            </div>
+            <p className="muted">Legacy Govern options are consolidated here to keep the sidebar focused while preserving access.</p>
+            <div className="form-grid" style={{ marginTop: 12 }}>
+              {adminLinks.map((link) => (
+                <div key={link.label} className="card" style={{ marginBottom: 0 }}>
+                  <div>
+                    <h4>{link.label}</h4>
+                    <p className="muted small">{link.description}</p>
+                  </div>
+                  <div className="form-actions">
+                    <button type="button" className="ghost" onClick={() => navigate(link.path)}>
+                      Open
+                    </button>
+                  </div>
+                </div>
+              ))}
             </div>
           </section>
         </div>
