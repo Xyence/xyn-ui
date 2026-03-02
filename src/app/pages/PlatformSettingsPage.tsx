@@ -2,14 +2,24 @@ import { useEffect, useMemo, useState } from "react";
 import { useNavigate, useParams, useSearchParams } from "react-router-dom";
 import InlineMessage from "../../components/InlineMessage";
 import {
+  addWorkspaceMember,
   createVideoAdapterConfig,
+  deleteWorkspaceMember,
   getPlatformConfig,
+  listWorkspaceMembers,
+  listWorkspaces,
   listVideoAdapterConfigs,
   listVideoAdapters,
   testVideoAdapterConnection,
   updatePlatformConfig,
 } from "../../api/xyn";
-import type { PlatformConfig, VideoAdapterConfigRecord, VideoAdapterDefinition } from "../../api/types";
+import type {
+  PlatformConfig,
+  VideoAdapterConfigRecord,
+  VideoAdapterDefinition,
+  WorkspaceMembershipSummary,
+  WorkspaceSummary,
+} from "../../api/types";
 import { toWorkspacePath } from "../routing/workspaceRouting";
 
 type SettingsTab = "general" | "security" | "integrations" | "deploy" | "workspaces";
@@ -149,6 +159,13 @@ export default function PlatformSettingsPage() {
   const [videoAdapters, setVideoAdapters] = useState<VideoAdapterDefinition[]>([]);
   const [adapterConfigs, setAdapterConfigs] = useState<VideoAdapterConfigRecord[]>([]);
   const [renderViaModelEnabled, setRenderViaModelEnabled] = useState(false);
+  const [workspaceMembers, setWorkspaceMembers] = useState<WorkspaceMembershipSummary[]>([]);
+  const [workspaceSummary, setWorkspaceSummary] = useState<WorkspaceSummary | null>(null);
+  const [memberEmail, setMemberEmail] = useState("");
+  const [memberRole, setMemberRole] = useState<"admin" | "member">("member");
+  const [membersLoading, setMembersLoading] = useState(false);
+  const [memberActionLoading, setMemberActionLoading] = useState(false);
+  const [demoCredentialNotice, setDemoCredentialNotice] = useState<string | null>(null);
 
   const load = async () => {
     try {
@@ -196,6 +213,28 @@ export default function PlatformSettingsPage() {
   useEffect(() => {
     void loadVideoAdapters();
   }, []);
+
+  const loadWorkspaceSecurity = async () => {
+    if (!workspaceId) {
+      setWorkspaceMembers([]);
+      setWorkspaceSummary(null);
+      return;
+    }
+    try {
+      setMembersLoading(true);
+      const [membersResult, workspaceResult] = await Promise.all([
+        listWorkspaceMembers(workspaceId),
+        listWorkspaces(),
+      ]);
+      setWorkspaceMembers(membersResult.memberships || []);
+      const row = (workspaceResult.workspaces || []).find((item) => item.id === workspaceId) || null;
+      setWorkspaceSummary(row);
+    } catch (err) {
+      setError((err as Error).message);
+    } finally {
+      setMembersLoading(false);
+    }
+  };
 
   const activeVideoConfig = config.video || defaultConfig.video!;
   useEffect(() => {
@@ -330,6 +369,51 @@ export default function PlatformSettingsPage() {
     if (tab === "general") next.delete("tab");
     else next.set("tab", tab);
     setSearchParams(next);
+  };
+
+  useEffect(() => {
+    if (activeTab !== "security") return;
+    void loadWorkspaceSecurity();
+  }, [activeTab, workspaceId]);
+
+  const addMember = async () => {
+    if (!workspaceId || !memberEmail.trim()) return;
+    try {
+      setMemberActionLoading(true);
+      setDemoCredentialNotice(null);
+      const result = await addWorkspaceMember(workspaceId, {
+        email: memberEmail.trim(),
+        role: memberRole,
+      });
+      if (result.temp_password) {
+        setDemoCredentialNotice(
+          `Demo mode credentials for ${memberEmail.trim()}: temporary password ${result.temp_password}`
+        );
+      } else if (result.invite_link) {
+        setDemoCredentialNotice(`Invite link: ${result.invite_link}`);
+      }
+      setMemberEmail("");
+      await loadWorkspaceSecurity();
+      setMessage("Workspace member added.");
+    } catch (err) {
+      setError((err as Error).message);
+    } finally {
+      setMemberActionLoading(false);
+    }
+  };
+
+  const removeMember = async (memberId: string) => {
+    if (!workspaceId || !memberId) return;
+    try {
+      setMemberActionLoading(true);
+      await deleteWorkspaceMember(workspaceId, memberId);
+      await loadWorkspaceSecurity();
+      setMessage("Workspace member removed.");
+    } catch (err) {
+      setError((err as Error).message);
+    } finally {
+      setMemberActionLoading(false);
+    }
   };
 
   const toScopedPath = (subpath: string, query?: Record<string, string>): string => {
@@ -506,7 +590,73 @@ export default function PlatformSettingsPage() {
       {error && <InlineMessage tone="error" title="Request failed" body={error} />}
       {message && <InlineMessage tone="info" title="Update" body={message} />}
 
-      {activeTab === "security" ? <HubCards cards={securityCards} onOpen={(path) => navigate(path)} /> : null}
+      {activeTab === "security" ? (
+        <>
+          <section className="card" style={{ marginBottom: 12 }}>
+            <div className="card-header">
+              <h3>Users</h3>
+              <span className="status-chip active">Auth mode: {workspaceSummary?.auth_mode || "local"}</span>
+            </div>
+            <p className="muted">
+              Workspace memberships control tenant access. Demo mode can create local users with temporary passwords.
+            </p>
+            <div className="form-grid" style={{ gridTemplateColumns: "2fr 1fr auto" }}>
+              <label>
+                Email
+                <input
+                  className="input"
+                  placeholder="user@example.com"
+                  value={memberEmail}
+                  onChange={(event) => setMemberEmail(event.target.value)}
+                />
+              </label>
+              <label>
+                Role
+                <select value={memberRole} onChange={(event) => setMemberRole(event.target.value as "admin" | "member")}>
+                  <option value="member">Member</option>
+                  <option value="admin">Admin</option>
+                </select>
+              </label>
+              <div className="form-actions" style={{ alignSelf: "end" }}>
+                <button className="primary" onClick={() => void addMember()} disabled={memberActionLoading || !workspaceId}>
+                  {memberActionLoading ? "Adding..." : "Add member"}
+                </button>
+              </div>
+            </div>
+            {demoCredentialNotice ? <InlineMessage tone="info" title="Demo credentials" body={demoCredentialNotice} /> : null}
+            <div style={{ marginTop: 10 }}>
+              {membersLoading ? <p className="muted">Loading members...</p> : null}
+              {!membersLoading && workspaceMembers.length === 0 ? <p className="muted">No members yet.</p> : null}
+              {!membersLoading && workspaceMembers.length > 0 ? (
+                <div style={{ display: "grid", gap: 8 }}>
+                  {workspaceMembers.map((member) => (
+                    <div
+                      key={member.id}
+                      className="instance-row"
+                      style={{ display: "grid", gridTemplateColumns: "minmax(220px, 1fr) auto auto", alignItems: "center", gap: 10 }}
+                    >
+                      <div>
+                        <strong>{member.email || member.display_name || member.user_identity_id}</strong>
+                        <div className="muted small">{member.display_name || member.user_identity_id}</div>
+                      </div>
+                      <span className="status-chip">{member.role}</span>
+                      <button
+                        className="ghost"
+                        onClick={() => void removeMember(member.id)}
+                        disabled={memberActionLoading}
+                        aria-label={`Remove ${member.email || member.user_identity_id}`}
+                      >
+                        Remove
+                      </button>
+                    </div>
+                  ))}
+                </div>
+              ) : null}
+            </div>
+          </section>
+          <HubCards cards={securityCards} onOpen={(path) => navigate(path)} />
+        </>
+      ) : null}
       {activeTab === "integrations" ? <HubCards cards={integrationsCards} onOpen={(path) => navigate(path)} /> : null}
       {activeTab === "deploy" ? <HubCards cards={deployCards} onOpen={(path) => navigate(path)} /> : null}
       {activeTab === "workspaces" ? <HubCards cards={workspaceCards} onOpen={(path) => navigate(path)} /> : null}

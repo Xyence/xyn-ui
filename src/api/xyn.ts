@@ -448,6 +448,8 @@ export async function createWorkspace(payload: {
   org_name?: string;
   kind?: string;
   lifecycle_stage?: string;
+  auth_mode?: "local" | "oidc" | "mixed";
+  oidc_config_ref?: string;
   parent_workspace_id?: string | null;
   metadata?: Record<string, unknown>;
 }): Promise<{ workspace: WorkspaceSummary }> {
@@ -471,6 +473,8 @@ export async function updateWorkspace(
     org_name: string;
     kind: string;
     lifecycle_stage: string;
+    auth_mode: "local" | "oidc" | "mixed";
+    oidc_config_ref: string;
     parent_workspace_id: string | null;
     metadata: Record<string, unknown>;
   }>
@@ -1433,6 +1437,49 @@ export async function listWorkspaceMemberships(workspaceId: string): Promise<{ m
   const apiBaseUrl = resolveApiBaseUrl();
   const response = await apiFetch(`${apiBaseUrl}/xyn/api/workspaces/${workspaceId}/memberships`, { credentials: "include" });
   return handle<{ memberships: WorkspaceMembershipSummary[] }>(response);
+}
+
+export async function listWorkspaceMembers(workspaceId: string): Promise<{ memberships: WorkspaceMembershipSummary[] }> {
+  const apiBaseUrl = resolveApiBaseUrl();
+  const response = await apiFetch(`${apiBaseUrl}/xyn/api/workspaces/${workspaceId}/members`, { credentials: "include" });
+  return handle<{ memberships: WorkspaceMembershipSummary[] }>(response);
+}
+
+export async function addWorkspaceMember(
+  workspaceId: string,
+  payload: { email: string; role: "admin" | "member" }
+): Promise<{
+  id: string;
+  member: WorkspaceMembershipSummary;
+  created_user?: boolean;
+  temp_password?: string;
+  invite_link?: string;
+  demo_mode?: boolean;
+}> {
+  const apiBaseUrl = resolveApiBaseUrl();
+  const response = await apiFetch(`${apiBaseUrl}/xyn/api/workspaces/${workspaceId}/members`, {
+    method: "POST",
+    headers: buildHeaders(),
+    credentials: "include",
+    body: JSON.stringify(payload),
+  });
+  return handle<{
+    id: string;
+    member: WorkspaceMembershipSummary;
+    created_user?: boolean;
+    temp_password?: string;
+    invite_link?: string;
+    demo_mode?: boolean;
+  }>(response);
+}
+
+export async function deleteWorkspaceMember(workspaceId: string, memberId: string): Promise<{ status: string }> {
+  const apiBaseUrl = resolveApiBaseUrl();
+  const response = await apiFetch(`${apiBaseUrl}/xyn/api/workspaces/${workspaceId}/members/${memberId}`, {
+    method: "DELETE",
+    credentials: "include",
+  });
+  return handle<{ status: string }>(response);
 }
 
 export async function createWorkspaceMembership(

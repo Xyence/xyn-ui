@@ -904,6 +904,8 @@ export type WorkspaceSummary = {
   org_name?: string;
   kind?: string;
   lifecycle_stage?: "lead" | "prospect" | "customer" | "churned" | "internal" | string;
+  auth_mode?: "local" | "oidc" | "mixed" | string;
+  oidc_config_ref?: string;
   parent_workspace_id?: string | null;
   metadata?: Record<string, unknown>;
   description?: string;
@@ -1849,8 +1851,9 @@ export type WorkspaceMembershipSummary = {
   user_identity_id: string;
   email?: string;
   display_name?: string;
-  role: "reader" | "contributor" | "publisher" | "moderator" | "admin";
+  role: "admin" | "member";
   termination_authority: boolean;
+  created_at?: string;
 };
 
 export type OidcAppClient = {
