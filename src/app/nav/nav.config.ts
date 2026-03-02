@@ -62,21 +62,26 @@ export const NAV_GROUPS: NavGroup[] = [
     subgroups: [],
   },
   {
-    id: "package",
-    label: "Package",
-    icon: "Package",
-    items: [
-      { id: "release-plans", label: "Release Plans", path: "/app/release-plans", icon: "Route", keywords: ["deploy plan"] },
-      { id: "releases", label: "Releases", path: "/app/releases", icon: "PackageCheck", keywords: ["versions"] },
-    ],
+    id: "apps",
+    label: "Apps",
+    icon: "Sparkles",
+    items: [],
   },
   {
     id: "run",
     label: "Run",
     icon: "Rocket",
     items: [
-      { id: "instances", label: "Instances", path: "/app/instances", icon: "Server", keywords: ["runtime"] },
       { id: "runs", label: "Runs", path: "/app/runs", icon: "PlayCircle", keywords: ["logs", "executions"] },
+      { id: "instances", label: "Instances", path: "/app/instances", icon: "Server", keywords: ["runtime"] },
+    ],
+  },
+  {
+    id: "admin",
+    label: "Admin",
+    icon: "Settings",
+    items: [
+      { id: "platform-settings", label: "Platform Settings", path: "/app/platform/settings", icon: "SlidersHorizontal" },
     ],
   },
 ];

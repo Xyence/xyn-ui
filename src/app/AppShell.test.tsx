@@ -1,4 +1,4 @@
-import { MemoryRouter } from "react-router-dom";
+import { MemoryRouter, Route, Routes, useLocation } from "react-router-dom";
 import { render, screen, waitFor } from "@testing-library/react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import AppShell from "./AppShell";
@@ -9,6 +9,11 @@ const apiMocks = vi.hoisted(() => ({
   listArtifactNavSurfaces: vi.fn(),
   getMyProfile: vi.fn(),
   getTenantBranding: vi.fn(),
+  listRuns: vi.fn(),
+  getRun: vi.fn(),
+  getRunLogs: vi.fn(),
+  getRunArtifacts: vi.fn(),
+  getRunCommands: vi.fn(),
 }));
 
 vi.mock("../api/xyn", () => apiMocks);
@@ -80,6 +85,22 @@ vi.mock("./components/console/XynConsoleNode", () => ({
   default: () => <div data-testid="console-node" />,
 }));
 
+function LocationProbe() {
+  const location = useLocation();
+  return <div data-testid="location-probe">{`${location.pathname}${location.search}`}</div>;
+}
+
+function renderWorkspaceApp(initialEntry: string) {
+  return render(
+    <MemoryRouter initialEntries={[initialEntry]}>
+      <Routes>
+        <Route path="/w/:workspaceId/*" element={<AppShell />} />
+      </Routes>
+      <LocationProbe />
+    </MemoryRouter>
+  );
+}
+
 describe("AppShell nav surfaces", () => {
   beforeEach(() => {
     vi.clearAllMocks();
@@ -116,16 +137,32 @@ describe("AppShell nav surfaces", () => {
         },
       ],
     });
+    apiMocks.listRuns.mockResolvedValue({ runs: [], count: 0, next: null, prev: null });
+    apiMocks.getRun.mockResolvedValue({});
+    apiMocks.getRunLogs.mockResolvedValue({ log: "" });
+    apiMocks.getRunArtifacts.mockResolvedValue([]);
+    apiMocks.getRunCommands.mockResolvedValue([]);
   });
 
   it("renders Hello nav item from nav surfaces response", async () => {
-    render(
-      <MemoryRouter initialEntries={["/w/ws-1/build/artifacts"]}>
-        <AppShell />
-      </MemoryRouter>
-    );
+    renderWorkspaceApp("/w/ws-1/build/artifacts");
 
     await waitFor(() => expect(apiMocks.listArtifactNavSurfaces).toHaveBeenCalledWith("ws-1"));
     expect(await screen.findByRole("button", { name: /^Apps$/i })).toBeInTheDocument();
+  });
+
+  it("hides Apps group when no nav surfaces are returned", async () => {
+    apiMocks.listArtifactNavSurfaces.mockResolvedValueOnce({ surfaces: [] });
+    renderWorkspaceApp("/w/ws-1/build/artifacts");
+    await waitFor(() => expect(apiMocks.listArtifactNavSurfaces).toHaveBeenCalledWith("ws-1"));
+    expect(screen.queryByRole("button", { name: /^Apps$/i })).not.toBeInTheDocument();
+  });
+
+  it("redirects dev tasks route to runs filter", async () => {
+    apiMocks.listArtifactNavSurfaces.mockResolvedValueOnce({ surfaces: [] });
+    renderWorkspaceApp("/w/ws-1/run/dev-tasks");
+    await waitFor(() =>
+      expect(screen.getByTestId("location-probe").textContent).toContain("/w/ws-1/run/runs?filter=dev_task")
+    );
   });
 });

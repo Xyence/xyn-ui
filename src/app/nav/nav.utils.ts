@@ -37,8 +37,8 @@ export type FilteredNav = {
 };
 
 const DEFAULT_STATE: NavState = {
-  expandedGroupIds: ["home", "build", "package", "run", "observe", "govern"],
-  expandedSubgroupIds: ["blueprint"],
+  expandedGroupIds: ["home", "build", "apps", "run", "admin"],
+  expandedSubgroupIds: [],
   collapsed: false,
 };
 

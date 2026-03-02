@@ -23,8 +23,8 @@ describe("nav.utils", () => {
   });
 
   it("builds breadcrumbs from nav config", () => {
-    const crumbs = getBreadcrumbs("/app/release-plans", NAV_GROUPS);
-    expect(crumbs.map((entry) => entry.label)).toEqual(["Package", "Release Plans"]);
+    const crumbs = getBreadcrumbs("/app/platform/settings", NAV_GROUPS);
+    expect(crumbs.map((entry) => entry.label)).toEqual(["Admin", "Platform Settings"]);
   });
 
   it("persists and hydrates nav state", () => {

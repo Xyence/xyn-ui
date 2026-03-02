@@ -25,7 +25,9 @@ describe("Sidebar", () => {
     expect(screen.getByRole("link", { name: /^Initiate$/i })).toBeInTheDocument();
     expect(screen.getByRole("link", { name: /^Installed$/i })).toBeInTheDocument();
     expect(screen.getByRole("link", { name: /^Catalog$/i })).toBeInTheDocument();
-    expect(screen.getByRole("link", { name: /^Release Plans$/i })).toBeInTheDocument();
+    expect(screen.getByRole("link", { name: /^Runs$/i })).toBeInTheDocument();
+    expect(screen.getByRole("link", { name: /^Platform Settings$/i })).toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: /^Package$/i })).not.toBeInTheDocument();
   });
 
   it("persists collapsed mode to localStorage", async () => {
@@ -44,7 +46,7 @@ describe("Sidebar", () => {
     await user.type(search, "catalog");
 
     expect(screen.getByRole("link", { name: /^Catalog$/i })).toBeInTheDocument();
-    expect(screen.queryByRole("link", { name: /^Release Plans$/i })).not.toBeInTheDocument();
+    expect(screen.queryByRole("link", { name: /^Platform Settings$/i })).not.toBeInTheDocument();
   });
 
   it("does not render removed legacy sections", async () => {

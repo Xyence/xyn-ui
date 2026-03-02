@@ -75,6 +75,7 @@ export default function RunsPage() {
   const [error, setError] = useState<string | null>(null);
   const [searchParams, setSearchParams] = useSearchParams();
   const runParam = searchParams.get("run");
+  const filterPreset = searchParams.get("filter");
 
   const load = useCallback(async () => {
     try {
@@ -107,6 +108,13 @@ export default function RunsPage() {
       setSelectedId(runParam);
     }
   }, [runParam]);
+
+  useEffect(() => {
+    if (filterPreset === "dev_task" && entityFilter !== "dev_task") {
+      setEntityFilter("dev_task");
+      setPage(1);
+    }
+  }, [entityFilter, filterPreset]);
 
   useEffect(() => {
     setPage(1);
@@ -220,13 +228,47 @@ export default function RunsPage() {
         </div>
         <div className="inline-actions">
           <label className="muted small">Entity</label>
-          <select value={entityFilter} onChange={(event) => setEntityFilter(event.target.value)}>
+          <select
+            value={entityFilter}
+            onChange={(event) => {
+              const next = event.target.value;
+              setEntityFilter(next);
+              const params = new URLSearchParams(searchParams);
+              if (next === "dev_task") params.set("filter", "dev_task");
+              else params.delete("filter");
+              setSearchParams(params, { replace: true });
+            }}
+          >
             {ENTITY_OPTIONS.map((opt) => (
               <option key={opt} value={opt}>
                 {opt || "All"}
               </option>
             ))}
           </select>
+          <button
+            className={entityFilter === "dev_task" ? "primary" : "ghost"}
+            onClick={() => {
+              setEntityFilter("dev_task");
+              setPage(1);
+              const params = new URLSearchParams(searchParams);
+              params.set("filter", "dev_task");
+              setSearchParams(params, { replace: true });
+            }}
+          >
+            Dev Tasks
+          </button>
+          <button
+            className={!entityFilter ? "primary" : "ghost"}
+            onClick={() => {
+              setEntityFilter("");
+              setPage(1);
+              const params = new URLSearchParams(searchParams);
+              params.delete("filter");
+              setSearchParams(params, { replace: true });
+            }}
+          >
+            All Runs
+          </button>
           <label className="muted small">Status</label>
           <select value={statusFilter} onChange={(event) => setStatusFilter(event.target.value)}>
             {STATUS_OPTIONS.map((opt) => (

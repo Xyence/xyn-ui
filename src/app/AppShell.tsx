@@ -9,19 +9,13 @@ import Sidebar from "./components/nav/Sidebar";
 import BlueprintsPage from "./pages/BlueprintsPage";
 import DraftSessionsPage from "./pages/DraftSessionsPage";
 import InstancesPage from "./pages/InstancesPage";
-import ModulesPage from "./pages/ModulesPage";
-import EnvironmentsPage from "./pages/EnvironmentsPage";
 import SecretConfigurationPage from "./pages/SecretConfigurationPage";
 import AIConfigPage from "./pages/AIConfigPage";
 import IdentityConfigurationPage from "./pages/IdentityConfigurationPage";
 import AccessControlPage from "./pages/AccessControlPage";
-import ReleasePlansPage from "./pages/ReleasePlansPage";
-import ReleasesPage from "./pages/ReleasesPage";
 import RunsPage from "./pages/RunsPage";
 import ActivityPage from "./pages/ActivityPage";
 import DevTasksPage from "./pages/DevTasksPage";
-import ContextPacksPage from "./pages/ContextPacksPage";
-import ContextPackDraftEditorPage from "./pages/ContextPackDraftEditorPage";
 import PlatformTenantsPage from "./pages/PlatformTenantsPage";
 import PlatformBrandingPage from "./pages/PlatformBrandingPage";
 import ControlPlanePage from "./pages/ControlPlanePage";
@@ -38,7 +32,6 @@ import ArtifactDetailPage from "./pages/ArtifactDetailPage";
 import ArtifactSurfaceRoutePage from "./pages/ArtifactSurfaceRoutePage";
 import WorkspacesPage from "./pages/WorkspacesPage";
 import WorkspaceSettingsPage from "./pages/WorkspaceSettingsPage";
-import DevicesPage from "./pages/DevicesPage";
 import InitiatePage from "./pages/InitiatePage";
 import { useGlobalHotkeys } from "./hooks/useGlobalHotkeys";
 import ReportOverlay from "./components/ReportOverlay";
@@ -65,6 +58,15 @@ import {
   toWorkspaceScopedPath,
   withWorkspaceInNavPath,
 } from "./routing/workspaceRouting";
+
+function readFlag(value: unknown): boolean {
+  return String(value || "").trim().toLowerCase() === "true";
+}
+
+const ENABLE_LEGACY_CONTROL_PLANE = readFlag(import.meta.env.VITE_XYN_UI_ENABLE_LEGACY_CONTROL_PLANE);
+const ENABLE_LEGACY_GUIDES = readFlag(import.meta.env.VITE_XYN_UI_ENABLE_LEGACY_GUIDES);
+const ENABLE_LEGACY_DEV_TASKS_PAGE = readFlag(import.meta.env.VITE_XYN_UI_ENABLE_LEGACY_DEV_TASKS_PAGE);
+const ENABLE_LEGACY_BLUEPRINTS = readFlag(import.meta.env.VITE_XYN_UI_ENABLE_LEGACY_BLUEPRINTS);
 
 function RedirectLegacyAiRoute({ tab }: { tab: "credentials" | "model-configs" | "agents" | "purposes" }) {
   const location = useLocation();
@@ -131,6 +133,33 @@ function RedirectLegacyTenantContactsDetailRoute() {
   const searchString = currentParams.toString();
   const destination = tenantId ? `/app/platform/tenants/${tenantId}` : "/app/platform/tenants";
   return <Navigate to={{ pathname: destination, search: searchString ? `?${searchString}` : "" }} replace />;
+}
+
+function LegacyStatePanel({
+  title,
+  message,
+  actionLabel,
+  actionTo,
+}: {
+  title: string;
+  message: string;
+  actionLabel: string;
+  actionTo: string;
+}) {
+  const navigate = useNavigate();
+  return (
+    <section className="card">
+      <div className="card-header">
+        <h3>{title}</h3>
+      </div>
+      <p className="muted">{message}</p>
+      <div className="form-actions">
+        <button className="primary" onClick={() => navigate(actionTo)}>
+          {actionLabel}
+        </button>
+      </div>
+    </section>
+  );
 }
 
 export default function AppShell() {
@@ -336,8 +365,8 @@ export default function AppShell() {
           }))
         : [],
     }));
-    const buildGroup = baseGroups.find((group) => group.id === "build");
-    if (!buildGroup || !surfaceNavItems.length) return baseGroups;
+    const appsGroup = baseGroups.find((group) => group.id === "apps");
+    if (!appsGroup) return baseGroups;
 
     const pathSeen = new Set<string>();
     baseGroups.forEach((group) => {
@@ -346,7 +375,7 @@ export default function AppShell() {
     });
 
     const appItems: Array<{ sortOrder: number; item: NavItem }> = [];
-    surfaceNavItems
+    (surfaceNavItems || [])
       .filter((surface) => String(surface.nav_visibility || "").toLowerCase() === "always")
       .forEach((surface) => {
         const route = String(surface.route || "").trim();
@@ -370,19 +399,10 @@ export default function AppShell() {
         pathSeen.add(route);
       });
 
-    if (appItems.length > 0) {
-      const appsSubgroup = {
-        id: "apps",
-        label: "Apps",
-        icon: "Sparkles",
-        items: appItems
-          .sort((a, b) => (a.sortOrder - b.sortOrder) || a.item.label.localeCompare(b.item.label))
-          .map((entry) => entry.item),
-      };
-      buildGroup.subgroups = [...(buildGroup.subgroups || []).filter((subgroup) => subgroup.id !== "apps"), appsSubgroup];
-    } else {
-      buildGroup.subgroups = (buildGroup.subgroups || []).filter((subgroup) => subgroup.id !== "apps");
-    }
+    appsGroup.items = appItems
+      .sort((a, b) => (a.sortOrder - b.sortOrder) || a.item.label.localeCompare(b.item.label))
+      .map((entry) => entry.item);
+    appsGroup.subgroups = [];
 
     return baseGroups;
   }, [activeWorkspaceId, surfaceNavItems]);
@@ -427,6 +447,10 @@ export default function AppShell() {
     if (!activeWorkspace?.id) return "/app/workspaces";
     return toWorkspacePath(activeWorkspace.id, subpath);
   };
+  const settingsPath = workspaceScopedTarget("platform/settings");
+  const settingsDeployPath = `${settingsPath}?tab=deploy`;
+  const runsPath = workspaceScopedTarget("run/runs");
+  const runsDevTasksPath = `${runsPath}?filter=dev_task`;
 
   useGlobalHotkeys((event) => {
     const target = event.target as HTMLElement | null;
@@ -643,40 +667,100 @@ export default function AppShell() {
                 />
               }
             />
-            <Route path="build/modules" element={<ModulesPage />} />
+            <Route
+              path="build/modules"
+              element={<RedirectWithNotice to={workspaceScopedTarget("build/artifacts")} notice="Modules moved into Installed/Catalog filters." />}
+            />
             <Route
               path="build/blueprints"
-              element={<RedirectWithNotice to={workspaceScopedTarget("build/blueprints/versions")} notice="Blueprints moved to Build / Blueprints / Versions." />}
+              element={
+                ENABLE_LEGACY_BLUEPRINTS ? (
+                  <RedirectWithNotice to={workspaceScopedTarget("build/blueprints/versions")} notice="Blueprints moved to Build / Blueprints / Versions." />
+                ) : (
+                  <LegacyStatePanel
+                    title="Blueprints Are Legacy"
+                    message="Blueprints are disabled by default in this mode."
+                    actionLabel="Open Installed Artifacts"
+                    actionTo={workspaceScopedTarget("build/artifacts")}
+                  />
+                )
+              }
             />
-            <Route path="build/blueprints/drafts" element={<BlueprintsPage mode="drafts" />} />
-            <Route path="build/blueprints/versions" element={<BlueprintsPage mode="versions" />} />
-            <Route path="build/blueprints/:blueprintId" element={<BlueprintsPage />} />
+            <Route
+              path="build/blueprints/drafts"
+              element={
+                ENABLE_LEGACY_BLUEPRINTS ? (
+                  <BlueprintsPage mode="drafts" />
+                ) : (
+                  <Navigate to={workspaceScopedTarget("build/artifacts")} replace />
+                )
+              }
+            />
+            <Route
+              path="build/blueprints/versions"
+              element={
+                ENABLE_LEGACY_BLUEPRINTS ? (
+                  <BlueprintsPage mode="versions" />
+                ) : (
+                  <Navigate to={workspaceScopedTarget("build/artifacts")} replace />
+                )
+              }
+            />
+            <Route
+              path="build/blueprints/:blueprintId"
+              element={
+                ENABLE_LEGACY_BLUEPRINTS ? (
+                  <BlueprintsPage />
+                ) : (
+                  <Navigate to={workspaceScopedTarget("build/artifacts")} replace />
+                )
+              }
+            />
             <Route
               path="build/drafts"
-              element={<RedirectWithNotice to={workspaceScopedTarget("build/blueprints/drafts")} notice="Draft Sessions moved to Build / Blueprints / Drafts." />}
+              element={
+                ENABLE_LEGACY_BLUEPRINTS ? (
+                  <RedirectWithNotice to={workspaceScopedTarget("build/blueprints/drafts")} notice="Draft Sessions moved to Build / Blueprints / Drafts." />
+                ) : (
+                  <Navigate to={workspaceScopedTarget("build/artifacts")} replace />
+                )
+              }
             />
             <Route
               path="build/draft-sessions"
-              element={<RedirectWithNotice to={workspaceScopedTarget("build/blueprints/drafts")} notice="Draft Sessions moved to Build / Blueprints / Drafts." />}
+              element={
+                ENABLE_LEGACY_BLUEPRINTS ? (
+                  <RedirectWithNotice to={workspaceScopedTarget("build/blueprints/drafts")} notice="Draft Sessions moved to Build / Blueprints / Drafts." />
+                ) : (
+                  <Navigate to={workspaceScopedTarget("build/artifacts")} replace />
+                )
+              }
             />
-            <Route path="build/drafts/:draftId" element={<DraftSessionsPage />} />
-            <Route path="build/context-packs" element={<ContextPacksPage />} />
-            <Route path="build/context-packs/drafts/:draftId" element={<ContextPackDraftEditorPage />} />
-            <Route path="package/release-plans" element={<ReleasePlansPage />} />
-            <Route path="package/releases" element={<ReleasesPage />} />
+            <Route
+              path="build/drafts/:draftId"
+              element={ENABLE_LEGACY_BLUEPRINTS ? <DraftSessionsPage /> : <Navigate to={workspaceScopedTarget("build/artifacts")} replace />}
+            />
+            <Route
+              path="build/context-packs"
+              element={<RedirectWithNotice to={workspaceScopedTarget("build/artifacts")} notice="Context packs moved into Installed/Catalog filters." />}
+            />
+            <Route path="build/context-packs/drafts/:draftId" element={<Navigate to={workspaceScopedTarget("build/artifacts")} replace />} />
+            <Route path="package/release-plans" element={<Navigate to={settingsDeployPath} replace />} />
+            <Route path="package/releases" element={<Navigate to={settingsDeployPath} replace />} />
             <Route path="run/instances" element={<InstancesPage />} />
             <Route path="run/runs" element={<RunsPage />} />
+            <Route path="run/dev-tasks" element={<Navigate to={runsDevTasksPath} replace />} />
             <Route path="govern/activity" element={<ActivityPage workspaceId={activeWorkspace?.id || ""} />} />
             <Route path="govern/contributions" element={<ActivityPage workspaceId={activeWorkspace?.id || ""} defaultTab="contributions" />} />
 
             <Route path="artifacts" element={<Navigate to={workspaceScopedTarget("build/artifacts")} replace />} />
             <Route
               path="artifacts/articles"
-              element={<RedirectWithNotice to={workspaceScopedTarget("a/articles")} notice="Articles moved to Surface route /w/:workspaceId/a/articles." />}
+              element={<RedirectWithNotice to={workspaceScopedTarget("build/artifacts")} notice="Artifact kinds are now filters in Installed/Catalog." />}
             />
             <Route
               path="artifacts/workflows"
-              element={<RedirectWithNotice to={workspaceScopedTarget("a/workflows")} notice="Workflows moved to Surface route /w/:workspaceId/a/workflows." />}
+              element={<RedirectWithNotice to={workspaceScopedTarget("build/artifacts")} notice="Artifact kinds are now filters in Installed/Catalog." />}
             />
             <Route path="artifacts/all" element={<Navigate to={workspaceScopedTarget("build/artifacts")} replace />} />
             <Route path="artifacts/library" element={<Navigate to={workspaceScopedTarget("build/catalog")} replace />} />
@@ -696,15 +780,54 @@ export default function AppShell() {
               }
             />
             <Route path="people-roles" element={<RedirectLegacyWorkspaceAccessRoute />} />
-            <Route path="devices" element={<DevicesPage />} />
-            <Route path="guides" element={<GuidesPage roles={effectiveRoles} />} />
-            <Route path="tours" element={<ToursPage />} />
-            <Route path="tours/:workflowId" element={<TourDetailPage />} />
-            <Route path="map" element={<XynMapPage />} />
-            <Route path="blueprints" element={<Navigate to={workspaceScopedTarget("build/blueprints/versions")} replace />} />
-            <Route path="blueprints/drafts" element={<Navigate to={workspaceScopedTarget("build/blueprints/drafts")} replace />} />
-            <Route path="blueprints/versions" element={<Navigate to={workspaceScopedTarget("build/blueprints/versions")} replace />} />
-            <Route path="blueprints/:blueprintId" element={<Navigate to={workspaceScopedTarget("build/blueprints")} replace />} />
+            <Route
+              path="devices"
+              element={
+                <LegacyStatePanel
+                  title="Devices Removed"
+                  message="Devices is removed from primary navigation in this mode."
+                  actionLabel="Go To Runs"
+                  actionTo={runsPath}
+                />
+              }
+            />
+            <Route
+              path="guides"
+              element={
+                ENABLE_LEGACY_GUIDES ? (
+                  <GuidesPage roles={effectiveRoles} />
+                ) : (
+                  <LegacyStatePanel
+                    title="Guides Deprecated"
+                    message="Guides/Tours/Map are removed from nav. Use artifact docs surfaces where available."
+                    actionLabel="Open Catalog"
+                    actionTo={workspaceScopedTarget("build/catalog")}
+                  />
+                )
+              }
+            />
+            <Route
+              path="tours"
+              element={
+                ENABLE_LEGACY_GUIDES ? (
+                  <ToursPage />
+                ) : (
+                  <Navigate to={workspaceScopedTarget("build/catalog")} replace />
+                )
+              }
+            />
+            <Route
+              path="tours/:workflowId"
+              element={ENABLE_LEGACY_GUIDES ? <TourDetailPage /> : <Navigate to={workspaceScopedTarget("build/catalog")} replace />}
+            />
+            <Route
+              path="map"
+              element={ENABLE_LEGACY_GUIDES ? <XynMapPage /> : <Navigate to={workspaceScopedTarget("build/catalog")} replace />}
+            />
+            <Route path="blueprints" element={<Navigate to={workspaceScopedTarget("build/artifacts")} replace />} />
+            <Route path="blueprints/drafts" element={<Navigate to={workspaceScopedTarget("build/artifacts")} replace />} />
+            <Route path="blueprints/versions" element={<Navigate to={workspaceScopedTarget("build/artifacts")} replace />} />
+            <Route path="blueprints/:blueprintId" element={<Navigate to={workspaceScopedTarget("build/artifacts")} replace />} />
             <Route
               path="drafts"
               element={<Navigate to={workspaceScopedTarget("build/drafts")} replace />}
@@ -714,17 +837,34 @@ export default function AppShell() {
               element={<Navigate to={workspaceScopedTarget("build/drafts")} replace />}
             />
             <Route path="drafts/:draftId" element={<Navigate to={workspaceScopedTarget("build/drafts")} replace />} />
-            <Route path="modules" element={<Navigate to={workspaceScopedTarget("build/modules")} replace />} />
-            <Route path="release-plans" element={<Navigate to={workspaceScopedTarget("package/release-plans")} replace />} />
-            <Route path="releases" element={<Navigate to={workspaceScopedTarget("package/releases")} replace />} />
+            <Route path="modules" element={<Navigate to={workspaceScopedTarget("build/artifacts")} replace />} />
+            <Route path="release-plans" element={<Navigate to={settingsDeployPath} replace />} />
+            <Route path="releases" element={<Navigate to={settingsDeployPath} replace />} />
             <Route path="instances" element={<Navigate to={workspaceScopedTarget("run/instances")} replace />} />
             <Route path="runs" element={<Navigate to={workspaceScopedTarget("run/runs")} replace />} />
-            <Route path="dev-tasks" element={<DevTasksPage />} />
-            <Route path="environments" element={<EnvironmentsPage />} />
-            <Route path="context-packs" element={<Navigate to={workspaceScopedTarget("build/context-packs")} replace />} />
-            <Route path="context-packs/drafts/:draftId" element={<Navigate to={workspaceScopedTarget("build/context-packs")} replace />} />
+            <Route
+              path="dev-tasks"
+              element={ENABLE_LEGACY_DEV_TASKS_PAGE ? <DevTasksPage /> : <Navigate to={runsDevTasksPath} replace />}
+            />
+            <Route path="environments" element={<Navigate to={runsPath} replace />} />
+            <Route path="context-packs" element={<Navigate to={workspaceScopedTarget("build/artifacts")} replace />} />
+            <Route path="context-packs/drafts/:draftId" element={<Navigate to={workspaceScopedTarget("build/artifacts")} replace />} />
             <Route path="my-tenants" element={<RedirectLegacyTenantsRoute view="my" />} />
-            <Route path="control-plane" element={<ControlPlanePage />} />
+            <Route
+              path="control-plane"
+              element={
+                ENABLE_LEGACY_CONTROL_PLANE ? (
+                  <ControlPlanePage />
+                ) : (
+                  <LegacyStatePanel
+                    title="Control Plane Deprecated"
+                    message="Control plane is removed from primary nav in this mode."
+                    actionLabel="Open Platform Settings · Deploy"
+                    actionTo={settingsDeployPath}
+                  />
+                )
+              }
+            />
             <Route path="platform/tenants" element={<PlatformTenantsPage />} />
             <Route path="platform/tenants/:tenantId" element={<PlatformTenantsPage />} />
             <Route path="platform/tenant-contacts" element={<RedirectLegacyTenantsRoute view="all" />} />

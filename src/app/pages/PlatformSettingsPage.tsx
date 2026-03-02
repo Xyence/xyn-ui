@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useState } from "react";
-import { useNavigate } from "react-router-dom";
+import { useNavigate, useSearchParams } from "react-router-dom";
 import InlineMessage from "../../components/InlineMessage";
 import {
   createVideoAdapterConfig,
@@ -89,6 +89,7 @@ function ensureConfig(config?: PlatformConfig): PlatformConfig {
 
 export default function PlatformSettingsPage() {
   const navigate = useNavigate();
+  const [searchParams, setSearchParams] = useSearchParams();
   const [config, setConfig] = useState<PlatformConfig>(defaultConfig);
   const [version, setVersion] = useState<number>(0);
   const [loading, setLoading] = useState(false);
@@ -270,6 +271,7 @@ export default function PlatformSettingsPage() {
         setLoading(false);
       });
   };
+  const activeTab = (searchParams.get("tab") || "general").toLowerCase() === "deploy" ? "deploy" : "general";
 
   return (
     <>
@@ -277,6 +279,28 @@ export default function PlatformSettingsPage() {
         <div>
           <h2>Platform Settings</h2>
           <p className="muted">Version {version}</p>
+          <div className="inline-actions" style={{ marginTop: 8 }}>
+            <button
+              className={activeTab === "general" ? "primary" : "ghost"}
+              onClick={() => {
+                const next = new URLSearchParams(searchParams);
+                next.delete("tab");
+                setSearchParams(next);
+              }}
+            >
+              General
+            </button>
+            <button
+              className={activeTab === "deploy" ? "primary" : "ghost"}
+              onClick={() => {
+                const next = new URLSearchParams(searchParams);
+                next.set("tab", "deploy");
+                setSearchParams(next);
+              }}
+            >
+              Deploy
+            </button>
+          </div>
         </div>
         <div className="inline-actions">
           <button className="ghost" onClick={load} disabled={loading}>
@@ -291,6 +315,35 @@ export default function PlatformSettingsPage() {
       {error && <InlineMessage tone="error" title="Request failed" body={error} />}
       {message && <InlineMessage tone="info" title="Update" body={message} />}
 
+      {activeTab === "deploy" ? (
+        <div className="layout">
+          <section className="card">
+            <div className="card-header">
+              <h3>Release Plans</h3>
+            </div>
+            <p className="muted">Release Plans are managed from this Deploy tab rather than the main sidebar.</p>
+            <div className="form-actions">
+              <button className="ghost" onClick={() => navigate("/app/runs?filter=release_plan")}>
+                Open Related Runs
+              </button>
+            </div>
+          </section>
+          <section className="card">
+            <div className="card-header">
+              <h3>Releases</h3>
+            </div>
+            <p className="muted">Use Runs and Instances to monitor release execution and runtime outcomes.</p>
+            <div className="form-actions">
+              <button className="ghost" onClick={() => navigate("/app/runs")}>
+                Open Runs
+              </button>
+              <button className="ghost" onClick={() => navigate("/app/instances")}>
+                Open Instances
+              </button>
+            </div>
+          </section>
+        </div>
+      ) : (
       <div className="layout">
         <section className="card">
           <div className="card-header">
@@ -617,6 +670,7 @@ export default function PlatformSettingsPage() {
           {loadingAdapters ? <p className="muted small">Loading adapter registry…</p> : null}
         </section>
       </div>
+      )}
     </>
   );
 }
