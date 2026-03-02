@@ -26,6 +26,7 @@ describe("Sidebar", () => {
     expect(screen.getByRole("link", { name: /^Installed$/i })).toBeInTheDocument();
     expect(screen.getByRole("link", { name: /^Catalog$/i })).toBeInTheDocument();
     expect(screen.getByRole("link", { name: /^Runs$/i })).toBeInTheDocument();
+    expect(screen.queryByRole("link", { name: /^Instances$/i })).not.toBeInTheDocument();
     expect(screen.getByRole("link", { name: /^Platform Settings$/i })).toBeInTheDocument();
     expect(screen.queryByRole("button", { name: /^Package$/i })).not.toBeInTheDocument();
   });

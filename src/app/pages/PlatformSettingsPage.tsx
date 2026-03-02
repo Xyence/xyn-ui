@@ -12,6 +12,24 @@ import {
 import type { PlatformConfig, VideoAdapterConfigRecord, VideoAdapterDefinition } from "../../api/types";
 import { toWorkspacePath } from "../routing/workspaceRouting";
 
+type SettingsTab = "general" | "security" | "integrations" | "deploy" | "workspaces";
+
+type SettingsCard = {
+  title: string;
+  description: string;
+  actionLabel: string;
+  path: string;
+  status?: "Configured" | "Needs setup" | "Disabled" | "Available" | "Legacy";
+};
+
+const SETTINGS_TABS: Array<{ value: SettingsTab; label: string }> = [
+  { value: "general", label: "General" },
+  { value: "security", label: "Security" },
+  { value: "integrations", label: "Integrations" },
+  { value: "deploy", label: "Deploy" },
+  { value: "workspaces", label: "Workspaces" },
+];
+
 const defaultConfig: PlatformConfig = {
   storage: {
     primary: { type: "local", name: "local" },
@@ -73,19 +91,47 @@ function ensureConfig(config?: PlatformConfig): PlatformConfig {
   merged.video = {
     ...defaultConfig.video,
     ...incomingVideo,
-    rendering_mode:
-      (incomingVideo.rendering_mode || fallbackMode) as NonNullable<PlatformConfig["video"]>["rendering_mode"],
-    endpoint_url:
-      incomingVideo.endpoint_url ??
-      merged.video_generation?.http?.endpoint_url ??
-      "",
-    timeout_seconds:
-      incomingVideo.timeout_seconds ??
-      merged.video_generation?.http?.timeout_seconds ??
-      90,
+    rendering_mode: (incomingVideo.rendering_mode || fallbackMode) as NonNullable<PlatformConfig["video"]>["rendering_mode"],
+    endpoint_url: incomingVideo.endpoint_url ?? merged.video_generation?.http?.endpoint_url ?? "",
+    timeout_seconds: incomingVideo.timeout_seconds ?? merged.video_generation?.http?.timeout_seconds ?? 90,
     retry_count: incomingVideo.retry_count ?? 0,
   };
   return merged;
+}
+
+function statusChipClass(status: SettingsCard["status"]): string {
+  if (status === "Configured" || status === "Available") return "status-chip active";
+  if (status === "Legacy") return "status-chip deprecated";
+  return "status-chip";
+}
+
+function HubCards({ cards, onOpen }: { cards: SettingsCard[]; onOpen: (path: string) => void }) {
+  if (!cards.length) {
+    return (
+      <section className="card">
+        <h3>No settings in this section yet</h3>
+        <p className="muted">Add providers or platform features to populate this tab.</p>
+      </section>
+    );
+  }
+  return (
+    <div style={{ display: "grid", gap: 12, gridTemplateColumns: "repeat(auto-fit, minmax(280px, 1fr))" }}>
+      {cards.map((card) => (
+        <section key={card.title} className="card" style={{ marginBottom: 0 }}>
+          <div className="card-header">
+            <h3>{card.title}</h3>
+            {card.status ? <span className={statusChipClass(card.status)}>{card.status}</span> : null}
+          </div>
+          <p className="muted">{card.description}</p>
+          <div className="form-actions">
+            <button type="button" className="ghost" onClick={() => onOpen(card.path)}>
+              {card.actionLabel}
+            </button>
+          </div>
+        </section>
+      ))}
+    </div>
+  );
 }
 
 export default function PlatformSettingsPage() {
@@ -119,7 +165,7 @@ export default function PlatformSettingsPage() {
   };
 
   useEffect(() => {
-    load();
+    void load();
   }, []);
 
   const loadVideoAdapters = async () => {
@@ -148,7 +194,7 @@ export default function PlatformSettingsPage() {
   };
 
   useEffect(() => {
-    loadVideoAdapters();
+    void loadVideoAdapters();
   }, []);
 
   const activeVideoConfig = config.video || defaultConfig.video!;
@@ -157,7 +203,7 @@ export default function PlatformSettingsPage() {
       setAdapterConfigs([]);
       return;
     }
-    loadAdapterConfigs(String(activeVideoConfig.adapter_id));
+    void loadAdapterConfigs(String(activeVideoConfig.adapter_id));
   }, [activeVideoConfig.adapter_id]);
 
   const setProvider = (name: string, next: Record<string, unknown>) => {
@@ -274,29 +320,157 @@ export default function PlatformSettingsPage() {
         setLoading(false);
       });
   };
+
   const requestedTab = (searchParams.get("tab") || "general").toLowerCase();
-  const activeTab = requestedTab === "deploy" || requestedTab === "govern" ? requestedTab : "general";
-  const setActiveTab = (tab: "general" | "govern" | "deploy") => {
+  const activeTab: SettingsTab =
+    SETTINGS_TABS.find((tab) => tab.value === requestedTab)?.value || "general";
+
+  const setActiveTab = (tab: SettingsTab) => {
     const next = new URLSearchParams(searchParams);
     if (tab === "general") next.delete("tab");
     else next.set("tab", tab);
     setSearchParams(next);
   };
-  const toScopedPath = (subpath: string): string => {
-    if (workspaceId) return toWorkspacePath(workspaceId, subpath);
-    return `/app/${subpath.replace(/^\/+/, "")}`;
+
+  const toScopedPath = (subpath: string, query?: Record<string, string>): string => {
+    const rest = subpath.replace(/^\/+/, "");
+    const base = workspaceId ? toWorkspacePath(workspaceId, rest) : `/app/${rest}`;
+    if (!query || Object.keys(query).length === 0) return base;
+    const params = new URLSearchParams(query);
+    return `${base}?${params.toString()}`;
   };
-  const adminLinks: Array<{ label: string; description: string; path: string }> = [
-    { label: "Activity", description: "Workspace-level activity timeline.", path: toScopedPath("govern/activity") },
-    { label: "Workspaces", description: "Workspace membership and defaults.", path: toScopedPath("workspaces") },
-    { label: "Access Control", description: "Users, roles, and access explorer.", path: toScopedPath("platform/access-control") },
-    { label: "Identity Configuration", description: "Identity providers and OIDC app clients.", path: toScopedPath("platform/identity-configuration") },
-    { label: "Secrets", description: "Secret stores and references.", path: toScopedPath("platform/secrets") },
-    { label: "AI Agents", description: "AI credentials, models, and agent settings.", path: toScopedPath("platform/ai-agents") },
-    { label: "Branding", description: "Tenant branding and theme controls.", path: toScopedPath("platform/branding") },
-    { label: "Tenants", description: "Tenant directory and tenant details.", path: toScopedPath("platform/tenants") },
-    { label: "Seed Packs", description: "Manage seed packs and bootstrap assets.", path: toScopedPath("platform/seeds") },
-    { label: "Control Plane", description: "Legacy control-plane surface (may be disabled by flag).", path: toScopedPath("control-plane") },
+
+  const storageStatus: SettingsCard["status"] =
+    config.storage.primary.type === "local"
+      ? "Configured"
+      : s3Provider.s3?.bucket && s3Provider.s3?.region
+      ? "Configured"
+      : "Needs setup";
+  const notificationsStatus: SettingsCard["status"] =
+    !config.notifications.enabled
+      ? "Disabled"
+      : config.notifications.channels.some((channel) => channel.enabled)
+      ? "Configured"
+      : "Needs setup";
+  const renderingStatus: SettingsCard["status"] =
+    renderingMode === "export_package_only"
+      ? "Disabled"
+      : renderingMode === "render_via_adapter" && activeVideoConfig.adapter_config_id
+      ? "Configured"
+      : renderingMode === "render_via_endpoint" && activeVideoConfig.endpoint_url
+      ? "Configured"
+      : "Needs setup";
+
+  const securityCards: SettingsCard[] = [
+    {
+      title: "Access Control",
+      description: "Manage user roles, grants, and effective access across platform capabilities.",
+      actionLabel: "Open Access Control",
+      path: toScopedPath("platform/access-control"),
+      status: "Available",
+    },
+    {
+      title: "Identity Configuration",
+      description: "Configure identity providers and OIDC app client settings for login and federation.",
+      actionLabel: "Open Identity",
+      path: toScopedPath("platform/identity-configuration"),
+      status: "Needs setup",
+    },
+    {
+      title: "Secrets",
+      description: "Store and rotate credentials used by adapters, notifications, and integrations.",
+      actionLabel: "Open Secrets",
+      path: toScopedPath("platform/secrets"),
+      status: "Available",
+    },
+    {
+      title: "Activity",
+      description: "Review governance-relevant activity and trace who changed what and when.",
+      actionLabel: "Open Activity",
+      path: toScopedPath("govern/activity"),
+      status: "Available",
+    },
+  ];
+
+  const integrationsCards: SettingsCard[] = [
+    {
+      title: "AI Agents",
+      description: "Configure AI credentials, models, and agent purposes for assistant-driven workflows.",
+      actionLabel: "Open AI Agents",
+      path: toScopedPath("platform/ai-agents"),
+      status: "Available",
+    },
+    {
+      title: "Video Adapter Configs",
+      description: "Manage renderer adapter configs used by runtime video render workflows.",
+      actionLabel: selectedAdapterConfig ? "Open Active Config" : "Open Rendering Settings",
+      path: selectedAdapterConfig
+        ? toScopedPath(`platform/video-adapter-configs/${selectedAdapterConfig.artifact_id}`)
+        : toScopedPath("platform/settings", { tab: "general" }),
+      status: selectedAdapterConfig ? "Configured" : "Needs setup",
+    },
+  ];
+
+  const deployCards: SettingsCard[] = [
+    {
+      title: "Release Plans",
+      description: "Plan and trigger release activity from Runs and deployment workflows.",
+      actionLabel: "Open Release Runs",
+      path: toScopedPath("run/runs", { filter: "release_plan" }),
+      status: "Available",
+    },
+    {
+      title: "Releases",
+      description: "Monitor active and historical release execution with linked run telemetry.",
+      actionLabel: "Open Runs",
+      path: toScopedPath("run/runs"),
+      status: "Available",
+    },
+    {
+      title: "Seed Packs",
+      description: "Apply curated seed packs for baseline platform content and setup.",
+      actionLabel: "Open Seed Packs",
+      path: toScopedPath("platform/seeds"),
+      status: "Available",
+    },
+    {
+      title: "Instances",
+      description: "Power-user deep link for instance management while Instances stays hidden from sidebar.",
+      actionLabel: "Open Instances",
+      path: toScopedPath("run/instances"),
+      status: "Legacy",
+    },
+    {
+      title: "Control Plane",
+      description: "Legacy control-plane surface retained as a fallback while capabilities move to artifacts.",
+      actionLabel: "Open Control Plane",
+      path: toScopedPath("control-plane"),
+      status: "Legacy",
+    },
+  ];
+
+  const workspaceCards: SettingsCard[] = [
+    {
+      title: "Workspace Management",
+      description: "Create and maintain workspace records, including lifecycle metadata and hierarchy.",
+      actionLabel: "Open Workspaces",
+      path: toScopedPath("workspaces", { tab: "management" }),
+      status: "Available",
+    },
+    {
+      title: "People & Roles",
+      description: "Manage workspace memberships and role assignments for selected workspaces.",
+      actionLabel: "Open People & Roles",
+      path: toScopedPath("workspaces", { tab: "people_roles" }),
+      status: "Available",
+    },
+    {
+      title: "Tenants",
+      description: "Manage tenant records and tenant-level metadata associated with workspace operations.",
+      actionLabel: "Open Tenants",
+      path: toScopedPath("platform/tenants"),
+      status: "Available",
+    },
   ];
 
   return (
@@ -307,411 +481,382 @@ export default function PlatformSettingsPage() {
           <p className="muted">Version {version}</p>
         </div>
         <div className="inline-actions">
-          <button className="ghost" onClick={load} disabled={loading}>
+          <button className="ghost" onClick={() => void load()} disabled={loading}>
             Refresh
           </button>
-          <button className="primary" onClick={save} disabled={loading}>
+          <button className="primary" onClick={() => void save()} disabled={loading}>
             Save
           </button>
         </div>
       </div>
-      <section className="card" style={{ marginBottom: 12 }}>
-        <div className="inline-actions">
-          <button type="button" className={activeTab === "general" ? "primary" : "ghost"} onClick={() => setActiveTab("general")}>
-            General
+
+      <div className="inline-actions" style={{ marginBottom: 10 }}>
+        {SETTINGS_TABS.map((tab) => (
+          <button
+            key={tab.value}
+            type="button"
+            className={activeTab === tab.value ? "primary" : "ghost"}
+            onClick={() => setActiveTab(tab.value)}
+          >
+            {tab.label}
           </button>
-          <button type="button" className={activeTab === "govern" ? "primary" : "ghost"} onClick={() => setActiveTab("govern")}>
-            Govern
-          </button>
-          <button type="button" className={activeTab === "deploy" ? "primary" : "ghost"} onClick={() => setActiveTab("deploy")}>
-            Deploy
-          </button>
-        </div>
-      </section>
+        ))}
+      </div>
 
       {error && <InlineMessage tone="error" title="Request failed" body={error} />}
       {message && <InlineMessage tone="info" title="Update" body={message} />}
 
-      {activeTab === "deploy" ? (
+      {activeTab === "security" ? <HubCards cards={securityCards} onOpen={(path) => navigate(path)} /> : null}
+      {activeTab === "integrations" ? <HubCards cards={integrationsCards} onOpen={(path) => navigate(path)} /> : null}
+      {activeTab === "deploy" ? <HubCards cards={deployCards} onOpen={(path) => navigate(path)} /> : null}
+      {activeTab === "workspaces" ? <HubCards cards={workspaceCards} onOpen={(path) => navigate(path)} /> : null}
+
+      {activeTab === "general" ? (
         <div className="layout">
           <section className="card">
             <div className="card-header">
-              <h3>Release Plans</h3>
+              <h3>Branding</h3>
+              <span className="status-chip active">Configured</span>
             </div>
-            <p className="muted">Release Plans are managed from this Deploy tab rather than the main sidebar.</p>
+            <p className="muted">Tenant branding and theme settings are managed in the dedicated Branding surface.</p>
             <div className="form-actions">
-              <button className="ghost" onClick={() => navigate("/app/runs?filter=release_plan")}>
-                Open Related Runs
+              <button className="ghost" onClick={() => navigate(toScopedPath("platform/branding"))}>
+                Open Branding
               </button>
             </div>
           </section>
+
           <section className="card">
             <div className="card-header">
-              <h3>Releases</h3>
+              <h3>Storage</h3>
+              <span className={statusChipClass(storageStatus)}>{storageStatus}</span>
             </div>
-            <p className="muted">Use Runs and Instances to monitor release execution and runtime outcomes.</p>
-            <div className="form-actions">
-              <button className="ghost" onClick={() => navigate("/app/runs")}>
-                Open Runs
-              </button>
-              <button className="ghost" onClick={() => navigate("/app/instances")}>
-                Open Instances
-              </button>
+            <div className="form-grid">
+              <label>
+                Primary provider
+                <select
+                  value={config.storage.primary.type}
+                  onChange={(event) =>
+                    setConfig({
+                      ...config,
+                      storage: {
+                        ...config.storage,
+                        primary:
+                          event.target.value === "s3"
+                            ? { type: "s3", name: "default" }
+                            : { type: "local", name: "local" },
+                      },
+                    })
+                  }
+                >
+                  <option value="local">local</option>
+                  <option value="s3">s3</option>
+                </select>
+              </label>
+              <label>
+                Local base path
+                <input
+                  className="input"
+                  value={localProvider.local?.base_path || ""}
+                  onChange={(event) =>
+                    setProvider("local", {
+                      local: { ...(localProvider.local || {}), base_path: event.target.value },
+                    })
+                  }
+                />
+              </label>
+              <label>
+                S3 bucket
+                <input
+                  className="input"
+                  value={s3Provider.s3?.bucket || ""}
+                  onChange={(event) =>
+                    setProvider("default", {
+                      s3: { ...(s3Provider.s3 || {}), bucket: event.target.value, acl: "private" },
+                    })
+                  }
+                />
+              </label>
+              <label>
+                S3 region
+                <input
+                  className="input"
+                  value={s3Provider.s3?.region || ""}
+                  onChange={(event) =>
+                    setProvider("default", {
+                      s3: { ...(s3Provider.s3 || {}), region: event.target.value, acl: "private" },
+                    })
+                  }
+                />
+              </label>
+              <label>
+                S3 prefix
+                <input
+                  className="input"
+                  value={s3Provider.s3?.prefix || ""}
+                  onChange={(event) =>
+                    setProvider("default", {
+                      s3: { ...(s3Provider.s3 || {}), prefix: event.target.value, acl: "private" },
+                    })
+                  }
+                />
+              </label>
+              <label>
+                S3 KMS key ID (optional)
+                <input
+                  className="input"
+                  value={s3Provider.s3?.kms_key_id || ""}
+                  onChange={(event) =>
+                    setProvider("default", {
+                      s3: { ...(s3Provider.s3 || {}), kms_key_id: event.target.value, acl: "private" },
+                    })
+                  }
+                />
+              </label>
             </div>
           </section>
-        </div>
-      ) : activeTab === "govern" ? (
-        <div className="layout">
+
           <section className="card">
             <div className="card-header">
-              <h3>Govern</h3>
+              <h3>Notifications</h3>
+              <span className={statusChipClass(notificationsStatus)}>{notificationsStatus}</span>
             </div>
-            <p className="muted">Legacy Govern options are consolidated here to keep the sidebar focused while preserving access.</p>
-            <div className="form-grid" style={{ marginTop: 12 }}>
-              {adminLinks.map((link) => (
-                <div key={link.label} className="card" style={{ marginBottom: 0 }}>
-                  <div>
-                    <h4>{link.label}</h4>
-                    <p className="muted small">{link.description}</p>
-                  </div>
-                  <div className="form-actions">
-                    <button type="button" className="ghost" onClick={() => navigate(link.path)}>
-                      Open
+            <div className="form-grid">
+              <label>
+                Notifications enabled
+                <select
+                  value={config.notifications.enabled ? "yes" : "no"}
+                  onChange={(event) =>
+                    setConfig({
+                      ...config,
+                      notifications: { ...config.notifications, enabled: event.target.value === "yes" },
+                    })
+                  }
+                >
+                  <option value="yes">Yes</option>
+                  <option value="no">No</option>
+                </select>
+              </label>
+              <label>
+                Discord enabled
+                <select
+                  value={discordChannel.enabled ? "yes" : "no"}
+                  onChange={(event) =>
+                    updateChannel("discord", {
+                      ...discordChannel,
+                      enabled: event.target.value === "yes",
+                    })
+                  }
+                >
+                  <option value="no">No</option>
+                  <option value="yes">Yes</option>
+                </select>
+              </label>
+              <label>
+                Discord webhook SecretRef
+                <input
+                  className="input"
+                  placeholder="secret_ref:<uuid> or platform SecretRef name"
+                  value={discordChannel.discord?.webhook_url_ref || ""}
+                  onChange={(event) =>
+                    updateChannel("discord", {
+                      ...discordChannel,
+                      discord: { ...(discordChannel.discord || {}), webhook_url_ref: event.target.value },
+                    })
+                  }
+                />
+              </label>
+              <label>
+                SNS enabled
+                <select
+                  value={snsChannel.enabled ? "yes" : "no"}
+                  onChange={(event) =>
+                    updateChannel("aws_sns", {
+                      ...snsChannel,
+                      enabled: event.target.value === "yes",
+                    })
+                  }
+                >
+                  <option value="no">No</option>
+                  <option value="yes">Yes</option>
+                </select>
+              </label>
+              <label>
+                SNS topic ARN
+                <input
+                  className="input"
+                  value={snsChannel.aws_sns?.topic_arn || ""}
+                  onChange={(event) =>
+                    updateChannel("aws_sns", {
+                      ...snsChannel,
+                      aws_sns: { ...(snsChannel.aws_sns || {}), topic_arn: event.target.value },
+                    })
+                  }
+                />
+              </label>
+              <label>
+                SNS region
+                <input
+                  className="input"
+                  value={snsChannel.aws_sns?.region || ""}
+                  onChange={(event) =>
+                    updateChannel("aws_sns", {
+                      ...snsChannel,
+                      aws_sns: { ...(snsChannel.aws_sns || {}), region: event.target.value },
+                    })
+                  }
+                />
+              </label>
+            </div>
+          </section>
+
+          <section className="card">
+            <div className="card-header">
+              <h3>Rendering</h3>
+              <span className={statusChipClass(renderingStatus)}>{renderingStatus}</span>
+            </div>
+            <div className="form-grid">
+              <label>
+                Rendering mode
+                <select
+                  value={renderingMode}
+                  onChange={(event) =>
+                    updateVideo({
+                      rendering_mode: event.target.value as NonNullable<PlatformConfig["video"]>["rendering_mode"],
+                    })
+                  }
+                >
+                  <option value="export_package_only">Export package only</option>
+                  <option value="render_via_adapter">Render via adapter</option>
+                  <option value="render_via_endpoint">Render via endpoint</option>
+                  {renderViaModelEnabled ? <option value="render_via_model_config">Render via model config</option> : null}
+                </select>
+              </label>
+              {renderingMode === "render_via_adapter" ? (
+                <>
+                  <label>
+                    Renderer adapter
+                    <select
+                      value={activeVideoConfig.adapter_id || ""}
+                      onChange={(event) =>
+                        updateVideo({
+                          adapter_id: event.target.value,
+                          adapter_config_id: null,
+                        })
+                      }
+                    >
+                      <option value="">Select adapter</option>
+                      {videoAdapters.map((adapter) => (
+                        <option key={adapter.id} value={adapter.id}>
+                          {adapter.name}
+                        </option>
+                      ))}
+                    </select>
+                    <span className="muted small">{selectedAdapter?.description || "Choose how Xyn hands render packages to a renderer."}</span>
+                  </label>
+                  <label>
+                    Adapter config (canonical)
+                    <select
+                      value={activeVideoConfig.adapter_config_id || ""}
+                      onChange={(event) => updateVideo({ adapter_config_id: event.target.value || null })}
+                      disabled={!activeVideoConfig.adapter_id || loadingAdapterConfigs}
+                    >
+                      <option value="">{loadingAdapterConfigs ? "Loading…" : "Select config"}</option>
+                      {adapterConfigs.map((item) => (
+                        <option key={item.artifact_id} value={item.artifact_id}>
+                          {item.title} ({item.slug || item.artifact_id.slice(0, 8)} · v{item.version})
+                        </option>
+                      ))}
+                    </select>
+                  </label>
+                  <div className="inline-actions">
+                    <button
+                      type="button"
+                      className="ghost"
+                      disabled={!selectedAdapterConfig}
+                      onClick={() =>
+                        selectedAdapterConfig &&
+                        navigate(`/app/platform/video-adapter-configs/${selectedAdapterConfig.artifact_id}`)
+                      }
+                    >
+                      Open config
+                    </button>
+                    <button type="button" className="ghost" onClick={() => void createAdapterConfigDraft()} disabled={!activeVideoConfig.adapter_id || loading}>
+                      Create config
+                    </button>
+                    <button type="button" className="ghost" onClick={testConnection} disabled={!selectedAdapterConfig}>
+                      Test connection
                     </button>
                   </div>
-                </div>
-              ))}
+                </>
+              ) : null}
+              {renderingMode === "render_via_endpoint" ? (
+                <>
+                  <label>
+                    Endpoint URL
+                    <input
+                      className="input"
+                      placeholder="https://renderer.example.com/render"
+                      value={activeVideoConfig.endpoint_url || ""}
+                      onChange={(event) => updateVideo({ endpoint_url: event.target.value })}
+                    />
+                  </label>
+                  <label>
+                    Authorization credential ref (optional)
+                    <input
+                      className="input"
+                      placeholder="secret_ref:<uuid> or credential name"
+                      value={activeVideoConfig.credential_ref || ""}
+                      onChange={(event) => updateVideo({ credential_ref: event.target.value })}
+                    />
+                  </label>
+                  <label>
+                    Timeout (seconds)
+                    <input
+                      className="input"
+                      type="number"
+                      min={5}
+                      max={600}
+                      value={activeVideoConfig.timeout_seconds ?? 90}
+                      onChange={(event) => updateVideo({ timeout_seconds: Number(event.target.value) || 90 })}
+                    />
+                  </label>
+                  <label>
+                    Retry count
+                    <input
+                      className="input"
+                      type="number"
+                      min={0}
+                      max={10}
+                      value={activeVideoConfig.retry_count ?? 0}
+                      onChange={(event) => updateVideo({ retry_count: Number(event.target.value) || 0 })}
+                    />
+                  </label>
+                </>
+              ) : null}
             </div>
-          </section>
-        </div>
-      ) : (
-      <div className="layout">
-        <section className="card">
-          <div className="card-header">
-            <h3>Storage</h3>
-          </div>
-          <div className="form-grid">
-            <label>
-              Primary provider
-              <select
-                value={config.storage.primary.type}
-                onChange={(event) =>
-                  setConfig({
-                    ...config,
-                    storage: {
-                      ...config.storage,
-                      primary:
-                        event.target.value === "s3"
-                          ? { type: "s3", name: "default" }
-                          : { type: "local", name: "local" },
-                    },
-                  })
-                }
-              >
-                <option value="local">local</option>
-                <option value="s3">s3</option>
-              </select>
-            </label>
-            <label>
-              Local base path
-              <input
-                className="input"
-                value={localProvider.local?.base_path || ""}
-                onChange={(event) =>
-                  setProvider("local", {
-                    local: { ...(localProvider.local || {}), base_path: event.target.value },
-                  })
-                }
-              />
-            </label>
-            <label>
-              S3 bucket
-              <input
-                className="input"
-                value={s3Provider.s3?.bucket || ""}
-                onChange={(event) =>
-                  setProvider("default", {
-                    s3: { ...(s3Provider.s3 || {}), bucket: event.target.value, acl: "private" },
-                  })
-                }
-              />
-            </label>
-            <label>
-              S3 region
-              <input
-                className="input"
-                value={s3Provider.s3?.region || ""}
-                onChange={(event) =>
-                  setProvider("default", {
-                    s3: { ...(s3Provider.s3 || {}), region: event.target.value, acl: "private" },
-                  })
-                }
-              />
-            </label>
-            <label>
-              S3 prefix
-              <input
-                className="input"
-                value={s3Provider.s3?.prefix || ""}
-                onChange={(event) =>
-                  setProvider("default", {
-                    s3: { ...(s3Provider.s3 || {}), prefix: event.target.value, acl: "private" },
-                  })
-                }
-              />
-            </label>
-            <label>
-              S3 KMS key ID (optional)
-              <input
-                className="input"
-                value={s3Provider.s3?.kms_key_id || ""}
-                onChange={(event) =>
-                  setProvider("default", {
-                    s3: { ...(s3Provider.s3 || {}), kms_key_id: event.target.value, acl: "private" },
-                  })
-                }
-              />
-            </label>
-          </div>
-        </section>
-
-        <section className="card">
-          <div className="card-header">
-            <h3>Notifications</h3>
-          </div>
-          <div className="form-grid">
-            <label>
-              Notifications enabled
-              <select
-                value={config.notifications.enabled ? "yes" : "no"}
-                onChange={(event) =>
-                  setConfig({
-                    ...config,
-                    notifications: { ...config.notifications, enabled: event.target.value === "yes" },
-                  })
-                }
-              >
-                <option value="yes">Yes</option>
-                <option value="no">No</option>
-              </select>
-            </label>
-            <label>
-              Discord enabled
-              <select
-                value={discordChannel.enabled ? "yes" : "no"}
-                onChange={(event) =>
-                  updateChannel("discord", {
-                    ...discordChannel,
-                    enabled: event.target.value === "yes",
-                  })
-                }
-              >
-                <option value="no">No</option>
-                <option value="yes">Yes</option>
-              </select>
-            </label>
-            <label>
-              Discord webhook SecretRef
-              <input
-                className="input"
-                placeholder="secret_ref:<uuid> or platform SecretRef name"
-                value={discordChannel.discord?.webhook_url_ref || ""}
-                onChange={(event) =>
-                  updateChannel("discord", {
-                    ...discordChannel,
-                    discord: { ...(discordChannel.discord || {}), webhook_url_ref: event.target.value },
-                  })
-                }
-              />
-            </label>
-            <label>
-              SNS enabled
-              <select
-                value={snsChannel.enabled ? "yes" : "no"}
-                onChange={(event) =>
-                  updateChannel("aws_sns", {
-                    ...snsChannel,
-                    enabled: event.target.value === "yes",
-                  })
-                }
-              >
-                <option value="no">No</option>
-                <option value="yes">Yes</option>
-              </select>
-            </label>
-            <label>
-              SNS topic ARN
-              <input
-                className="input"
-                value={snsChannel.aws_sns?.topic_arn || ""}
-                onChange={(event) =>
-                  updateChannel("aws_sns", {
-                    ...snsChannel,
-                    aws_sns: { ...(snsChannel.aws_sns || {}), topic_arn: event.target.value },
-                  })
-                }
-              />
-            </label>
-            <label>
-              SNS region
-              <input
-                className="input"
-                value={snsChannel.aws_sns?.region || ""}
-                onChange={(event) =>
-                  updateChannel("aws_sns", {
-                    ...snsChannel,
-                    aws_sns: { ...(snsChannel.aws_sns || {}), region: event.target.value },
-                  })
-                }
-              />
-            </label>
-          </div>
-        </section>
-
-        <section className="card">
-          <div className="card-header">
-            <h3>Video Rendering</h3>
-          </div>
-          <div className="form-grid">
-            <label>
-              Rendering mode
-              <select
-                value={renderingMode}
-                onChange={(event) =>
-                  updateVideo({
-                    rendering_mode: event.target.value as NonNullable<PlatformConfig["video"]>["rendering_mode"],
-                  })
-                }
-              >
-                <option value="export_package_only">Export package only</option>
-                <option value="render_via_adapter">Render via adapter</option>
-                <option value="render_via_endpoint">Render via endpoint</option>
-                {renderViaModelEnabled ? <option value="render_via_model_config">Render via model config</option> : null}
-              </select>
-            </label>
+            {renderingMode === "export_package_only" ? (
+              <p className="muted small">No rendering is performed. Xyn produces a governed render package for export/use elsewhere.</p>
+            ) : null}
             {renderingMode === "render_via_adapter" ? (
-              <>
-                <label>
-                  Renderer adapter
-                  <select
-                    value={activeVideoConfig.adapter_id || ""}
-                    onChange={(event) =>
-                      updateVideo({
-                        adapter_id: event.target.value,
-                        adapter_config_id: null,
-                      })
-                    }
-                  >
-                    <option value="">Select adapter</option>
-                    {videoAdapters.map((adapter) => (
-                      <option key={adapter.id} value={adapter.id}>
-                        {adapter.name}
-                      </option>
-                    ))}
-                  </select>
-                  <span className="muted small">{selectedAdapter?.description || "Choose how Xyn hands render packages to a renderer."}</span>
-                </label>
-                <label>
-                  Adapter config (canonical)
-                  <select
-                    value={activeVideoConfig.adapter_config_id || ""}
-                    onChange={(event) => updateVideo({ adapter_config_id: event.target.value || null })}
-                    disabled={!activeVideoConfig.adapter_id || loadingAdapterConfigs}
-                  >
-                    <option value="">{loadingAdapterConfigs ? "Loading…" : "Select config"}</option>
-                    {adapterConfigs.map((item) => (
-                      <option key={item.artifact_id} value={item.artifact_id}>
-                        {item.title} ({item.slug || item.artifact_id.slice(0, 8)} · v{item.version})
-                      </option>
-                    ))}
-                  </select>
-                </label>
-                <div className="inline-actions">
-                  <button
-                    type="button"
-                    className="ghost"
-                    disabled={!selectedAdapterConfig}
-                    onClick={() =>
-                      selectedAdapterConfig &&
-                      navigate(`/app/platform/video-adapter-configs/${selectedAdapterConfig.artifact_id}`)
-                    }
-                  >
-                    Open config
-                  </button>
-                  <button type="button" className="ghost" onClick={createAdapterConfigDraft} disabled={!activeVideoConfig.adapter_id || loading}>
-                    Create config
-                  </button>
-                  <button type="button" className="ghost" onClick={testConnection} disabled={!selectedAdapterConfig}>
-                    Test connection
-                  </button>
-                </div>
-              </>
+              <p className="muted small">Xyn produces a render package then invokes the selected adapter + canonical adapter config.</p>
             ) : null}
             {renderingMode === "render_via_endpoint" ? (
-              <>
-                <label>
-                  Endpoint URL
-                  <input
-                    className="input"
-                    placeholder="https://renderer.example.com/render"
-                    value={activeVideoConfig.endpoint_url || ""}
-                    onChange={(event) => updateVideo({ endpoint_url: event.target.value })}
-                  />
-                </label>
-                <label>
-                  Authorization credential ref (optional)
-                  <input
-                    className="input"
-                    placeholder="secret_ref:<uuid> or credential name"
-                    value={activeVideoConfig.credential_ref || ""}
-                    onChange={(event) => updateVideo({ credential_ref: event.target.value })}
-                  />
-                </label>
-                <label>
-                  Timeout (seconds)
-                  <input
-                    className="input"
-                    type="number"
-                    min={5}
-                    max={600}
-                    value={activeVideoConfig.timeout_seconds ?? 90}
-                    onChange={(event) => updateVideo({ timeout_seconds: Number(event.target.value) || 90 })}
-                  />
-                </label>
-                <label>
-                  Retry count
-                  <input
-                    className="input"
-                    type="number"
-                    min={0}
-                    max={10}
-                    value={activeVideoConfig.retry_count ?? 0}
-                    onChange={(event) => updateVideo({ retry_count: Number(event.target.value) || 0 })}
-                  />
-                </label>
-              </>
+              <p className="muted small">
+                Endpoint contract: <code>POST {'{endpoint_url}'}/render</code> with <code>{"{ render_package_id, render_package_hash, callback_url, options }"}</code>.
+              </p>
             ) : null}
-          </div>
-          {renderingMode === "export_package_only" ? (
-            <p className="muted small">No rendering is performed. Xyn produces a governed render package for export/use elsewhere.</p>
-          ) : null}
-          {renderingMode === "render_via_adapter" ? (
-            <p className="muted small">
-              Xyn produces a render package then invokes the selected adapter + canonical adapter config.
-            </p>
-          ) : null}
-          {renderingMode === "render_via_endpoint" ? (
-            <p className="muted small">
-              Endpoint contract: <code>POST {'{endpoint_url}'}/render</code> with <code>{"{ render_package_id, render_package_hash, callback_url, options }"}</code>.
-            </p>
-          ) : null}
-          {renderingMode === "render_via_model_config" ? (
-            <InlineMessage tone="info" title="Feature gated mode" body="Direct model rendering mode is enabled by feature flag. Provider-specific execution is intentionally not implemented in this release." />
-          ) : null}
-          {loadingAdapters ? <p className="muted small">Loading adapter registry…</p> : null}
-        </section>
-      </div>
-      )}
+            {renderingMode === "render_via_model_config" ? (
+              <InlineMessage
+                tone="info"
+                title="Feature gated mode"
+                body="Direct model rendering mode is enabled by feature flag. Provider-specific execution is intentionally not implemented in this release."
+              />
+            ) : null}
+            {loadingAdapters ? <p className="muted small">Loading adapter registry…</p> : null}
+          </section>
+        </div>
+      ) : null}
     </>
   );
 }

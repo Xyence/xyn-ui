@@ -73,7 +73,6 @@ export const NAV_GROUPS: NavGroup[] = [
     icon: "Rocket",
     items: [
       { id: "runs", label: "Runs", path: "/app/runs", icon: "PlayCircle", keywords: ["logs", "executions"] },
-      { id: "instances", label: "Instances", path: "/app/instances", icon: "Server", keywords: ["runtime"] },
     ],
   },
   {
