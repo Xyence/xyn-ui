@@ -16,15 +16,15 @@ describe("nav.utils", () => {
   });
 
   it("finds active item and containing group/subgroup", () => {
-    const match = findActiveItem("/app/artifacts/articles", NAV_GROUPS);
+    const match = findActiveItem("/app/artifacts/all", NAV_GROUPS);
     expect(match?.groupId).toBe("build");
     expect(match?.subgroupId).toBeUndefined();
-    expect(match?.item.id).toBe("article");
+    expect(match?.item.id).toBe("installed");
   });
 
   it("builds breadcrumbs from nav config", () => {
-    const crumbs = getBreadcrumbs("/app/activity", NAV_GROUPS);
-    expect(crumbs.map((entry) => entry.label)).toEqual(["Govern", "Activity"]);
+    const crumbs = getBreadcrumbs("/app/release-plans", NAV_GROUPS);
+    expect(crumbs.map((entry) => entry.label)).toEqual(["Package", "Release Plans"]);
   });
 
   it("persists and hydrates nav state", () => {
@@ -41,9 +41,9 @@ describe("nav.utils", () => {
   });
 
   it("filters by label/keywords and returns matches", () => {
-    const filtered = filterNav(NAV_GROUPS, "artifact");
+    const filtered = filterNav(NAV_GROUPS, "catalog");
     const labels = filtered.matches.map((entry) => entry.item.label);
-    expect(labels).toContain("Artifact Explorer");
+    expect(labels).toContain("Catalog");
     expect(filtered.groups.length).toBeGreaterThan(0);
   });
 

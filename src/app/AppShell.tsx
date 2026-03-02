@@ -336,23 +336,21 @@ export default function AppShell() {
           }))
         : [],
     }));
-    if (!surfaceNavItems.length) return baseGroups;
-    const idToGroup = new Map(baseGroups.map((group) => [group.id, group]));
+    const buildGroup = baseGroups.find((group) => group.id === "build");
+    if (!buildGroup || !surfaceNavItems.length) return baseGroups;
+
     const pathSeen = new Set<string>();
     baseGroups.forEach((group) => {
       (group.items || []).forEach((item) => pathSeen.add(item.path));
       (group.subgroups || []).forEach((subgroup) => subgroup.items.forEach((item) => pathSeen.add(item.path)));
     });
 
+    const appItems: Array<{ sortOrder: number; item: NavItem }> = [];
     surfaceNavItems
       .filter((surface) => String(surface.nav_visibility || "").toLowerCase() === "always")
-      .sort((a, b) => Number(a.sort_order || 0) - Number(b.sort_order || 0))
       .forEach((surface) => {
         const route = String(surface.route || "").trim();
         if (!route || pathSeen.has(route)) return;
-        const navGroupHint = String(surface.nav_group || "build").trim().toLowerCase();
-        const targetGroup = idToGroup.get(navGroupHint) || idToGroup.get("build");
-        if (!targetGroup) return;
         const permissionsSpec = (surface.permissions || {}) as Record<string, unknown>;
         const requiredRoles = Array.isArray(permissionsSpec.required_roles)
           ? permissionsSpec.required_roles.map((entry) => String(entry).trim()).filter(Boolean)
@@ -368,9 +366,23 @@ export default function AppShell() {
           requiredRoles: requiredRoles.length ? requiredRoles : undefined,
           requiredPermissions: requiredPermissions.length ? requiredPermissions : undefined,
         };
-        targetGroup.items = [...(targetGroup.items || []), navItem];
+        appItems.push({ sortOrder: Number(surface.sort_order || 0), item: navItem });
         pathSeen.add(route);
       });
+
+    if (appItems.length > 0) {
+      const appsSubgroup = {
+        id: "apps",
+        label: "Apps",
+        icon: "Sparkles",
+        items: appItems
+          .sort((a, b) => (a.sortOrder - b.sortOrder) || a.item.label.localeCompare(b.item.label))
+          .map((entry) => entry.item),
+      };
+      buildGroup.subgroups = [...(buildGroup.subgroups || []).filter((subgroup) => subgroup.id !== "apps"), appsSubgroup];
+    } else {
+      buildGroup.subgroups = (buildGroup.subgroups || []).filter((subgroup) => subgroup.id !== "apps");
+    }
 
     return baseGroups;
   }, [activeWorkspaceId, surfaceNavItems]);

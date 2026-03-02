@@ -126,6 +126,6 @@ describe("AppShell nav surfaces", () => {
     );
 
     await waitFor(() => expect(apiMocks.listArtifactNavSurfaces).toHaveBeenCalledWith("ws-1"));
-    expect(await screen.findByRole("link", { name: /hello/i })).toBeInTheDocument();
+    expect(await screen.findByRole("button", { name: /^Apps$/i })).toBeInTheDocument();
   });
 });
