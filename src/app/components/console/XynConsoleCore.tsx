@@ -1117,6 +1117,8 @@ export default function XynConsoleCore({ mode, onRequestClose, onOpenPanel }: Pr
       return;
     }
     const envelope = buildUiActionFromPrompt(prompt, (canvasContext as ConsoleCanvasContext | null) || null);
+    const activeContextPanelId = String(canvasContext?.ui?.active_panel_id || canvasContext?.ui?.panel_id || "").trim();
+    const returnTarget = activeContextPanelId || undefined;
     if (envelope) {
       const action = envelope.action;
       if (action.name === "canvas.open_table") {
@@ -1145,11 +1147,12 @@ export default function XynConsoleCore({ mode, onRequestClose, onOpenPanel }: Pr
         if (String(action.params.entity_type || "") === "run") {
           const runId = String(action.params.entity_id || "").trim();
           if (runId) {
-            openPanel({
-              key: "run_detail",
-              params: { run_id: runId },
-              open_in: (action.params.open_in as "current_panel" | "new_panel" | "side_by_side" | undefined) || "new_panel",
-            });
+          openPanel({
+            key: "run_detail",
+            params: { run_id: runId },
+            open_in: (action.params.open_in as "current_panel" | "new_panel" | "side_by_side" | undefined) || "new_panel",
+            return_to_panel_id: returnTarget,
+          });
             clearSessionResolution();
             if (isOverlay) setOpen(false);
             return;
@@ -1162,6 +1165,7 @@ export default function XynConsoleCore({ mode, onRequestClose, onOpenPanel }: Pr
               key: "artifact_detail",
               params: { slug, tab: String(action.params.tab || "overview") },
               open_in: (action.params.open_in as "current_panel" | "new_panel" | "side_by_side" | undefined) || "new_panel",
+              return_to_panel_id: returnTarget,
             });
             clearSessionResolution();
             if (isOverlay) setOpen(false);
@@ -1174,6 +1178,7 @@ export default function XynConsoleCore({ mode, onRequestClose, onOpenPanel }: Pr
             key: "platform_settings",
             params: { workspace_id: workspaceId },
             open_in: (action.params.open_in as "current_panel" | "new_panel" | "side_by_side" | undefined) || "new_panel",
+            return_to_panel_id: returnTarget,
           });
           clearSessionResolution();
           if (isOverlay) setOpen(false);
@@ -1190,6 +1195,7 @@ export default function XynConsoleCore({ mode, onRequestClose, onOpenPanel }: Pr
                 dataset: String(action.params.dataset || ""),
               },
               open_in: (action.params.open_in as "current_panel" | "new_panel" | "side_by_side" | undefined) || "new_panel",
+              return_to_panel_id: returnTarget,
             });
             clearSessionResolution();
             if (isOverlay) setOpen(false);
@@ -1216,13 +1222,13 @@ export default function XynConsoleCore({ mode, onRequestClose, onOpenPanel }: Pr
           const entityId = String(action.params.entity_id || "").trim();
           const entityType = String(action.params.entity_type || "").trim();
           if (entityId && entityType === "artifact") {
-            openPanel({ key: "artifact_detail", params: { slug: entityId }, open_in: "new_panel" });
+            openPanel({ key: "artifact_detail", params: { slug: entityId }, open_in: "new_panel", return_to_panel_id: returnTarget });
           }
           if (entityId && entityType === "run") {
-            openPanel({ key: "run_detail", params: { run_id: entityId }, open_in: "new_panel" });
+            openPanel({ key: "run_detail", params: { run_id: entityId }, open_in: "new_panel", return_to_panel_id: returnTarget });
           }
           if (entityId && entityType === "workspace") {
-            openPanel({ key: "platform_settings", params: { workspace_id: entityId }, open_in: "new_panel" });
+            openPanel({ key: "platform_settings", params: { workspace_id: entityId }, open_in: "new_panel", return_to_panel_id: returnTarget });
           }
           if (entityId && entityType === "record") {
             openPanel({
@@ -1233,6 +1239,7 @@ export default function XynConsoleCore({ mode, onRequestClose, onOpenPanel }: Pr
                 dataset: String(action.params.dataset || ""),
               },
               open_in: "new_panel",
+              return_to_panel_id: returnTarget,
             });
           }
         }

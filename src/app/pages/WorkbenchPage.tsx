@@ -18,6 +18,7 @@ export default function WorkbenchPage() {
         key: activePanel.key as ConsolePanelKey,
         params: activePanel.params || {},
         active_group_id: activePanel.active_group_id,
+        open_in: "current_panel",
       }
     : null) as ConsolePanelSpec | null;
 
@@ -82,7 +83,14 @@ export default function WorkbenchPage() {
         <WorkbenchPanelHost
           panel={panel}
           workspaceId={workspaceId}
-          onOpenPanel={(next) => openPanel({ key: next.key, params: next.params || {}, open_in: "current_panel" })}
+          onOpenPanel={(next) =>
+            openPanel({
+              key: next.key,
+              params: next.params || {},
+              open_in: next.open_in || "current_panel",
+              return_to_panel_id: next.return_to_panel_id,
+            })
+          }
           onContextChange={(context) => {
             setCanvasContext((context || null) as never);
           }}

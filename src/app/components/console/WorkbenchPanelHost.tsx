@@ -1,4 +1,5 @@
 import { useEffect, useMemo, useState } from "react";
+import { ArrowLeft } from "lucide-react";
 import { useNavigate, useParams } from "react-router-dom";
 import {
   getArtifactConsoleDetailBySlug,
@@ -54,6 +55,8 @@ export type ConsolePanelSpec = {
   instance_key?: string;
   title?: string;
   active_group_id?: string | null;
+  open_in?: "current_panel" | "new_panel" | "side_by_side";
+  return_to_panel_id?: string;
   key: ConsolePanelKey;
   params?: Record<string, unknown>;
 };
@@ -1154,7 +1157,17 @@ export default function WorkbenchPanelHost({
 
   const content = useMemo(() => {
     if (!panel) return null;
-    const openPanel = (panelKey: ConsolePanelKey, params?: Record<string, unknown>) => onOpenPanel({ key: panelKey, params: params || {} });
+    const openPanel = (
+      panelKey: ConsolePanelKey,
+      params?: Record<string, unknown>,
+      options?: { open_in?: "current_panel" | "new_panel" | "side_by_side"; return_to_panel_id?: string }
+    ) =>
+      onOpenPanel({
+        key: panelKey,
+        params: params || {},
+        open_in: options?.open_in,
+        return_to_panel_id: options?.return_to_panel_id,
+      });
 
     if (panel.key === "platform_settings") {
       return <PlatformSettingsPanel workspaceId={String(panel.params?.workspace_id || workspaceId || "")} />;
@@ -1173,7 +1186,7 @@ export default function WorkbenchPanelHost({
               openPanel("platform_settings", { workspace_id: target.entity_id });
               return;
             }
-            openPanel("record_detail", { ...target });
+            openPanel("record_detail", { ...target }, { open_in: "new_panel", return_to_panel_id: panel.panel_id });
           }}
         />
       );
@@ -1189,10 +1202,10 @@ export default function WorkbenchPanelHost({
           onTitleChange={setResolvedTitle}
           onOpenDetail={(target, row) => {
             if (target.entity_type === "run") {
-              openPanel("run_detail", { run_id: target.entity_id });
+              openPanel("run_detail", { run_id: target.entity_id }, { open_in: "new_panel", return_to_panel_id: panel.panel_id });
               return;
             }
-            openPanel("record_detail", { ...target, row });
+            openPanel("record_detail", { ...target, row }, { open_in: "new_panel", return_to_panel_id: panel.panel_id });
           }}
         />
       );
@@ -1252,7 +1265,7 @@ export default function WorkbenchPanelHost({
           onContextChange={onContextChange}
           onTitleChange={setResolvedTitle}
           onOpenDetail={(target, row) => {
-            openPanel("record_detail", { ...target, row });
+            openPanel("record_detail", { ...target, row }, { open_in: "new_panel", return_to_panel_id: panel.panel_id });
           }}
         />
       );
@@ -1276,7 +1289,7 @@ export default function WorkbenchPanelHost({
           onContextChange={onContextChange}
           onTitleChange={setResolvedTitle}
           onOpenDetail={(target, row) => {
-            openPanel("record_detail", { ...target, row });
+            openPanel("record_detail", { ...target, row }, { open_in: "new_panel", return_to_panel_id: panel.panel_id });
           }}
         />
       );
@@ -1291,7 +1304,7 @@ export default function WorkbenchPanelHost({
           onContextChange={onContextChange}
           onTitleChange={setResolvedTitle}
           onOpenDetail={(target, row) => {
-            openPanel("record_detail", { ...target, row });
+            openPanel("record_detail", { ...target, row }, { open_in: "new_panel", return_to_panel_id: panel.panel_id });
           }}
         />
       );
@@ -1313,7 +1326,7 @@ export default function WorkbenchPanelHost({
           onContextChange={onContextChange}
           onTitleChange={setResolvedTitle}
           onOpenDetail={(target, row) => {
-            openPanel("record_detail", { ...target, row });
+            openPanel("record_detail", { ...target, row }, { open_in: "new_panel", return_to_panel_id: panel.panel_id });
           }}
         />
       );
@@ -1329,7 +1342,7 @@ export default function WorkbenchPanelHost({
           onContextChange={onContextChange}
           onTitleChange={setResolvedTitle}
           onOpenDetail={(target, row) => {
-            openPanel("record_detail", { ...target, row });
+            openPanel("record_detail", { ...target, row }, { open_in: "new_panel", return_to_panel_id: panel.panel_id });
           }}
         />
       );
@@ -1347,8 +1360,8 @@ export default function WorkbenchPanelHost({
       <div className="ems-panel-head">
         <h3>{humanizePanelTitle(panel, resolvedTitle)}</h3>
         {onClosePanel ? (
-          <button type="button" className="ghost sm" onClick={onClosePanel}>
-            Close
+          <button type="button" className="ghost sm" onClick={onClosePanel} aria-label={panel.panel_type === "detail" ? "Back" : "Close"} title={panel.panel_type === "detail" ? "Back" : "Close"}>
+            {panel.panel_type === "detail" ? <ArrowLeft size={14} /> : "Close"}
           </button>
         ) : null}
       </div>
