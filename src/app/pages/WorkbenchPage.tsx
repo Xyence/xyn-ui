@@ -32,16 +32,7 @@ export default function WorkbenchPage() {
     if (!panel) setCanvasContext(null);
   }, [panel, setCanvasContext]);
 
-  const suggestions = landingSuggestions.length
-    ? landingSuggestions.slice(0, 6).map((entry) => entry.prompt)
-    : [
-        "List core artifacts",
-        "Show installed artifacts",
-        "Open artifact core.authn-jwt",
-        "Edit artifact core.authn-jwt raw",
-        "Show runs",
-        "Show unregistered devices",
-      ];
+  const suggestions = landingSuggestions.slice(0, 6).map((entry) => entry.prompt);
 
   const handleSuggestion = (prompt: string) => {
     setInputText(prompt);
@@ -55,13 +46,15 @@ export default function WorkbenchPage() {
         <div className="workbench-start-shell">
           <section className="card workbench-start-card">
             <p className="muted">Press ⌘K / Ctrl+K or use Xyn to issue a command.</p>
-            <div className="workbench-suggestion-grid">
-              {suggestions.map((entry) => (
-                <button key={entry} type="button" className="ghost workbench-suggestion-chip" onClick={() => handleSuggestion(entry)}>
-                  {entry}
-                </button>
-              ))}
-            </div>
+            {suggestions.length ? (
+              <div className="workbench-suggestion-grid">
+                {suggestions.map((entry) => (
+                  <button key={entry} type="button" className="ghost workbench-suggestion-chip" onClick={() => handleSuggestion(entry)}>
+                    {entry}
+                  </button>
+                ))}
+              </div>
+            ) : null}
           </section>
         </div>
       ) : null}
