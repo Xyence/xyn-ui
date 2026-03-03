@@ -940,6 +940,7 @@ export type ArtifactManifestSurfaceEntry = {
 
 export type ArtifactManifestSummary = {
   roles: string[];
+  ui_mount_scope?: "global" | "workspace" | string;
   surfaces: {
     nav: ArtifactManifestSurfaceEntry[];
     manage: ArtifactManifestSurfaceEntry[];
@@ -1045,6 +1046,7 @@ export type ArtifactSurface = {
   context?: Record<string, unknown>;
   permissions?: Record<string, unknown>;
   sort_order?: number;
+  ui_mount_scope?: "global" | "workspace" | string;
   created_at?: string;
   updated_at?: string;
 };

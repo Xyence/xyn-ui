@@ -141,6 +141,7 @@ export default function ArtifactsLibraryPage({ workspaceId, workspaceName }: { w
 
               <h4>Roles</h4>
               <p className="muted small">{selected.manifest_summary?.roles?.length ? selected.manifest_summary.roles.join(", ") : "None declared"}</p>
+              <p className="muted small">UI mount scope: {selected.manifest_summary?.ui_mount_scope || "workspace"}</p>
 
               <h4>Surfaces</h4>
               <p className="muted small">

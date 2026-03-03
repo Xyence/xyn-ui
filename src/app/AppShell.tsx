@@ -366,7 +366,8 @@ export default function AppShell() {
 
   const navUser: NavUserContext = useMemo(() => ({ roles: effectiveRoles, permissions }), [effectiveRoles, permissions]);
   const navGroups: NavGroup[] = useMemo(() => {
-    const mapNavPath = (path: string): string => {
+    const mapNavPath = (path: string, scope?: string): string => {
+      if (String(scope || "").trim().toLowerCase() === "global") return path;
       if (!activeWorkspaceId) return path;
       return withWorkspaceInNavPath(path, activeWorkspaceId);
     };
@@ -405,7 +406,7 @@ export default function AppShell() {
         const navItem: NavItem = {
           id: `surface-${surface.id}`,
           label: String(surface.nav_label || surface.title || "Surface"),
-          path: mapNavPath(route),
+          path: mapNavPath(route, String(surface.ui_mount_scope || "")),
           icon: String(surface.nav_icon || "").trim() || "Sparkles",
           requiredRoles: requiredRoles.length ? requiredRoles : undefined,
           requiredPermissions: requiredPermissions.length ? requiredPermissions : undefined,
