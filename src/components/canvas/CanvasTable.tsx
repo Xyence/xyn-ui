@@ -1,6 +1,8 @@
 import { useMemo } from "react";
 import { createColumnHelper, flexRender, getCoreRowModel, useReactTable, type ColumnDef } from "@tanstack/react-table";
 import type { ArtifactCanvasTableResponse, ArtifactStructuredQuery, CanvasTableQuery, CanvasTableResponse } from "../../api/types";
+import { useNotifications } from "../../app/state/notificationsStore";
+import { getOpenDetailTarget, type OpenDetailTarget } from "./datasetEntityRegistry";
 
 type CanvasPayload = CanvasTableResponse | ArtifactCanvasTableResponse;
 type CanvasQuery = CanvasTableQuery | ArtifactStructuredQuery;
@@ -10,6 +12,7 @@ export type CanvasTableProps = {
   query: CanvasQuery;
   onSort?: (field: string, sortable: boolean) => void;
   onRowActivate?: (rowId: string, row: Record<string, unknown>) => void;
+  onOpenDetail?: (target: OpenDetailTarget, row: Record<string, unknown>) => void;
 };
 
 function formatDate(value?: string): string {
@@ -27,7 +30,8 @@ function renderCellValue(value: unknown, type: string): string {
   return String(value);
 }
 
-export default function CanvasTable({ payload, query, onSort, onRowActivate }: CanvasTableProps) {
+export default function CanvasTable({ payload, query, onSort, onRowActivate, onOpenDetail }: CanvasTableProps) {
+  const { push } = useNotifications();
   const columns = payload.dataset.columns || [];
   const rows = payload.dataset.rows || [];
   const primaryKey = payload.dataset.primary_key;
@@ -80,7 +84,22 @@ export default function CanvasTable({ payload, query, onSort, onRowActivate }: C
           {table.getRowModel().rows.map((row) => {
             const rowId = String(row.original[primaryKey] || row.id);
             return (
-              <tr key={row.id} onClick={() => onRowActivate?.(rowId, row.original)}>
+              <tr
+                key={row.id}
+                onClick={() => onRowActivate?.(rowId, row.original)}
+                onDoubleClick={() => {
+                  const target = getOpenDetailTarget(payload.dataset.name, row.original, primaryKey);
+                  if (!target) {
+                    push({
+                      level: "warning",
+                      title: "Detail unavailable",
+                      message: `Cannot open detail: missing primary key '${primaryKey}'.`,
+                    });
+                    return;
+                  }
+                  onOpenDetail?.(target, row.original);
+                }}
+              >
                 {row.getVisibleCells().map((cell) => (
                   <td key={cell.id}>{flexRender(cell.column.columnDef.cell, cell.getContext())}</td>
                 ))}

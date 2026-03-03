@@ -18,6 +18,7 @@ import type {
   CanvasTableResponse,
 } from "../../../api/types";
 import CanvasRenderer from "../../../components/canvas/CanvasRenderer";
+import type { OpenDetailTarget } from "../../../components/canvas/datasetEntityRegistry";
 import { toWorkspacePath } from "../../routing/workspaceRouting";
 
 export type ConsolePanelKey =
@@ -32,7 +33,8 @@ export type ConsolePanelKey =
   | "ems_dataset_schema"
   | "ems_unregistered_devices"
   | "ems_registrations_time"
-  | "ems_device_statuses";
+  | "ems_device_statuses"
+  | "record_detail";
 
 export type ConsolePanelSpec = {
   panel_id?: string;
@@ -193,7 +195,11 @@ function ArtifactListPanel({
       onRowActivate={(rowId) => {
         setSelectedRowIds([rowId]);
         setFocusedRowId(rowId);
-        onOpenArtifactDetail(rowId);
+      }}
+      onOpenDetail={(target) => {
+        if (target.entity_type === "artifact") {
+          onOpenArtifactDetail(target.entity_id);
+        }
       }}
     />
   );
@@ -205,12 +211,14 @@ function EmsCanvasPanel({
   queryError,
   panel,
   onContextChange,
+  onOpenDetail,
 }: {
   fetcher: (query: CanvasQuery) => Promise<CanvasTableResponse>;
   initialQuery: CanvasQuery;
   queryError?: string;
   panel: ConsolePanelSpec | null;
   onContextChange?: ContextEmitter;
+  onOpenDetail: (target: OpenDetailTarget, row: Record<string, unknown>) => void;
 }) {
   const [payload, setPayload] = useState<CanvasTableResponse | null>(null);
   const [query, setQuery] = useState<CanvasQuery>(initialQuery);
@@ -267,6 +275,7 @@ function EmsCanvasPanel({
         setSelectedRowIds([rowId]);
         setFocusedRowId(rowId);
       }}
+      onOpenDetail={onOpenDetail}
     />
   );
 }
@@ -482,6 +491,51 @@ function ArtifactFilesPanel({ slug }: { slug: string }) {
   );
 }
 
+function GenericRecordDetailPanel({
+  entityType,
+  entityId,
+  dataset,
+  row,
+  panel,
+  onContextChange,
+}: {
+  entityType: string;
+  entityId: string;
+  dataset?: string;
+  row?: Record<string, unknown>;
+  panel: ConsolePanelSpec | null;
+  onContextChange?: ContextEmitter;
+}) {
+  useEffect(() => {
+    if (!onContextChange || !panel?.panel_id) return;
+    onContextChange({
+      view_type: "detail",
+      entity_type: entityType,
+      entity_id: entityId,
+      available_tabs: ["overview", "raw"],
+      active_tab: "overview",
+      ui: {
+        active_panel_id: panel.panel_id,
+        panel_id: panel.panel_id,
+        panel_type: panel.panel_type || "detail",
+        instance_key: panel.instance_key || `${entityType}:${entityId}`,
+        active_group_id: panel.active_group_id || null,
+        layout_engine: "simple",
+      },
+    });
+  }, [entityId, entityType, onContextChange, panel]);
+
+  return (
+    <div className="ems-panel-body">
+      <p className="muted">
+        {entityType} · {entityId}
+      </p>
+      {dataset ? <p className="muted small">Dataset: {dataset}</p> : null}
+      <pre className="code-block">{JSON.stringify(row || {}, null, 2)}</pre>
+    </div>
+  );
+}
+
 const PANEL_TITLES: Record<ConsolePanelKey, string> = {
   artifact_list: "Artifact List",
   artifact_detail: "Artifact Detail",
@@ -495,6 +549,7 @@ const PANEL_TITLES: Record<ConsolePanelKey, string> = {
   ems_unregistered_devices: "Unregistered Devices",
   ems_registrations_time: "Registrations (Past N Hours)",
   ems_device_statuses: "Device Statuses",
+  record_detail: "Record Detail",
 };
 
 export function panelTitleFor(key: ConsolePanelKey): string {
@@ -537,6 +592,18 @@ export default function WorkbenchPanelHost({
     }
     if (panel.key === "artifact_raw_json") return <ArtifactRawJsonPanel slug={String(panel.params?.slug || "")} />;
     if (panel.key === "artifact_files") return <ArtifactFilesPanel slug={String(panel.params?.slug || "")} />;
+    if (panel.key === "record_detail") {
+      return (
+        <GenericRecordDetailPanel
+          entityType={String(panel.params?.entity_type || "record")}
+          entityId={String(panel.params?.entity_id || "")}
+          dataset={String(panel.params?.dataset || "") || undefined}
+          row={(panel.params?.row as Record<string, unknown> | undefined) || undefined}
+          panel={panel}
+          onContextChange={onContextChange}
+        />
+      );
+    }
 
     if (panel.key === "ems_devices" || panel.key === "ems_unregistered_devices") {
       const query = (panel.params?.query as CanvasQuery) || {
@@ -553,6 +620,9 @@ export default function WorkbenchPanelHost({
           queryError={String(panel.params?.query_error || "")}
           panel={panel}
           onContextChange={onContextChange}
+          onOpenDetail={(target, row) => {
+            openPanel("record_detail", { ...target, row });
+          }}
         />
       );
     }
@@ -573,6 +643,9 @@ export default function WorkbenchPanelHost({
           queryError={String(panel.params?.query_error || "")}
           panel={panel}
           onContextChange={onContextChange}
+          onOpenDetail={(target, row) => {
+            openPanel("record_detail", { ...target, row });
+          }}
         />
       );
     }
@@ -584,6 +657,9 @@ export default function WorkbenchPanelHost({
           initialQuery={{ entity: "ems_device_status_rollup", filters: [], sort: [{ field: "bucket", dir: "asc" }], limit: 50, offset: 0 }}
           panel={panel}
           onContextChange={onContextChange}
+          onOpenDetail={(target, row) => {
+            openPanel("record_detail", { ...target, row });
+          }}
         />
       );
     }
@@ -602,6 +678,9 @@ export default function WorkbenchPanelHost({
           }}
           panel={panel}
           onContextChange={onContextChange}
+          onOpenDetail={(target, row) => {
+            openPanel("record_detail", { ...target, row });
+          }}
         />
       );
     }
@@ -614,6 +693,9 @@ export default function WorkbenchPanelHost({
           initialQuery={{ entity: "dataset_schema", filters: [], sort: [{ field: "key", dir: "asc" }], limit: 200, offset: 0 }}
           panel={panel}
           onContextChange={onContextChange}
+          onOpenDetail={(target, row) => {
+            openPanel("record_detail", { ...target, row });
+          }}
         />
       );
     }

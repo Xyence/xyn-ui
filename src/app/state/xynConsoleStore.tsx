@@ -670,6 +670,9 @@ export function XynConsoleProvider({ children }: { children: ReactNode }) {
     if (key === "artifact_detail" || key === "artifact_raw_json" || key === "artifact_files") {
       return `artifact:${String(params?.slug || "")}`;
     }
+    if (key === "record_detail") {
+      return `${String(params?.entity_type || "record")}:${String(params?.entity_id || "")}`;
+    }
     if (key === "artifact_list") return "artifacts";
     if (key.startsWith("ems_")) {
       if (key === "ems_dataset_schema") return `dataset_schema:${String(params?.dataset || "ems_devices")}`;
