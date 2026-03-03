@@ -3445,6 +3445,79 @@ button.sm {
   width: 100%;
 }
 
+.workbench-capability-suggestions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  margin: 6px 0 0 0;
+}
+
+.workbench-capability-suggestion {
+  font-size: 0.78rem;
+}
+
+.suggestion-switcher-overlay {
+  position: fixed;
+  inset: 0;
+  z-index: 80;
+  background: color-mix(in srgb, var(--bg, #050c18) 55%, transparent);
+  display: grid;
+  place-items: center;
+  padding: 18px;
+}
+
+.suggestion-switcher-card {
+  width: min(860px, 95vw);
+  max-height: min(86vh, 760px);
+  overflow: auto;
+  border: 1px solid var(--border);
+  border-radius: 14px;
+  background: var(--card-elevated);
+  box-shadow: var(--shadow);
+  padding: 12px;
+  display: grid;
+  gap: 10px;
+}
+
+.suggestion-switcher-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+}
+
+.suggestion-switcher-capabilities {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+}
+
+.suggestion-switcher-capabilities .active {
+  border-color: var(--accent);
+  color: var(--accent);
+}
+
+.suggestion-switcher-list {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: grid;
+  gap: 8px;
+}
+
+.suggestion-switcher-item {
+  width: 100%;
+  display: flex;
+  justify-content: space-between;
+  align-items: flex-start;
+  gap: 10px;
+}
+
+.suggestion-switcher-item.active {
+  border-color: color-mix(in srgb, var(--accent) 60%, var(--border));
+  background: color-mix(in srgb, var(--accent) 12%, transparent);
+}
+
 .workbench-suggestion-grid {
   display: flex;
   flex-wrap: wrap;

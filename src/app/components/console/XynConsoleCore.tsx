@@ -998,6 +998,8 @@ export default function XynConsoleCore({ mode, onRequestClose, onOpenPanel }: Pr
     closePanel,
     navigateBack,
     navigateForward,
+    submitToken,
+    openSuggestionSwitcher,
   } = useXynConsole();
   const inputRef = useRef<HTMLTextAreaElement | null>(null);
   const [recentItems, setRecentItems] = useState<RecentArtifactItem[]>([]);
@@ -1108,6 +1110,12 @@ export default function XynConsoleCore({ mode, onRequestClose, onOpenPanel }: Pr
   const submitPrompt = () => {
     const prompt = String(inputText || "").trim();
     if (!prompt) return;
+    if (/^(suggest|show suggestions?)$/i.test(prompt)) {
+      openSuggestionSwitcher();
+      clearSessionResolution();
+      if (isOverlay) setOpen(false);
+      return;
+    }
     const envelope = buildUiActionFromPrompt(prompt, (canvasContext as ConsoleCanvasContext | null) || null);
     if (envelope) {
       const action = envelope.action;
@@ -1264,6 +1272,12 @@ export default function XynConsoleCore({ mode, onRequestClose, onOpenPanel }: Pr
 
     void submitResolve();
   };
+
+  useEffect(() => {
+    if (!submitToken) return;
+    submitPrompt();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [submitToken]);
 
   const resolutionStack = (
     <>

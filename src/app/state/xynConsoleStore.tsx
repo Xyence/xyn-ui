@@ -245,6 +245,11 @@ type XynConsoleContextValue = {
   setCanvasContext: (context: CanvasContext | null) => void;
   navigateBack: () => void;
   navigateForward: () => void;
+  submitToken: number;
+  requestSubmit: () => void;
+  suggestionSwitcherOpen: boolean;
+  openSuggestionSwitcher: () => void;
+  closeSuggestionSwitcher: () => void;
 };
 
 const XynConsoleContext = createContext<XynConsoleContextValue | null>(null);
@@ -268,6 +273,8 @@ export function XynConsoleProvider({ children }: { children: ReactNode }) {
   const [canvasContext, setCanvasContextState] = useState<CanvasContext | null>(null);
   const [navBack, setNavBack] = useState<NavigationEntry[]>([]);
   const [navForward, setNavForward] = useState<NavigationEntry[]>([]);
+  const [submitToken, setSubmitToken] = useState(0);
+  const [suggestionSwitcherOpen, setSuggestionSwitcherOpen] = useState(false);
   const editorBridgesRef = useRef<Record<string, ConsoleEditorBridge>>({});
   const navigationGuardRef = useRef(false);
 
@@ -830,6 +837,18 @@ export function XynConsoleProvider({ children }: { children: ReactNode }) {
     });
   }, []);
 
+  const requestSubmit = useCallback(() => {
+    setSubmitToken((current) => current + 1);
+  }, []);
+
+  const openSuggestionSwitcher = useCallback(() => {
+    setSuggestionSwitcherOpen(true);
+  }, []);
+
+  const closeSuggestionSwitcher = useCallback(() => {
+    setSuggestionSwitcherOpen(false);
+  }, []);
+
   const value = useMemo<XynConsoleContextValue>(
     () => ({
       open,
@@ -874,6 +893,11 @@ export function XynConsoleProvider({ children }: { children: ReactNode }) {
       setCanvasContext,
       navigateBack,
       navigateForward,
+      submitToken,
+      requestSubmit,
+      suggestionSwitcherOpen,
+      openSuggestionSwitcher,
+      closeSuggestionSwitcher,
     }),
     [
       open,
@@ -916,6 +940,11 @@ export function XynConsoleProvider({ children }: { children: ReactNode }) {
       setCanvasContext,
       navigateBack,
       navigateForward,
+      submitToken,
+      requestSubmit,
+      suggestionSwitcherOpen,
+      openSuggestionSwitcher,
+      closeSuggestionSwitcher,
     ]
   );
 

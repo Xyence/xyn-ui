@@ -1,12 +1,14 @@
 import { useEffect } from "react";
 import { useParams } from "react-router-dom";
 import WorkbenchPanelHost, { type ConsolePanelKey, type ConsolePanelSpec } from "../components/console/WorkbenchPanelHost";
+import { useCapabilitySuggestions } from "../components/console/capabilitySuggestions";
 import { useXynConsole } from "../state/xynConsoleStore";
 
 export default function WorkbenchPage() {
-  const { setContext, setOpen, setInputText, clearSessionResolution, activePanel, closePanel, openPanel, setCanvasContext } = useXynConsole();
+  const { setContext, setOpen, setInputText, clearSessionResolution, activePanel, closePanel, openPanel, setCanvasContext, requestSubmit } = useXynConsole();
   const params = useParams();
   const workspaceId = String(params.workspaceId || "").trim();
+  const { landingSuggestions } = useCapabilitySuggestions(workspaceId);
   const panel = (activePanel
     ? {
         panel_id: activePanel.panel_id,
@@ -29,18 +31,21 @@ export default function WorkbenchPage() {
     if (!panel) setCanvasContext(null);
   }, [panel, setCanvasContext]);
 
-  const suggestions = [
-    "List core artifacts",
-    "Show installed artifacts",
-    "Open artifact core.authn-jwt",
-    "Edit artifact core.authn-jwt raw",
-    "Show runs",
-    "Show unregistered devices",
-  ];
+  const suggestions = landingSuggestions.length
+    ? landingSuggestions.slice(0, 6).map((entry) => entry.prompt)
+    : [
+        "List core artifacts",
+        "Show installed artifacts",
+        "Open artifact core.authn-jwt",
+        "Edit artifact core.authn-jwt raw",
+        "Show runs",
+        "Show unregistered devices",
+      ];
 
   const handleSuggestion = (prompt: string) => {
     setInputText(prompt);
     setOpen(true);
+    requestSubmit();
   };
 
   return (

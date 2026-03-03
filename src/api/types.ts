@@ -941,15 +941,41 @@ export type ArtifactManifestSurfaceEntry = {
 export type ArtifactCapability = {
   visibility: "capabilities" | "platform" | "hidden" | string;
   label?: string;
+  description?: string;
   category?: "application" | "integration" | "platform" | "library" | string;
   order?: number;
   icon?: string;
+  tags?: string[];
+  permission?: {
+    resource: string;
+    action: string;
+  };
+};
+
+export type ArtifactSuggestion = {
+  id: string;
+  name?: string;
+  prompt: string;
+  description?: string;
+  visibility?: Array<"landing" | "capability" | "palette" | "hidden" | string>;
+  order?: number;
+  group?: string;
+  capability_ref?: string;
+  permission?: {
+    resource: string;
+    action: string;
+  };
+  ui?: {
+    icon?: string;
+    badge?: string;
+  };
 };
 
 export type ArtifactManifestSummary = {
   roles: string[];
   ui_mount_scope?: "global" | "workspace" | string;
   capability?: ArtifactCapability;
+  suggestions?: ArtifactSuggestion[];
   surfaces: {
     nav: ArtifactManifestSurfaceEntry[];
     manage: ArtifactManifestSurfaceEntry[];
@@ -970,6 +996,7 @@ export type WorkspaceInstalledArtifactSummary = {
   slug?: string;
   manifest_summary?: ArtifactManifestSummary;
   capability?: ArtifactCapability;
+  suggestions?: ArtifactSuggestion[];
   updated_at?: string;
 };
 
@@ -983,6 +1010,7 @@ export type CatalogArtifactSummary = {
   updated_at?: string;
   manifest_summary: ArtifactManifestSummary;
   capability?: ArtifactCapability;
+  suggestions?: ArtifactSuggestion[];
 };
 
 export type ArtifactSummary = {
@@ -2653,6 +2681,8 @@ export type ArtifactConsoleDetailResponse = {
   };
   manifest: Record<string, unknown>;
   manifest_summary: ArtifactManifestSummary;
+  capability?: ArtifactCapability;
+  suggestions?: ArtifactSuggestion[];
   raw_artifact_json: Record<string, unknown>;
   files: ArtifactConsoleFileRow[];
   surfaces: Array<Record<string, unknown>>;

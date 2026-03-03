@@ -49,6 +49,7 @@ import HeaderPreviewControl from "./components/preview/HeaderPreviewControl";
 import PreviewBanner from "./components/preview/PreviewBanner";
 import XynConsoleNode from "./components/console/XynConsoleNode";
 import CapabilitiesIndicator from "./components/console/CapabilitiesIndicator";
+import SuggestionSwitcher from "./components/console/SuggestionSwitcher";
 import { useXynConsole } from "./state/xynConsoleStore";
 import useWorkspaceFromRoute from "./hooks/useWorkspaceFromRoute";
 import {
@@ -955,6 +956,7 @@ export default function AppShell() {
         artifactId={artifactRouteId || undefined}
       />
       {!hideFloatingConsoleNode ? <XynConsoleNode /> : null}
+      <SuggestionSwitcher workspaceId={activeWorkspace?.id || ""} />
       <ToastHost />
     </div>
   );

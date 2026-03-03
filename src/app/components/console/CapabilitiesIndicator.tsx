@@ -1,92 +1,15 @@
-import { useEffect, useMemo, useState } from "react";
+import { useState } from "react";
 import { useNavigate } from "react-router-dom";
-import { listWorkspaceArtifacts } from "../../../api/xyn";
-import type { ArtifactCapability, WorkspaceInstalledArtifactSummary } from "../../../api/types";
 import { toWorkspacePath } from "../../routing/workspaceRouting";
 import { useXynConsole } from "../../state/xynConsoleStore";
-
-type CapabilityEntry = {
-  key: string;
-  title: string;
-  slug: string;
-  version: string;
-  visibility: string;
-  order: number;
-  managePath: string;
-  docsPath: string;
-};
+import { type CapabilityEntry, useCapabilitySuggestions } from "./capabilitySuggestions";
 
 export default function CapabilitiesIndicator({ workspaceId }: { workspaceId: string }) {
   const navigate = useNavigate();
-  const { openPanel } = useXynConsole();
-  const [open, setOpen] = useState(false);
+  const { openPanel, setInputText, setOpen, requestSubmit } = useXynConsole();
+  const [open, setOpenPopover] = useState(false);
   const [platformOpen, setPlatformOpen] = useState(false);
-  const [rows, setRows] = useState<WorkspaceInstalledArtifactSummary[]>([]);
-  const [loading, setLoading] = useState(false);
-  const [error, setError] = useState<string | null>(null);
-
-  useEffect(() => {
-    if (!workspaceId) {
-      setRows([]);
-      return;
-    }
-    let active = true;
-    (async () => {
-      try {
-        setLoading(true);
-        setError(null);
-        const response = await listWorkspaceArtifacts(workspaceId);
-        if (!active) return;
-        setRows(response.artifacts || []);
-      } catch (err) {
-        if (!active) return;
-        setError(err instanceof Error ? err.message : "Failed to load capabilities");
-      } finally {
-        if (active) setLoading(false);
-      }
-    })();
-    return () => {
-      active = false;
-    };
-  }, [workspaceId]);
-
-  const items = useMemo<CapabilityEntry[]>(
-    () =>
-      rows.map((artifact) => {
-        const capability: ArtifactCapability = artifact.capability || artifact.manifest_summary?.capability || { visibility: "hidden" };
-        return {
-        key: artifact.binding_id || artifact.artifact_id,
-        title:
-          String(capability.label || "").trim() ||
-          artifact.title ||
-          artifact.name ||
-          artifact.slug ||
-          artifact.artifact_id,
-        slug: artifact.slug || artifact.artifact_id,
-        version: artifact.version == null ? "-" : String(artifact.version),
-        visibility: String(capability.visibility || "hidden").toLowerCase() || "hidden",
-        order: Number(capability.order ?? 1000) || 1000,
-        managePath: artifact.manifest_summary?.surfaces?.manage?.[0]?.path || "",
-        docsPath: artifact.manifest_summary?.surfaces?.docs?.[0]?.path || "",
-      };
-      }),
-    [rows]
-  );
-
-  const capabilityItems = useMemo(
-    () =>
-      items
-        .filter((entry) => entry.visibility === "capabilities")
-        .sort((a, b) => (a.order - b.order) || a.title.localeCompare(b.title)),
-    [items]
-  );
-  const platformItems = useMemo(
-    () =>
-      items
-        .filter((entry) => entry.visibility === "platform")
-        .sort((a, b) => (a.order - b.order) || a.title.localeCompare(b.title)),
-    [items]
-  );
+  const { loading, error, capabilities, platform } = useCapabilitySuggestions(workspaceId);
 
   const openCapability = (entry: CapabilityEntry) => {
     const target = entry.managePath || entry.docsPath;
@@ -101,11 +24,20 @@ export default function CapabilitiesIndicator({ workspaceId }: { workspaceId: st
           ? toWorkspacePath(workspaceId, target.replace(/^\/+/, ""))
           : toWorkspacePath(workspaceId, target);
       navigate(resolved);
-      setOpen(false);
+      setOpenPopover(false);
       return;
     }
-    openPanel({ key: "artifact_detail", params: { slug: entry.slug }, open_in: "current_panel" });
-    setOpen(false);
+    openPanel({ key: "artifact_detail", params: { slug: entry.artifactSlug }, open_in: "current_panel" });
+    setOpenPopover(false);
+  };
+
+  const runSuggestion = (prompt: string) => {
+    const text = String(prompt || "").trim();
+    if (!text) return;
+    setInputText(text);
+    setOpen(true);
+    requestSubmit();
+    setOpenPopover(false);
   };
 
   return (
@@ -113,41 +45,59 @@ export default function CapabilitiesIndicator({ workspaceId }: { workspaceId: st
       <button
         type="button"
         className="ghost workbench-capabilities-button"
-        onClick={() => setOpen((value) => !value)}
+        onClick={() => setOpenPopover((value) => !value)}
         aria-expanded={open}
         aria-haspopup="dialog"
       >
         Capabilities
-        <span className="workbench-capabilities-count">{capabilityItems.length}</span>
+        <span className="workbench-capabilities-count">{capabilities.length}</span>
       </button>
       {open ? (
         <div className="workbench-capabilities-popover" role="dialog" aria-label="Capabilities">
           {loading ? <p className="muted small">Loading…</p> : null}
           {error ? <p className="danger-text small">{error}</p> : null}
-          {!loading && !error && capabilityItems.length === 0 ? <p className="muted small">No app capabilities installed.</p> : null}
-          {!loading && !error && capabilityItems.length > 0 ? (
+          {!loading && !error && capabilities.length === 0 ? <p className="muted small">No app capabilities installed.</p> : null}
+          {!loading && !error && capabilities.length > 0 ? (
             <ul className="workbench-capabilities-list">
-              {capabilityItems.map((entry) => (
+              {capabilities.map((entry) => (
                 <li key={entry.key}>
                   <button type="button" className="instance-row workbench-capability-row" onClick={() => openCapability(entry)}>
                     <span>
                       <strong>{entry.title}</strong>
+                      {entry.description ? <span className="muted small">{entry.description}</span> : null}
                     </span>
                     <span className="muted small">v{entry.version}</span>
                   </button>
+                  {entry.suggestions.filter((row) => row.visibility.map((item) => item.toLowerCase()).includes("capability")).length ? (
+                    <div className="workbench-capability-suggestions">
+                      {entry.suggestions
+                        .filter((row) => row.visibility.map((item) => item.toLowerCase()).includes("capability"))
+                        .map((suggestion) => (
+                        <button
+                          key={suggestion.key}
+                          type="button"
+                          className="ghost sm workbench-capability-suggestion"
+                          onClick={() => runSuggestion(suggestion.prompt)}
+                        >
+                          {suggestion.suggestionLabel || suggestion.prompt}
+                        </button>
+                        ))}
+                    </div>
+                  ) : null}
                 </li>
               ))}
             </ul>
           ) : null}
-          {!loading && !error && platformItems.length > 0 ? (
+          {!loading && !error && platform.length > 0 ? (
             <details className="workbench-capabilities-platform" open={platformOpen} onToggle={(event) => setPlatformOpen((event.target as HTMLDetailsElement).open)}>
-              <summary className="muted small">Platform ({platformItems.length})</summary>
+              <summary className="muted small">Platform ({platform.length})</summary>
               <ul className="workbench-capabilities-list">
-                {platformItems.map((entry) => (
+                {platform.map((entry) => (
                   <li key={entry.key}>
                     <button type="button" className="instance-row workbench-capability-row" onClick={() => openCapability(entry)}>
                       <span>
                         <strong>{entry.title}</strong>
+                        {entry.description ? <span className="muted small">{entry.description}</span> : null}
                       </span>
                       <span className="muted small">v{entry.version}</span>
                     </button>
