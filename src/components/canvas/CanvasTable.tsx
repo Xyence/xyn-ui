@@ -1,4 +1,4 @@
-import { useMemo } from "react";
+import { useMemo, useState } from "react";
 import { createColumnHelper, flexRender, getCoreRowModel, useReactTable, type ColumnDef } from "@tanstack/react-table";
 import type { ArtifactCanvasTableResponse, ArtifactStructuredQuery, CanvasTableQuery, CanvasTableResponse } from "../../api/types";
 import { useNotifications } from "../../app/state/notificationsStore";
@@ -32,6 +32,7 @@ function renderCellValue(value: unknown, type: string): string {
 
 export default function CanvasTable({ payload, query, onSort, onRowActivate, onOpenDetail }: CanvasTableProps) {
   const { push } = useNotifications();
+  const [selectedRowId, setSelectedRowId] = useState<string>("");
   const columns = payload.dataset.columns || [];
   const rows = payload.dataset.rows || [];
   const primaryKey = payload.dataset.primary_key;
@@ -82,38 +83,41 @@ export default function CanvasTable({ payload, query, onSort, onRowActivate, onO
       <p className="muted">
         Rows: {rows.length} / Total: {payload.dataset.total_count || 0}
       </p>
-      <table className="canvas-table" role="grid">
-        <thead>
-          {table.getHeaderGroups().map((headerGroup) => (
-            <tr key={headerGroup.id}>
-              {headerGroup.headers.map((header) => (
-                <th key={header.id}>{header.isPlaceholder ? null : flexRender(header.column.columnDef.header, header.getContext())}</th>
-              ))}
-            </tr>
-          ))}
-        </thead>
-        <tbody>
-          {table.getRowModel().rows.map((row) => {
-            const rowId = String(row.original[primaryKey] || row.id);
-            return (
-              <tr
-                key={row.id}
-                onClick={() => {
-                  onRowActivate?.(rowId, row.original);
-                  if (onOpenDetail) openDetailForRow(row.original);
-                }}
-                onDoubleClick={() => {
-                  if (onOpenDetail) openDetailForRow(row.original);
-                }}
-              >
-                {row.getVisibleCells().map((cell) => (
-                  <td key={cell.id}>{flexRender(cell.column.columnDef.cell, cell.getContext())}</td>
+      <div className="canvas-table-wrap">
+        <table className="canvas-table" role="grid">
+          <thead>
+            {table.getHeaderGroups().map((headerGroup) => (
+              <tr key={headerGroup.id}>
+                {headerGroup.headers.map((header) => (
+                  <th key={header.id}>{header.isPlaceholder ? null : flexRender(header.column.columnDef.header, header.getContext())}</th>
                 ))}
               </tr>
-            );
-          })}
-        </tbody>
-      </table>
+            ))}
+          </thead>
+          <tbody>
+            {table.getRowModel().rows.map((row) => {
+              const rowId = String(row.original[primaryKey] || row.id);
+              return (
+                <tr
+                  key={row.id}
+                  className={selectedRowId === rowId ? "is-selected" : ""}
+                  onClick={() => {
+                    setSelectedRowId(rowId);
+                    onRowActivate?.(rowId, row.original);
+                  }}
+                  onDoubleClick={() => {
+                    if (onOpenDetail) openDetailForRow(row.original);
+                  }}
+                >
+                  {row.getVisibleCells().map((cell) => (
+                    <td key={cell.id}>{flexRender(cell.column.columnDef.cell, cell.getContext())}</td>
+                  ))}
+                </tr>
+              );
+            })}
+          </tbody>
+        </table>
+      </div>
       <details>
         <summary className="muted small">Query metadata</summary>
         <pre className="code-block">{JSON.stringify(payload.query || query, null, 2)}</pre>

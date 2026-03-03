@@ -48,6 +48,7 @@ import { resolveRouteId } from "./help/routeHelp";
 import HeaderPreviewControl from "./components/preview/HeaderPreviewControl";
 import PreviewBanner from "./components/preview/PreviewBanner";
 import XynConsoleNode from "./components/console/XynConsoleNode";
+import CapabilitiesIndicator from "./components/console/CapabilitiesIndicator";
 import { useXynConsole } from "./state/xynConsoleStore";
 import useWorkspaceFromRoute from "./hooks/useWorkspaceFromRoute";
 import {
@@ -188,7 +189,6 @@ export default function AppShell() {
   const [authUser, setAuthUser] = useState<Record<string, unknown> | null>(null);
   const [userContext, setUserContext] = useState<{ id?: string; email?: string }>({});
   const [authLoaded, setAuthLoaded] = useState(false);
-  const [brandName, setBrandName] = useState<string>("Xyn");
   const [brandLogo, setBrandLogo] = useState<string>("/xyence-logo.png");
   const [reportOpen, setReportOpen] = useState(false);
   const [workspaces, setWorkspaces] = useState<Array<{ id: string; slug: string; name: string; role: string; termination_authority?: boolean }>>([]);
@@ -245,8 +245,6 @@ export default function AppShell() {
             if (membership?.tenant_id) {
               const branding = await getTenantBranding(membership.tenant_id);
               if (!mounted) return;
-              const nextBrandName = String(branding.display_name || "").trim();
-              setBrandName(nextBrandName.toLowerCase() === "xyn console" ? "Xyn" : nextBrandName || "Xyn");
               setBrandLogo(branding.logo_url || "/xyence-logo.png");
               Object.entries(branding.theme || {}).forEach(([key, value]) => {
                 if (key) {
@@ -565,7 +563,7 @@ export default function AppShell() {
           <div className="brand">
             <img className="brand-logo" src="/xyence-logo.png" alt="Xyence logo" />
             <div>
-              <h1>{brandName}</h1>
+              <h1>Xyn</h1>
               <p>Loading session...</p>
             </div>
           </div>
@@ -581,7 +579,7 @@ export default function AppShell() {
           <div className="brand">
             <img className="brand-logo" src="/xyence-logo.png" alt="Xyence logo" />
             <div>
-              <h1>{brandName}</h1>
+              <h1>Xyn</h1>
               <p>Redirecting to sign in...</p>
             </div>
           </div>
@@ -596,13 +594,13 @@ export default function AppShell() {
         <div className="brand">
           <img className="brand-logo" src={brandLogo} alt="Xyence logo" />
           <div>
-            <h1>{brandName}</h1>
-            <p>Create boldly.</p>
+            <h1>Xyn</h1>
           </div>
         </div>
         <div className="header-meta">
           {authed ? (
             <>
+              {isWorkbenchRoute ? <CapabilitiesIndicator workspaceId={activeWorkspace?.id || ""} /> : null}
               <NotificationBell />
               <HeaderPreviewControl
                 actorRoles={actorRoles}

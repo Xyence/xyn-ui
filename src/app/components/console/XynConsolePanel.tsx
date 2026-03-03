@@ -7,13 +7,16 @@ export default function XynConsolePanel() {
   const panelRef = useRef<HTMLElement | null>(null);
   const mobileHistoryEntryRef = useRef(false);
   const ignoreNextPopRef = useRef(false);
+  const mediaQuery = "(max-width: 768px)";
+  const readMobileViewport = () =>
+    typeof window !== "undefined" && typeof window.matchMedia === "function" ? window.matchMedia(mediaQuery).matches : false;
   const [mobileViewport, setMobileViewport] = useState(() =>
-    typeof window !== "undefined" ? window.matchMedia("(max-width: 900px)").matches : false
+    readMobileViewport()
   );
 
   useEffect(() => {
-    if (typeof window === "undefined") return;
-    const media = window.matchMedia("(max-width: 900px)");
+    if (typeof window === "undefined" || typeof window.matchMedia !== "function") return;
+    const media = window.matchMedia(mediaQuery);
     const onChange = () => setMobileViewport(media.matches);
     onChange();
     if (typeof media.addEventListener === "function") {
@@ -68,6 +71,16 @@ export default function XynConsolePanel() {
       window.history.back();
     }
   }, [mobileViewport, open]);
+
+  useEffect(() => {
+    if (typeof document === "undefined") return;
+    if (!open) return;
+    const previous = document.body.style.overflow;
+    document.body.style.overflow = "hidden";
+    return () => {
+      document.body.style.overflow = previous;
+    };
+  }, [open]);
 
   if (!open) return null;
 

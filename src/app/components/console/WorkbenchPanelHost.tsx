@@ -1109,6 +1109,31 @@ export function panelTitleFor(key: ConsolePanelKey): string {
   return PANEL_TITLES[key];
 }
 
+function titleCaseToken(value: string): string {
+  return String(value || "")
+    .split(/[_\-\s]+/)
+    .filter(Boolean)
+    .map((part) => part.charAt(0).toUpperCase() + part.slice(1))
+    .join(" ");
+}
+
+function humanizePanelTitle(panel: ConsolePanelSpec, resolvedTitle: string): string {
+  const trimmedResolved = String(resolvedTitle || "").trim();
+  if (trimmedResolved) return trimmedResolved;
+  const trimmedPanelTitle = String(panel.title || "").trim();
+  if (trimmedPanelTitle && trimmedPanelTitle !== panel.key) return trimmedPanelTitle;
+  const instanceKey = String(panel.instance_key || "").trim();
+  if (instanceKey) {
+    const datasetToken = instanceKey.includes(":") ? instanceKey.split(":", 1)[0] : instanceKey;
+    const asTitle = titleCaseToken(datasetToken);
+    if (asTitle) {
+      if (panel.panel_type === "table" && !/\b(List|Table)\b/i.test(asTitle)) return `${asTitle} List`;
+      return asTitle;
+    }
+  }
+  return panelTitleFor(panel.key);
+}
+
 export default function WorkbenchPanelHost({
   panel,
   workspaceId,
@@ -1320,7 +1345,7 @@ export default function WorkbenchPanelHost({
   return (
     <div className="card ems-panel-host">
       <div className="ems-panel-head">
-        <h3>{resolvedTitle || panel.title || panelTitleFor(panel.key)}</h3>
+        <h3>{humanizePanelTitle(panel, resolvedTitle)}</h3>
         {onClosePanel ? (
           <button type="button" className="ghost sm" onClick={onClosePanel}>
             Close

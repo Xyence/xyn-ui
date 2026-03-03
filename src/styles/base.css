@@ -3373,15 +3373,16 @@ button.sm {
 }
 
 .workbench-start-card {
-  min-height: 220px;
+  min-height: 160px;
   justify-content: center;
   align-items: center;
   text-align: center;
+  padding: 18px 20px;
 }
 
 .workbench-start-shell {
   display: flex;
-  min-height: calc(100vh - 220px);
+  min-height: calc(100vh - 260px);
   align-items: center;
   justify-content: center;
 }
@@ -3448,12 +3449,14 @@ button.sm {
   display: flex;
   flex-wrap: wrap;
   justify-content: center;
-  gap: 10px;
-  max-width: 980px;
+  gap: 8px;
+  max-width: 760px;
 }
 
 .workbench-suggestion-chip {
   white-space: nowrap;
+  opacity: 0.86;
+  font-size: 0.85rem;
 }
 
 .workbench-canvas {
@@ -3737,12 +3740,25 @@ button.sm {
   background: var(--warn);
 }
 
+.xyn-console-hint {
+  pointer-events: none;
+  margin-bottom: 6px;
+  padding: 2px 8px;
+  border-radius: 999px;
+  border: 1px solid color-mix(in srgb, var(--border-strong) 55%, transparent);
+  background: color-mix(in srgb, var(--surface-soft) 76%, transparent);
+  color: var(--muted);
+  font-size: 0.74rem;
+  font-weight: 600;
+  letter-spacing: 0.01em;
+}
+
 .xyn-console-panel {
   pointer-events: auto;
   position: absolute;
   top: calc(100% + 8px);
   right: 0;
-  width: min(420px, calc(100vw - 20px));
+  width: min(680px, calc(100vw - 24px));
   max-height: calc(100vh - var(--xyn-header-height) - var(--xyn-header-top-offset) - 24px);
   overflow: auto;
   border: 1px solid var(--border);
@@ -4158,27 +4174,42 @@ button.sm {
   margin-bottom: 10px;
 }
 
+.ems-panel-head h3 {
+  margin: 0;
+  font-size: 1.02rem;
+  letter-spacing: 0.01em;
+}
+
 .ems-panel-body {
   display: grid;
   gap: 10px;
 }
 
-.canvas-table {
-  width: 100%;
-  border-collapse: collapse;
-  table-layout: fixed;
-  border: 1px solid var(--line);
+.canvas-table-wrap {
+  border: 1px solid color-mix(in srgb, var(--line) 72%, transparent);
   border-radius: 12px;
-  overflow: hidden;
+  overflow: auto;
+  max-height: min(62vh, 640px);
   background: color-mix(in srgb, var(--surface-soft, #0f192b) 78%, transparent);
 }
 
+.canvas-table {
+  width: 100%;
+  border-collapse: separate;
+  border-spacing: 0;
+  table-layout: fixed;
+  background: transparent;
+}
+
 .canvas-table thead th {
+  position: sticky;
+  top: 0;
+  z-index: 2;
   text-align: left;
   vertical-align: middle;
-  border-bottom: 1px solid var(--line);
+  border-bottom: 1px solid color-mix(in srgb, var(--line) 66%, transparent);
   background: color-mix(in srgb, var(--surface-2, #13213a) 82%, transparent);
-  padding: 8px 10px;
+  padding: 8px 12px;
   font-weight: 600;
 }
 
@@ -4192,12 +4223,14 @@ button.sm {
 }
 
 .canvas-table tbody td {
-  padding: 9px 10px;
-  border-bottom: 1px solid color-mix(in srgb, var(--line) 70%, transparent);
-  vertical-align: top;
+  padding: 10px 12px;
+  border-bottom: 1px solid color-mix(in srgb, var(--line) 46%, transparent);
+  vertical-align: middle;
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
+  line-height: 1.15;
+  min-height: 42px;
 }
 
 .canvas-table tbody tr:last-child td {
@@ -4205,7 +4238,11 @@ button.sm {
 }
 
 .canvas-table tbody tr:hover {
-  background: color-mix(in srgb, var(--surface-2, #13213a) 56%, transparent);
+  background: color-mix(in srgb, var(--surface-2, #13213a) 42%, transparent);
+}
+
+.canvas-table tbody tr.is-selected {
+  background: color-mix(in srgb, var(--accent, #4da3ff) 14%, transparent);
 }
 
 .artifact-list-slug-button {
@@ -4316,7 +4353,7 @@ button.sm {
   white-space: nowrap;
 }
 
-@media (max-width: 900px) {
+@media (max-width: 768px) {
   .workbench-topbar {
     justify-content: center;
   }
