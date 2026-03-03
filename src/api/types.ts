@@ -1863,6 +1863,11 @@ export type WorkspaceMembershipSummary = {
   user_identity_id: string;
   email?: string;
   display_name?: string;
+  auth_source?: string;
+  auth_source_label?: string;
+  auth_provider?: string;
+  auth_provider_id?: string;
+  auth_issuer?: string;
   role: "admin" | "member";
   termination_authority: boolean;
   created_at?: string;

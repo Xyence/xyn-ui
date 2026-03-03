@@ -66,6 +66,8 @@ const WORKSPACES_PAGE_SIZE = 5;
 const MEMBERS_PAGE_SIZE = 5;
 
 function inferMemberAuthSource(member: WorkspaceMembershipSummary): string {
+  const backendLabel = String(member.auth_source_label || "").trim();
+  if (backendLabel) return backendLabel;
   const token = String(member.user_identity_id || "").toLowerCase();
   if (!token) return "Unknown";
   if (token.includes("google")) return "Google IdP";
