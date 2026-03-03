@@ -5,14 +5,16 @@ import { useXynConsole } from "../state/xynConsoleStore";
 import { toWorkspacePath } from "../routing/workspaceRouting";
 
 export default function WorkbenchPage() {
-  const { setContext, setOpen, setInputText, activePanel, setActivePanel } = useXynConsole();
+  const { setContext, setOpen, setInputText, clearSessionResolution, activePanel, setActivePanel } = useXynConsole();
   const params = useParams();
   const workspaceId = String(params.workspaceId || "").trim();
   const panel = (activePanel ? { key: activePanel.key as ConsolePanelKey, params: activePanel.params || {} } : null) as ConsolePanelSpec | null;
 
   useEffect(() => {
     setContext({ artifact_id: null, artifact_type: null });
-  }, [setContext]);
+    clearSessionResolution();
+    setOpen(true);
+  }, [clearSessionResolution, setContext, setOpen]);
 
   const suggestions = [
     "List core artifacts",
@@ -36,9 +38,6 @@ export default function WorkbenchPage() {
           <p className="muted">Panel-based runtime canvas. Use the Xyn button (top-right) or Cmd/Ctrl+K.</p>
         </div>
         <div className="inline-actions">
-          <button type="button" className="primary" onClick={() => setOpen(true)}>
-            Open prompt
-          </button>
           <Link className="ghost" to={toWorkspacePath(workspaceId, "console")}>
             Open legacy console
           </Link>

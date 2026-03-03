@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useState } from "react";
-import { useParams } from "react-router-dom";
+import { useNavigate, useParams } from "react-router-dom";
 import {
   getArtifactConsoleDetailBySlug,
   getArtifactConsoleFilesBySlug,
@@ -16,6 +16,7 @@ import type {
   EmsRegistrationsResponse,
   EmsStatusCountsResponse,
 } from "../../../api/types";
+import { toWorkspacePath } from "../../routing/workspaceRouting";
 
 export type ConsolePanelKey =
   | "ems_unregistered_devices"
@@ -84,7 +85,7 @@ function ArtifactListPanel({ namespace, onOpenPanel }: { namespace?: string } & 
           {rows.map((row) => (
             <tr key={row.id}>
               <td>
-                <button type="button" className="ghost sm" onClick={() => onOpenPanel("artifact_detail", { slug: row.slug })}>
+                <button type="button" className="ghost sm artifact-list-slug-button" onClick={() => onOpenPanel("artifact_detail", { slug: row.slug })}>
                   {row.slug}
                 </button>
               </td>
@@ -101,6 +102,7 @@ function ArtifactListPanel({ namespace, onOpenPanel }: { namespace?: string } & 
 
 function ArtifactDetailPanel({ slug, onOpenPanel }: { slug: string } & PanelProps) {
   const params = useParams();
+  const navigate = useNavigate();
   const workspaceId = String(params.workspaceId || "").trim();
   const [payload, setPayload] = useState<ArtifactConsoleDetailResponse | null>(null);
   const [loading, setLoading] = useState(true);
@@ -131,6 +133,25 @@ function ArtifactDetailPanel({ slug, onOpenPanel }: { slug: string } & PanelProp
   if (!payload) return <p className="muted">Artifact not found.</p>;
   const manage = payload.manifest_summary?.surfaces?.manage || [];
   const docs = payload.manifest_summary?.surfaces?.docs || [];
+  const resolveSurfacePath = (path: string) => {
+    const normalized = String(path || "").trim();
+    if (!normalized) return "";
+    if (/^https?:\/\//i.test(normalized)) return normalized;
+    if (/^\/w\/[^/]+\/.+/.test(normalized)) return normalized;
+    if (normalized.startsWith("/")) {
+      return workspaceId ? toWorkspacePath(workspaceId, normalized.replace(/^\/+/, "")) : normalized;
+    }
+    return workspaceId ? toWorkspacePath(workspaceId, normalized) : `/${normalized}`;
+  };
+  const openSurfacePath = (path: string) => {
+    const target = resolveSurfacePath(path);
+    if (!target) return;
+    if (/^https?:\/\//i.test(target)) {
+      window.location.href = target;
+      return;
+    }
+    navigate(target);
+  };
   return (
     <div className="ems-panel-body">
       <p className="muted">
@@ -151,7 +172,9 @@ function ArtifactDetailPanel({ slug, onOpenPanel }: { slug: string } & PanelProp
           <ul className="muted">
             {manage.map((entry) => (
               <li key={`${entry.path}:${entry.label}`}>
-                <a href={entry.path}>{entry.label}</a>
+                <button type="button" className="ghost sm" onClick={() => openSurfacePath(entry.path)}>
+                  {entry.label}
+                </button>
               </li>
             ))}
           </ul>
@@ -163,7 +186,9 @@ function ArtifactDetailPanel({ slug, onOpenPanel }: { slug: string } & PanelProp
           <ul className="muted">
             {docs.map((entry) => (
               <li key={`${entry.path}:${entry.label}`}>
-                <a href={entry.path}>{entry.label}</a>
+                <button type="button" className="ghost sm" onClick={() => openSurfacePath(entry.path)}>
+                  {entry.label}
+                </button>
               </li>
             ))}
           </ul>

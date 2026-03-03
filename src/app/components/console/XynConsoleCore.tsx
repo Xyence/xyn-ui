@@ -3,6 +3,7 @@ import { useLocation, useNavigate } from "react-router-dom";
 import { AlertTriangle, CheckCircle2, CircleHelp, Wrench } from "lucide-react";
 import { getRecentArtifacts } from "../../../api/xyn";
 import type { RecentArtifactItem, XynIntentResolutionResult } from "../../../api/types";
+import { toWorkspacePath } from "../../routing/workspaceRouting";
 import { useXynConsole } from "../../state/xynConsoleStore";
 import RecentArtifactsMiniTable from "./RecentArtifactsMiniTable";
 import ConsolePromptCard from "./ConsolePromptCard";
@@ -212,6 +213,9 @@ function ResolutionCard({
 }) {
   const { applyDraftPayload, setInputText, session } = useXynConsole();
   const navigate = useNavigate();
+  const location = useLocation();
+  const workspaceMatch = String(location.pathname || "").match(/^\/w\/([^/]+)(?:\/|$)/);
+  const workspaceId = workspaceMatch?.[1] ? decodeURIComponent(workspaceMatch[1]) : "";
   const canCreate = resolution.status === "DraftReady" && resolution.action_type === "CreateDraft" && !!resolution.draft_payload;
   const canOpen = Boolean(resolution.artifact_id);
   const showRevise = resolution.status !== "UnsupportedIntent";
@@ -243,7 +247,13 @@ function ResolutionCard({
           </button>
         ) : null}
         {canOpen ? (
-          <button type="button" className="ghost sm" onClick={() => navigate(`/app/artifacts/${resolution.artifact_id}`)}>
+          <button
+            type="button"
+            className="ghost sm"
+            onClick={() =>
+              navigate(workspaceId ? toWorkspacePath(workspaceId, `build/artifacts/${resolution.artifact_id}`) : `/app/artifacts/${resolution.artifact_id}`)
+            }
+          >
             Open in editor
           </button>
         ) : null}
@@ -339,11 +349,17 @@ export default function XynConsoleCore({ mode, onRequestClose, onOpenPanel }: Pr
     }
   }, [context.artifact_id, context.artifact_type]);
 
+  useEffect(() => {
+    if (!isOverlay || !isSurfaceVisible || !isWorkbenchPath) return;
+    if (session.lastResolution?.status !== "DraftReady") return;
+    clearSessionResolution();
+  }, [clearSessionResolution, isOverlay, isSurfaceVisible, isWorkbenchPath, session.lastResolution]);
+
   const statusLine = useMemo(() => {
     if (!processingStep) return "";
     if (processingStep === "resolving") return "Resolving intent...";
-    if (processingStep === "classifying") return "Classifying artifact type...";
-    return "Validating required fields...";
+    if (processingStep === "classifying") return "Understanding request...";
+    return "Checking requirements...";
   }, [processingStep]);
 
   const shouldShowRecent =
@@ -414,7 +430,7 @@ export default function XynConsoleCore({ mode, onRequestClose, onOpenPanel }: Pr
   const resolutionStack = (
     <>
       {pendingCloseBlock ? <div className="xyn-console-warning">You have a pending proposal. Apply or cancel.</div> : null}
-      {session.lastResolution ? (
+      {session.lastResolution && !(isWorkbenchPath && session.lastResolution.status === "DraftReady") ? (
         <>
           <ResolutionCard resolution={session.lastResolution} onRevise={handleRevise} onOpenPanel={onOpenPanel} />
           {isGlobalContext ? (

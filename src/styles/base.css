@@ -4098,6 +4098,11 @@ button.sm {
   gap: 10px;
 }
 
+.artifact-list-slug-button {
+  margin-left: 6px;
+  padding-inline: 10px;
+}
+
 .danger-text {
   color: #fda4af;
 }
