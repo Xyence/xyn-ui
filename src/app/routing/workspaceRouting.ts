@@ -1,50 +1,9 @@
 export const DEFAULT_WORKSPACE_SUBPATH = "workbench";
 
-const LEGACY_SCOPED_PREFIXES = [
-  "/app/artifacts",
-  "/app/blueprints",
-  "/app/drafts",
-  "/app/draft-sessions",
-  "/app/modules",
-  "/app/context-packs",
-  "/app/release-plans",
-  "/app/releases",
-  "/app/instances",
-  "/app/runs",
-  "/app/activity",
-  "/app/govern/contributions",
-  "/app/settings",
-  "/app/catalog",
-  "/app/platform/settings",
-  "/app/a/",
-];
-
-const LEGACY_EXACT_TO_SUBPATH: Record<string, string> = {
-  "/app": DEFAULT_WORKSPACE_SUBPATH,
-  "/app/": DEFAULT_WORKSPACE_SUBPATH,
-  "/app/home": DEFAULT_WORKSPACE_SUBPATH,
-  "/app/workbench": DEFAULT_WORKSPACE_SUBPATH,
-  "/app/console": DEFAULT_WORKSPACE_SUBPATH,
-  "/app/initiate": DEFAULT_WORKSPACE_SUBPATH,
-  "/app/artifacts/all": "build/artifacts",
-  "/app/artifacts/library": "build/catalog",
-  "/app/catalog": "build/catalog",
-  "/app/modules": "build/modules",
-  "/app/context-packs": "build/context-packs",
-  "/app/release-plans": "package/release-plans",
-  "/app/releases": "package/releases",
-  "/app/instances": "run/instances",
-  "/app/runs": "run/runs",
-  "/app/activity": "govern/activity",
-  "/app/govern/contributions": "govern/contributions",
-  "/app/settings": "settings",
-  "/app/platform/settings": "platform/settings",
-};
-
 export function toWorkspacePath(workspaceId: string, subpath: string): string {
   const token = String(workspaceId || "").trim();
   const rest = String(subpath || "").replace(/^\/+/, "");
-  if (!token) return `/w//${rest}`;
+  if (!token) return `/${rest}`;
   if (!rest) return `/w/${encodeURIComponent(token)}`;
   return `/w/${encodeURIComponent(token)}/${rest}`;
 }
@@ -60,43 +19,54 @@ export function swapWorkspaceInPath(pathname: string, workspaceId: string): stri
   return pathname.replace(/^\/w\/[^/]+/, `/w/${target}`);
 }
 
-export function toWorkspaceScopedPath(pathname: string, workspaceId: string): string | null {
-  const normalized = String(pathname || "").trim() || "/app";
-  const exact = LEGACY_EXACT_TO_SUBPATH[normalized];
-  if (exact) return toWorkspacePath(workspaceId, exact);
+function mapLegacyAppRestToWorkspaceSubpath(rest: string): string {
+  const normalized = String(rest || "").replace(/^\/+/, "");
+  if (!normalized || normalized === "home" || normalized === "workbench" || normalized === "console" || normalized === "initiate") {
+    return DEFAULT_WORKSPACE_SUBPATH;
+  }
 
-  for (const prefix of LEGACY_SCOPED_PREFIXES) {
-    if (!normalized.startsWith(prefix)) continue;
-    if (prefix === "/app/a/") {
-      return toWorkspacePath(workspaceId, normalized.replace(/^\/app\//, ""));
-    }
-    const suffix = normalized.replace(prefix, "").replace(/^\/+/, "");
-    if (prefix === "/app/artifacts") {
-      if (suffix.startsWith("library")) return toWorkspacePath(workspaceId, `build/artifacts/${suffix}`);
-      if (suffix.startsWith("all")) return toWorkspacePath(workspaceId, `build/artifacts/${suffix.replace(/^all\/?/, "")}`.replace(/\/$/, ""));
-      if (/^[0-9a-f-]{36}$/i.test(suffix)) return toWorkspacePath(workspaceId, `build/artifacts/${suffix}`);
-      return toWorkspacePath(workspaceId, "build/artifacts");
-    }
-    if (prefix === "/app/blueprints") return toWorkspacePath(workspaceId, `build/blueprints${suffix ? `/${suffix}` : ""}`);
-    if (prefix === "/app/drafts" || prefix === "/app/draft-sessions") return toWorkspacePath(workspaceId, `build/drafts${suffix ? `/${suffix}` : ""}`);
-    if (prefix === "/app/modules") return toWorkspacePath(workspaceId, `build/modules${suffix ? `/${suffix}` : ""}`);
-    if (prefix === "/app/context-packs") return toWorkspacePath(workspaceId, `build/context-packs${suffix ? `/${suffix}` : ""}`);
-    if (prefix === "/app/release-plans") return toWorkspacePath(workspaceId, `package/release-plans${suffix ? `/${suffix}` : ""}`);
-    if (prefix === "/app/releases") return toWorkspacePath(workspaceId, `package/releases${suffix ? `/${suffix}` : ""}`);
-    if (prefix === "/app/instances") return toWorkspacePath(workspaceId, `run/instances${suffix ? `/${suffix}` : ""}`);
-    if (prefix === "/app/runs") return toWorkspacePath(workspaceId, `run/runs${suffix ? `/${suffix}` : ""}`);
-    if (prefix === "/app/activity") return toWorkspacePath(workspaceId, `govern/activity${suffix ? `/${suffix}` : ""}`);
-    if (prefix === "/app/govern/contributions") return toWorkspacePath(workspaceId, `govern/contributions${suffix ? `/${suffix}` : ""}`);
-    if (prefix === "/app/settings") return toWorkspacePath(workspaceId, `settings${suffix ? `/${suffix}` : ""}`);
-    if (prefix === "/app/catalog") return toWorkspacePath(workspaceId, `build/catalog${suffix ? `/${suffix}` : ""}`);
-    if (prefix === "/app/platform/settings") return toWorkspacePath(workspaceId, `platform/settings${suffix ? `/${suffix}` : ""}`);
+  if (normalized === "catalog") return "build/catalog";
+  if (normalized === "artifacts") return "build/artifacts";
+  if (normalized === "artifacts/all") return "build/artifacts";
+  if (normalized === "artifacts/library" || normalized === "build/artifacts/library") return "build/catalog";
+  if (normalized.startsWith("artifacts/")) {
+    const suffix = normalized.replace(/^artifacts\//, "");
+    if (suffix === "library") return "build/catalog";
+    if (suffix === "all") return "build/artifacts";
+    return `build/artifacts/${suffix}`;
+  }
+
+  if (normalized.startsWith("build/") || normalized.startsWith("run/") || normalized.startsWith("package/") || normalized.startsWith("govern/") || normalized.startsWith("platform/") || normalized.startsWith("settings") || normalized.startsWith("apps/") || normalized.startsWith("a/")) {
+    return normalized;
+  }
+
+  return DEFAULT_WORKSPACE_SUBPATH;
+}
+
+export function toWorkspaceScopedPath(pathname: string, workspaceId: string): string | null {
+  const normalized = String(pathname || "").trim() || "/";
+  if (!workspaceId) return null;
+
+  if (isWorkspaceScopedPath(normalized)) return normalized;
+  if (normalized === "/" || normalized === "/workspaces") return toWorkspacePath(workspaceId, DEFAULT_WORKSPACE_SUBPATH);
+
+  if (normalized === "/app" || normalized === "/app/" || normalized.startsWith("/app/")) {
+    return toWorkspacePath(workspaceId, DEFAULT_WORKSPACE_SUBPATH);
   }
 
   return null;
 }
 
 export function withWorkspaceInNavPath(path: string, workspaceId: string): string {
-  if (!path.startsWith("/app/")) return path;
-  const converted = toWorkspaceScopedPath(path, workspaceId);
-  return converted || path;
+  const normalized = String(path || "").trim();
+  if (!workspaceId) return normalized;
+  if (normalized.startsWith("/w/")) return normalized;
+  if (normalized === "/" || normalized === "/app" || normalized === "/app/") {
+    return toWorkspacePath(workspaceId, DEFAULT_WORKSPACE_SUBPATH);
+  }
+  if (normalized.startsWith("/app/")) {
+    const rest = normalized.replace(/^\/app\//, "");
+    return toWorkspacePath(workspaceId, mapLegacyAppRestToWorkspaceSubpath(rest));
+  }
+  return normalized;
 }

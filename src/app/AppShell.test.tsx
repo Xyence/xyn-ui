@@ -197,23 +197,19 @@ describe("AppShell nav surfaces", () => {
     );
   });
 
-  it("redirects legacy /app/workspaces route to Platform Settings Workspaces hub", async () => {
+  it("redirects legacy /app/workspaces route to workbench", async () => {
     apiMocks.listArtifactNavSurfaces.mockResolvedValueOnce({ surfaces: [] });
     renderGlobalApp("/app/workspaces?tab=people_roles");
     await waitFor(() =>
-      expect(screen.getByTestId("location-probe").textContent).toContain(
-        "/app/platform/settings?tab=workspaces&wsTab=members"
-      )
+      expect(screen.getByTestId("location-probe").textContent).toContain("/w/ws-1/workbench?tab=people_roles")
     );
   });
 
-  it("redirects /app/platform/settings into workspace-scoped settings route", async () => {
+  it("redirects /app/platform/settings to workbench", async () => {
     apiMocks.listArtifactNavSurfaces.mockResolvedValueOnce({ surfaces: [] });
     renderGlobalApp("/app/platform/settings?tab=workspaces&wsTab=profile");
     await waitFor(() =>
-      expect(screen.getByTestId("location-probe").textContent).toContain(
-        "/w/ws-1/platform/settings?tab=workspaces&wsTab=profile"
-      )
+      expect(screen.getByTestId("location-probe").textContent).toContain("/w/ws-1/workbench?tab=workspaces&wsTab=profile")
     );
   });
 });

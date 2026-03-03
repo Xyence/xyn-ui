@@ -68,32 +68,47 @@ const ENABLE_LEGACY_GUIDES = readFlag(import.meta.env.VITE_XYN_UI_ENABLE_LEGACY_
 const ENABLE_LEGACY_DEV_TASKS_PAGE = readFlag(import.meta.env.VITE_XYN_UI_ENABLE_LEGACY_DEV_TASKS_PAGE);
 const ENABLE_LEGACY_BLUEPRINTS = readFlag(import.meta.env.VITE_XYN_UI_ENABLE_LEGACY_BLUEPRINTS);
 
+function workspacePrefixFromPathname(pathname: string): string {
+  const match = String(pathname || "").match(/^\/w\/([^/]+)(?:\/|$)/);
+  if (!match?.[1]) return "";
+  return `/w/${match[1]}`;
+}
+
+function withWorkspacePrefix(pathname: string, subpath: string): string {
+  const prefix = workspacePrefixFromPathname(pathname);
+  const clean = String(subpath || "").replace(/^\/+/, "");
+  if (!prefix) return "/";
+  return `${prefix}/${clean}`;
+}
+
 function RedirectLegacyAiRoute({ tab }: { tab: "credentials" | "model-configs" | "agents" | "purposes" }) {
   const location = useLocation();
   const currentParams = new URLSearchParams(location.search);
   currentParams.set("tab", tab);
-  return <Navigate to={{ pathname: "/app/platform/ai-agents", search: `?${currentParams.toString()}` }} replace />;
+  return <Navigate to={{ pathname: withWorkspacePrefix(location.pathname, "platform/ai-agents"), search: `?${currentParams.toString()}` }} replace />;
 }
 
 function RedirectLegacySecretsRoute({ tab }: { tab: "stores" | "refs" }) {
   const location = useLocation();
   const currentParams = new URLSearchParams(location.search);
   currentParams.set("tab", tab);
-  return <Navigate to={{ pathname: "/app/platform/secrets", search: `?${currentParams.toString()}` }} replace />;
+  return <Navigate to={{ pathname: withWorkspacePrefix(location.pathname, "platform/secrets"), search: `?${currentParams.toString()}` }} replace />;
 }
 
 function RedirectLegacyIdentityRoute({ tab }: { tab: "identity-providers" | "oidc-app-clients" }) {
   const location = useLocation();
   const currentParams = new URLSearchParams(location.search);
   currentParams.set("tab", tab);
-  return <Navigate to={{ pathname: "/app/platform/identity-configuration", search: `?${currentParams.toString()}` }} replace />;
+  return (
+    <Navigate to={{ pathname: withWorkspacePrefix(location.pathname, "platform/identity-configuration"), search: `?${currentParams.toString()}` }} replace />
+  );
 }
 
 function RedirectLegacyAccessControlRoute({ tab }: { tab: "roles" | "users" | "explorer" }) {
   const location = useLocation();
   const currentParams = new URLSearchParams(location.search);
   currentParams.set("tab", tab);
-  return <Navigate to={{ pathname: "/app/platform/access-control", search: `?${currentParams.toString()}` }} replace />;
+  return <Navigate to={{ pathname: withWorkspacePrefix(location.pathname, "platform/access-control"), search: `?${currentParams.toString()}` }} replace />;
 }
 
 function RedirectLegacyWorkspaceAccessRoute() {
@@ -101,7 +116,7 @@ function RedirectLegacyWorkspaceAccessRoute() {
   const currentParams = new URLSearchParams(location.search);
   currentParams.set("tab", "workspaces");
   currentParams.set("wsTab", "members");
-  return <Navigate to={{ pathname: "/app/platform/settings", search: `?${currentParams.toString()}` }} replace />;
+  return <Navigate to={{ pathname: withWorkspacePrefix(location.pathname, "platform/settings"), search: `?${currentParams.toString()}` }} replace />;
 }
 
 function RedirectLegacyWorkspacesRoute() {
@@ -110,7 +125,7 @@ function RedirectLegacyWorkspacesRoute() {
   const legacyTab = String(currentParams.get("tab") || "").toLowerCase();
   currentParams.set("tab", "workspaces");
   currentParams.set("wsTab", legacyTab === "people_roles" ? "members" : "profile");
-  return <Navigate to={{ pathname: "/app/platform/settings", search: `?${currentParams.toString()}` }} replace />;
+  return <Navigate to={{ pathname: withWorkspacePrefix(location.pathname, "platform/settings"), search: `?${currentParams.toString()}` }} replace />;
 }
 
 function RedirectWithNotice({ to, notice }: { to: string; notice: string }) {
@@ -130,7 +145,8 @@ function RedirectLegacyTenantContactsDetailRoute() {
   const currentParams = new URLSearchParams();
   currentParams.set("tab", "workspaces");
   currentParams.set("wsTab", "all");
-  return <Navigate to={{ pathname: "/app/platform/settings", search: `?${currentParams.toString()}` }} replace />;
+  const location = useLocation();
+  return <Navigate to={{ pathname: withWorkspacePrefix(location.pathname, "platform/settings"), search: `?${currentParams.toString()}` }} replace />;
 }
 
 function LegacyStatePanel({
@@ -187,7 +203,7 @@ export default function AppShell() {
   const { runningAiCount } = useOperations();
   const { preview, disablePreviewMode } = usePreview();
   const { handleRouteChange } = useXynConsole();
-  const hideFloatingConsoleNode = location.pathname === "/app/console" || location.pathname.includes("/console");
+  const hideFloatingConsoleNode = location.pathname.includes("/console");
   const workspaceRoute = useWorkspaceFromRoute(workspaces);
   const workspaceIdFromRoute = workspaceRoute.workspaceId;
   const activeWorkspaceId = workspaceIdFromRoute || preferredWorkspaceId;
@@ -323,7 +339,7 @@ export default function AppShell() {
   }, [inWorkspaceScope, location.hash, location.pathname, location.search, navigate, preferredWorkspaceId, workspaceIdFromRoute, workspaces]);
 
   const startLogin = () => {
-    const returnTo = window.location.pathname || "/app";
+    const returnTo = window.location.pathname || "/";
     window.location.href = `/auth/login?appId=xyn-ui&returnTo=${encodeURIComponent(returnTo)}`;
   };
 
@@ -417,7 +433,7 @@ export default function AppShell() {
     [workspaces, activeWorkspaceId]
   );
   const isWorkbenchRoute = useMemo(
-    () => /\/w\/[^/]+\/workbench\/?$/.test(location.pathname) || /\/app\/workbench\/?$/.test(location.pathname),
+    () => /\/w\/[^/]+\/workbench\/?$/.test(location.pathname),
     [location.pathname]
   );
   const workspaceRole = activeWorkspace?.role || "reader";
@@ -446,7 +462,7 @@ export default function AppShell() {
     navigate(toWorkspacePath(nextWorkspaceId, DEFAULT_WORKSPACE_SUBPATH));
   };
   const workspaceScopedTarget = (subpath: string): string => {
-    if (!activeWorkspace?.id) return "/app/platform/settings?tab=workspaces&wsTab=profile";
+    if (!activeWorkspace?.id) return "/";
     return toWorkspacePath(activeWorkspace.id, subpath);
   };
   const settingsPath = workspaceScopedTarget("platform/settings");
@@ -536,7 +552,7 @@ export default function AppShell() {
 
   useEffect(() => {
     if (!authLoaded || authed) return;
-    const returnTo = `${location.pathname}${location.search || ""}` || "/app";
+    const returnTo = `${location.pathname}${location.search || ""}` || "/";
     window.location.href = `/auth/login?appId=xyn-ui&returnTo=${encodeURIComponent(returnTo)}`;
   }, [authLoaded, authed, location.pathname, location.search]);
 
@@ -645,7 +661,7 @@ export default function AppShell() {
             </div>
           )}
           <Routes>
-            <Route path="/" element={<Navigate to={inWorkspaceScope ? DEFAULT_WORKSPACE_SUBPATH : "workspaces"} replace />} />
+            <Route path="/" element={<Navigate to={inWorkspaceScope ? DEFAULT_WORKSPACE_SUBPATH : "/"} replace />} />
             <Route path="workbench" element={<WorkbenchPage />} />
             <Route path="console" element={<Navigate to={workspaceScopedTarget(DEFAULT_WORKSPACE_SUBPATH)} replace />} />
             <Route path="apps/articles/edit" element={<ArticleSurfaceEditorRedirectPage />} />
@@ -883,8 +899,8 @@ export default function AppShell() {
             <Route path="platform/secrets" element={<SecretConfigurationPage />} />
             <Route path="platform/secret-stores" element={<RedirectLegacySecretsRoute tab="stores" />} />
             <Route path="platform/secret-refs" element={<RedirectLegacySecretsRoute tab="refs" />} />
-            <Route path="platform/ai-config" element={<Navigate to="/app/platform/ai-agents" replace />} />
-            <Route path="platform/ai-configuration" element={<Navigate to="/app/platform/ai-agents" replace />} />
+            <Route path="platform/ai-config" element={<Navigate to={workspaceScopedTarget("platform/ai-agents")} replace />} />
+            <Route path="platform/ai-configuration" element={<Navigate to={workspaceScopedTarget("platform/ai-agents")} replace />} />
             <Route path="platform/ai-agents" element={<AIConfigPage />} />
             <Route path="platform/ai/credentials" element={<RedirectLegacyAiRoute tab="credentials" />} />
             <Route path="platform/ai/model-configs" element={<RedirectLegacyAiRoute tab="model-configs" />} />

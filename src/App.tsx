@@ -1,8 +1,9 @@
 import { useEffect } from "react";
-import { Navigate, Route, Routes, useParams } from "react-router-dom";
+import { Route, Routes, useParams } from "react-router-dom";
 import AppShell from "./app/AppShell";
+import LegacyAppRedirect from "./app/routing/LegacyAppRedirect";
+import RootRedirect from "./app/routing/RootRedirect";
 import PublicShell from "./public/PublicShell";
-import HomePage from "./public/pages/HomePage";
 import PageRoute from "./public/pages/PageRoute";
 import ArticlesIndex from "./public/pages/ArticlesIndex";
 import ArticleDetail from "./public/pages/ArticleDetail";
@@ -37,13 +38,14 @@ function WorkspaceAuthCallbackBridge() {
 export default function App() {
   return (
     <Routes>
+      <Route path="/" element={<RootRedirect />} />
       <Route path="/w/:workspaceId/auth/login" element={<WorkspaceAuthLoginBridge />} />
       <Route path="/w/:workspaceId/auth/callback" element={<WorkspaceAuthCallbackBridge />} />
       <Route path="/w/:workspaceId/*" element={<AppShell />} />
-      <Route path="/workspaces" element={<Navigate to="/app/workspaces" replace />} />
-      <Route path="/app/*" element={<AppShell />} />
+      <Route path="/workspaces" element={<AppShell />} />
+      <Route path="/app/*" element={<LegacyAppRedirect />} />
       <Route path="/*" element={<PublicShell />}>
-        <Route index element={<HomePage />} />
+        <Route index element={<RootRedirect />} />
         <Route path="articles" element={<ArticlesIndex />} />
         <Route path="articles/:slug" element={<ArticleDetail />} />
         <Route path=":category/:slug" element={<ArticleDetail />} />
