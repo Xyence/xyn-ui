@@ -33,7 +33,6 @@ import ArticleSurfaceEditorRedirectPage from "./pages/ArticleSurfaceEditorRedire
 import ArticleSurfaceDocsPage from "./pages/ArticleSurfaceDocsPage";
 import WorkbenchPage from "./pages/WorkbenchPage";
 import WorkspaceSettingsPage from "./pages/WorkspaceSettingsPage";
-import InitiatePage from "./pages/InitiatePage";
 import { useGlobalHotkeys } from "./hooks/useGlobalHotkeys";
 import ReportOverlay from "./components/ReportOverlay";
 import UserMenu from "./components/common/UserMenu";
@@ -648,7 +647,7 @@ export default function AppShell() {
           <Routes>
             <Route path="/" element={<Navigate to={inWorkspaceScope ? DEFAULT_WORKSPACE_SUBPATH : "workspaces"} replace />} />
             <Route path="workbench" element={<WorkbenchPage />} />
-            <Route path="console" element={<InitiatePage />} />
+            <Route path="console" element={<Navigate to={workspaceScopedTarget(DEFAULT_WORKSPACE_SUBPATH)} replace />} />
             <Route path="apps/articles/edit" element={<ArticleSurfaceEditorRedirectPage />} />
             <Route path="apps/articles/docs" element={<ArticleSurfaceDocsPage />} />
             <Route

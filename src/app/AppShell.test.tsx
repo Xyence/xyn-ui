@@ -189,6 +189,14 @@ describe("AppShell nav surfaces", () => {
     );
   });
 
+  it("redirects legacy workspace console route to workbench", async () => {
+    apiMocks.listArtifactNavSurfaces.mockResolvedValueOnce({ surfaces: [] });
+    renderWorkspaceApp("/w/ws-1/console");
+    await waitFor(() =>
+      expect(screen.getByTestId("location-probe").textContent).toContain("/w/ws-1/workbench")
+    );
+  });
+
   it("redirects legacy /app/workspaces route to Platform Settings Workspaces hub", async () => {
     apiMocks.listArtifactNavSurfaces.mockResolvedValueOnce({ surfaces: [] });
     renderGlobalApp("/app/workspaces?tab=people_roles");

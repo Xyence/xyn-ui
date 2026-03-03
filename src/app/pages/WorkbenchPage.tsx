@@ -1,8 +1,7 @@
 import { useEffect } from "react";
-import { Link, useParams } from "react-router-dom";
+import { useParams } from "react-router-dom";
 import WorkbenchPanelHost, { type ConsolePanelKey, type ConsolePanelSpec } from "../components/console/WorkbenchPanelHost";
 import { useXynConsole } from "../state/xynConsoleStore";
-import { toWorkspacePath } from "../routing/workspaceRouting";
 
 export default function WorkbenchPage() {
   const { setContext, setOpen, setInputText, clearSessionResolution, activePanel, closePanel, openPanel, setCanvasContext } = useXynConsole();
@@ -50,11 +49,6 @@ export default function WorkbenchPage() {
         <div>
           <h2>Workbench</h2>
           <p className="muted">Panel-based runtime canvas. Use the Xyn button (top-right) or Cmd/Ctrl+K.</p>
-        </div>
-        <div className="inline-actions">
-          <Link className="ghost" to={toWorkspacePath(workspaceId, "console")}>
-            Open legacy console
-          </Link>
         </div>
       </div>
 

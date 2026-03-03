@@ -114,6 +114,7 @@ function ArtifactListPanel({
   workspaceId,
   query,
   queryError,
+  onOpenArtifactDetail,
   panel,
   onContextChange,
 }: {
@@ -121,6 +122,7 @@ function ArtifactListPanel({
   workspaceId?: string;
   query?: ArtifactStructuredQuery;
   queryError?: string;
+  onOpenArtifactDetail: (slug: string) => void;
   panel: ConsolePanelSpec | null;
   onContextChange?: ContextEmitter;
 }) {
@@ -191,6 +193,7 @@ function ArtifactListPanel({
       onRowActivate={(rowId) => {
         setSelectedRowIds([rowId]);
         setFocusedRowId(rowId);
+        onOpenArtifactDetail(rowId);
       }}
     />
   );
@@ -522,6 +525,7 @@ export default function WorkbenchPanelHost({
           workspaceId={workspaceId}
           query={(panel.params?.query as ArtifactStructuredQuery | undefined) || undefined}
           queryError={String(panel.params?.query_error || "")}
+          onOpenArtifactDetail={(slug) => openPanel("artifact_detail", { slug })}
           panel={panel}
           onContextChange={onContextChange}
         />

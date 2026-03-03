@@ -48,7 +48,7 @@ export const NAV_GROUPS: NavGroup[] = [
     label: "Home",
     icon: "Compass",
     items: [
-      { id: "initiate", label: "Initiate", path: "/app/console", icon: "Sparkles", keywords: ["console", "intent", "start"] },
+      { id: "initiate", label: "Initiate", path: "/app/workbench", icon: "Sparkles", keywords: ["console", "intent", "start"] },
     ],
   },
   {
