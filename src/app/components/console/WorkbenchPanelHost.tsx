@@ -6,22 +6,34 @@ import {
   getEmsDatasetSchemaTable,
   getEmsRegistrationsTimeseriesCanvasTable,
   getEmsStatusRollupCanvasTable,
+  getRunCanvasApi,
+  listRunsCanvasApi,
+  listWorkspaceArtifacts,
+  listWorkspacesCanvasApi,
   queryArtifactCanvasTable,
   queryEmsDevicesCanvasTable,
   queryEmsRegistrationsCanvasTable,
 } from "../../../api/xyn";
+import { resolveApiBaseUrl } from "../../../api/client";
 import type {
   ArtifactCanvasTableResponse,
   ArtifactConsoleDetailResponse,
   ArtifactConsoleFileRow,
   ArtifactStructuredQuery,
   CanvasTableResponse,
+  RunDetail,
+  RunSummary,
+  WorkspaceSummary,
 } from "../../../api/types";
 import CanvasRenderer from "../../../components/canvas/CanvasRenderer";
 import type { OpenDetailTarget } from "../../../components/canvas/datasetEntityRegistry";
 import { toWorkspacePath } from "../../routing/workspaceRouting";
 
 export type ConsolePanelKey =
+  | "platform_settings"
+  | "workspaces"
+  | "runs"
+  | "run_detail"
   | "artifact_list"
   | "artifact_detail"
   | "artifact_raw_json"
@@ -59,6 +71,108 @@ type CanvasQuery = {
 };
 
 type ContextEmitter = (context: Record<string, unknown> | null) => void;
+
+const WORKSPACES_DATASET_COLUMNS = [
+  { key: "id", label: "ID", type: "string", filterable: true, sortable: true },
+  { key: "slug", label: "Slug", type: "string", filterable: true, sortable: true, searchable: true },
+  { key: "name", label: "Name", type: "string", filterable: true, sortable: true, searchable: true },
+  { key: "org_name", label: "Org Name", type: "string", filterable: true, sortable: true, searchable: true },
+  { key: "kind", label: "Kind", type: "string", filterable: true, sortable: true, searchable: true },
+  { key: "lifecycle_stage", label: "Stage", type: "string", filterable: true, sortable: true, searchable: true },
+  { key: "auth_mode", label: "Auth Mode", type: "string", filterable: true, sortable: true, searchable: true },
+  { key: "parent_workspace_id", label: "Parent Workspace", type: "string", filterable: true, sortable: true, searchable: true },
+] as const;
+
+const RUNS_DATASET_COLUMNS = [
+  { key: "id", label: "Run ID", type: "string", filterable: true, sortable: true, searchable: true },
+  { key: "entity_type", label: "Entity Type", type: "string", filterable: true, sortable: true, searchable: true },
+  { key: "entity_id", label: "Entity ID", type: "string", filterable: true, sortable: true, searchable: true },
+  { key: "status", label: "Status", type: "string", filterable: true, sortable: true, searchable: true },
+  { key: "summary", label: "Summary", type: "string", filterable: true, sortable: true, searchable: true },
+  { key: "created_at", label: "Created", type: "datetime", filterable: true, sortable: true },
+  { key: "started_at", label: "Started", type: "datetime", filterable: true, sortable: true },
+  { key: "finished_at", label: "Finished", type: "datetime", filterable: true, sortable: true },
+] as const;
+
+function toIso(value?: string | null): string {
+  if (!value) return "";
+  const parsed = new Date(value);
+  if (Number.isNaN(parsed.getTime())) return String(value);
+  return parsed.toISOString();
+}
+
+function resolveRelativeDate(raw: unknown): Date | null {
+  const token = String(raw || "").trim().toLowerCase();
+  if (!token) return null;
+  const relative = token.match(/^now-(\d+)([mhd])$/);
+  if (relative) {
+    const amount = Math.max(0, Number(relative[1]) || 0);
+    const unit = relative[2];
+    const now = Date.now();
+    if (unit === "m") return new Date(now - amount * 60_000);
+    if (unit === "h") return new Date(now - amount * 3_600_000);
+    return new Date(now - amount * 86_400_000);
+  }
+  const absolute = new Date(token);
+  if (Number.isNaN(absolute.getTime())) return null;
+  return absolute;
+}
+
+function compareValues(left: unknown, right: unknown, type?: string): number {
+  if (type === "datetime") {
+    const leftDate = resolveRelativeDate(left);
+    const rightDate = resolveRelativeDate(right);
+    const leftTime = leftDate ? leftDate.getTime() : 0;
+    const rightTime = rightDate ? rightDate.getTime() : 0;
+    return leftTime - rightTime;
+  }
+  const leftVal = typeof left === "string" ? left.toLowerCase() : left;
+  const rightVal = typeof right === "string" ? right.toLowerCase() : right;
+  if (leftVal == null && rightVal == null) return 0;
+  if (leftVal == null) return -1;
+  if (rightVal == null) return 1;
+  if (leftVal < rightVal) return -1;
+  if (leftVal > rightVal) return 1;
+  return 0;
+}
+
+function rowMatches(row: Record<string, unknown>, filter: { field: string; op: string; value: unknown }, columns: ReadonlyArray<{ key: string; type: string }>): boolean {
+  const field = String(filter.field || "").trim();
+  const op = String(filter.op || "eq").trim().toLowerCase();
+  const value = row[field];
+  const schema = columns.find((entry) => entry.key === field);
+  const type = schema?.type || "string";
+  if (type === "datetime") {
+    const left = resolveRelativeDate(value);
+    const right = resolveRelativeDate(filter.value);
+    if (!left || !right) return false;
+    const cmp = left.getTime() - right.getTime();
+    if (op === "eq") return cmp === 0;
+    if (op === "neq") return cmp !== 0;
+    if (op === "gte") return cmp >= 0;
+    if (op === "lte") return cmp <= 0;
+    if (op === "gt") return cmp > 0;
+    if (op === "lt") return cmp < 0;
+    return false;
+  }
+  const left = value == null ? "" : String(value).toLowerCase();
+  const right = filter.value == null ? "" : String(filter.value).toLowerCase();
+  if (op === "eq") return left === right;
+  if (op === "neq") return left !== right;
+  if (op === "contains") return left.includes(right);
+  if (op === "in") {
+    if (Array.isArray(filter.value)) return filter.value.map((entry) => String(entry).toLowerCase()).includes(left);
+    return left === right;
+  }
+  if (op === "gte" || op === "lte" || op === "gt" || op === "lt") {
+    const cmp = compareValues(value, filter.value, type);
+    if (op === "gte") return cmp >= 0;
+    if (op === "lte") return cmp <= 0;
+    if (op === "gt") return cmp > 0;
+    if (op === "lt") return cmp < 0;
+  }
+  return false;
+}
 
 function baseArtifactQuery(): ArtifactStructuredQuery {
   return { entity: "artifacts", filters: [], sort: [{ field: "updated_at", dir: "desc" }], limit: 50, offset: 0 };
@@ -109,6 +223,409 @@ function emitTableContext({
       layout_engine: "simple",
     },
   });
+}
+
+function WorkspacesPanel({
+  query,
+  queryError,
+  panel,
+  onContextChange,
+  onOpenDetail,
+}: {
+  query?: CanvasQuery;
+  queryError?: string;
+  panel: ConsolePanelSpec | null;
+  onContextChange?: ContextEmitter;
+  onOpenDetail: (target: OpenDetailTarget, row: Record<string, unknown>) => void;
+}) {
+  const [payload, setPayload] = useState<CanvasTableResponse | null>(null);
+  const [activeQuery, setActiveQuery] = useState<CanvasQuery>({
+    entity: "workspaces",
+    filters: [],
+    sort: [{ field: "name", dir: "asc" }],
+    limit: 50,
+    offset: 0,
+  });
+  const [selectedRowIds, setSelectedRowIds] = useState<string[]>([]);
+  const [focusedRowId, setFocusedRowId] = useState<string | null>(null);
+  const [rowOrderIds, setRowOrderIds] = useState<string[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
+
+  useEffect(() => {
+    if (query) {
+      setActiveQuery(query);
+      return;
+    }
+    setActiveQuery({ entity: "workspaces", filters: [], sort: [{ field: "name", dir: "asc" }], limit: 50, offset: 0 });
+  }, [query]);
+
+  useEffect(() => {
+    let active = true;
+    (async () => {
+      try {
+        setLoading(true);
+        setError(null);
+        const response = await listWorkspacesCanvasApi();
+        if (!active) return;
+        const baseRows: Array<Record<string, unknown>> = (response.workspaces || []).map((workspace: WorkspaceSummary) => ({
+          id: workspace.id,
+          slug: workspace.slug,
+          name: workspace.name,
+          org_name: workspace.org_name || workspace.name,
+          kind: workspace.kind || "",
+          lifecycle_stage: workspace.lifecycle_stage || "",
+          auth_mode: workspace.auth_mode || "",
+          parent_workspace_id: workspace.parent_workspace_id || "",
+        }));
+        let rows = [...baseRows];
+        for (const filter of activeQuery.filters || []) {
+          rows = rows.filter((row) => rowMatches(row, filter, WORKSPACES_DATASET_COLUMNS as unknown as Array<{ key: string; type: string }>));
+        }
+        for (const sortRow of [...(activeQuery.sort || [])].reverse()) {
+          const field = String(sortRow.field || "");
+          const dir = sortRow.dir === "asc" ? "asc" : "desc";
+          rows.sort((left, right) => {
+            const column = WORKSPACES_DATASET_COLUMNS.find((entry) => entry.key === field);
+            const cmp = compareValues(left[field], right[field], column?.type);
+            return dir === "asc" ? cmp : -cmp;
+          });
+        }
+        const offset = Math.max(0, Number(activeQuery.offset || 0));
+        const limit = Math.max(1, Number(activeQuery.limit || 50));
+        const paged = rows.slice(offset, offset + limit);
+        const nextPayload: CanvasTableResponse = {
+          type: "canvas.table",
+          title: "Workspaces",
+          dataset: {
+            name: "workspaces",
+            primary_key: "id",
+            columns: [...WORKSPACES_DATASET_COLUMNS],
+            rows: paged,
+            total_count: rows.length,
+          },
+          query: activeQuery,
+        };
+        setPayload(nextPayload);
+        setRowOrderIds(paged.map((row) => String(row.id || "")));
+      } catch (err) {
+        if (!active) return;
+        setError(err instanceof Error ? err.message : "Failed to load workspaces");
+      } finally {
+        if (active) setLoading(false);
+      }
+    })();
+    return () => {
+      active = false;
+    };
+  }, [activeQuery]);
+
+  useEffect(() => {
+    emitTableContext({ onContextChange, panel, payload, query: activeQuery, selectedRowIds, focusedRowId, rowOrderIds });
+  }, [activeQuery, focusedRowId, onContextChange, panel, payload, rowOrderIds, selectedRowIds]);
+
+  if (loading) return <p className="muted">Loading workspaces…</p>;
+  if (queryError) return <p className="muted">{queryError}</p>;
+  if (error) return <p className="danger-text">{error}</p>;
+  if (!payload) return <p className="muted">No workspaces found.</p>;
+
+  return (
+    <CanvasRenderer
+      payload={payload}
+      query={activeQuery}
+      onSort={(field, sortable) => {
+        if (!sortable) return;
+        const same = activeQuery.sort?.[0]?.field === field;
+        const dir = same && activeQuery.sort?.[0]?.dir === "asc" ? "desc" : "asc";
+        setActiveQuery((current) => ({ ...current, sort: [{ field, dir }] }));
+      }}
+      onRowActivate={(rowId) => {
+        setSelectedRowIds([rowId]);
+        setFocusedRowId(rowId);
+      }}
+      onOpenDetail={onOpenDetail}
+    />
+  );
+}
+
+function RunsPanel({
+  query,
+  queryError,
+  panel,
+  onContextChange,
+  onOpenDetail,
+}: {
+  query?: CanvasQuery;
+  queryError?: string;
+  panel: ConsolePanelSpec | null;
+  onContextChange?: ContextEmitter;
+  onOpenDetail: (target: OpenDetailTarget, row: Record<string, unknown>) => void;
+}) {
+  const [payload, setPayload] = useState<CanvasTableResponse | null>(null);
+  const [activeQuery, setActiveQuery] = useState<CanvasQuery>({
+    entity: "runs",
+    filters: [],
+    sort: [{ field: "created_at", dir: "desc" }],
+    limit: 50,
+    offset: 0,
+  });
+  const [selectedRowIds, setSelectedRowIds] = useState<string[]>([]);
+  const [focusedRowId, setFocusedRowId] = useState<string | null>(null);
+  const [rowOrderIds, setRowOrderIds] = useState<string[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
+
+  useEffect(() => {
+    if (query) {
+      setActiveQuery(query);
+      return;
+    }
+    setActiveQuery({ entity: "runs", filters: [], sort: [{ field: "created_at", dir: "desc" }], limit: 50, offset: 0 });
+  }, [query]);
+
+  useEffect(() => {
+    let active = true;
+    (async () => {
+      try {
+        setLoading(true);
+        setError(null);
+        const statusEq = (activeQuery.filters || []).find((entry) => entry.field === "status" && entry.op === "eq");
+        const searchContains = (activeQuery.filters || []).find((entry) => entry.op === "contains" && ["summary", "entity_type", "entity_id"].includes(entry.field));
+        const response = await listRunsCanvasApi(
+          undefined,
+          statusEq ? String(statusEq.value || "") : undefined,
+          searchContains ? String(searchContains.value || "") : undefined,
+          1,
+          500
+        );
+        if (!active) return;
+        const baseRows: Array<Record<string, unknown>> = (response.runs || []).map((run: RunSummary) => ({
+          id: run.id,
+          entity_type: run.entity_type,
+          entity_id: run.entity_id,
+          status: run.status,
+          summary: run.summary || "",
+          created_at: toIso(run.created_at),
+          started_at: toIso(run.started_at),
+          finished_at: toIso(run.finished_at),
+        }));
+        let rows = [...baseRows];
+        for (const filter of activeQuery.filters || []) {
+          rows = rows.filter((row) => rowMatches(row, filter, RUNS_DATASET_COLUMNS as unknown as Array<{ key: string; type: string }>));
+        }
+        for (const sortRow of [...(activeQuery.sort || [])].reverse()) {
+          const field = String(sortRow.field || "");
+          const dir = sortRow.dir === "asc" ? "asc" : "desc";
+          rows.sort((left, right) => {
+            const column = RUNS_DATASET_COLUMNS.find((entry) => entry.key === field);
+            const cmp = compareValues(left[field], right[field], column?.type);
+            return dir === "asc" ? cmp : -cmp;
+          });
+        }
+        const offset = Math.max(0, Number(activeQuery.offset || 0));
+        const limit = Math.max(1, Number(activeQuery.limit || 50));
+        const paged = rows.slice(offset, offset + limit);
+        const nextPayload: CanvasTableResponse = {
+          type: "canvas.table",
+          title: "Runs",
+          dataset: {
+            name: "runs",
+            primary_key: "id",
+            columns: [...RUNS_DATASET_COLUMNS],
+            rows: paged,
+            total_count: rows.length,
+          },
+          query: activeQuery,
+        };
+        setPayload(nextPayload);
+        setRowOrderIds(paged.map((row) => String(row.id || "")));
+      } catch (err) {
+        if (!active) return;
+        setError(err instanceof Error ? err.message : "Failed to load runs");
+      } finally {
+        if (active) setLoading(false);
+      }
+    })();
+    return () => {
+      active = false;
+    };
+  }, [activeQuery]);
+
+  useEffect(() => {
+    emitTableContext({ onContextChange, panel, payload, query: activeQuery, selectedRowIds, focusedRowId, rowOrderIds });
+  }, [activeQuery, focusedRowId, onContextChange, panel, payload, rowOrderIds, selectedRowIds]);
+
+  if (loading) return <p className="muted">Loading runs…</p>;
+  if (queryError) return <p className="muted">{queryError}</p>;
+  if (error) return <p className="danger-text">{error}</p>;
+  if (!payload) return <p className="muted">No runs found.</p>;
+
+  return (
+    <CanvasRenderer
+      payload={payload}
+      query={activeQuery}
+      onSort={(field, sortable) => {
+        if (!sortable) return;
+        const same = activeQuery.sort?.[0]?.field === field;
+        const dir = same && activeQuery.sort?.[0]?.dir === "asc" ? "desc" : "asc";
+        setActiveQuery((current) => ({ ...current, sort: [{ field, dir }] }));
+      }}
+      onRowActivate={(rowId) => {
+        setSelectedRowIds([rowId]);
+        setFocusedRowId(rowId);
+      }}
+      onOpenDetail={onOpenDetail}
+    />
+  );
+}
+
+function RunDetailPanel({ runId, panel, onContextChange }: { runId: string; panel: ConsolePanelSpec | null; onContextChange?: ContextEmitter }) {
+  const [payload, setPayload] = useState<RunDetail | null>(null);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
+
+  useEffect(() => {
+    let active = true;
+    (async () => {
+      try {
+        setLoading(true);
+        setError(null);
+        const next = await getRunCanvasApi(runId);
+        if (!active) return;
+        setPayload(next);
+      } catch (err) {
+        if (!active) return;
+        setError(err instanceof Error ? err.message : "Failed to load run detail");
+      } finally {
+        if (active) setLoading(false);
+      }
+    })();
+    return () => {
+      active = false;
+    };
+  }, [runId]);
+
+  useEffect(() => {
+    if (!onContextChange || !panel?.panel_id || !payload) return;
+    onContextChange({
+      view_type: "detail",
+      entity_type: "run",
+      entity_id: payload.id,
+      available_tabs: ["overview", "raw"],
+      active_tab: "overview",
+      ui: {
+        active_panel_id: panel.panel_id,
+        panel_id: panel.panel_id,
+        panel_type: panel.panel_type || "detail",
+        instance_key: panel.instance_key || `run:${payload.id}`,
+        active_group_id: panel.active_group_id || null,
+        layout_engine: "simple",
+      },
+    });
+  }, [onContextChange, panel, payload]);
+
+  if (loading) return <p className="muted">Loading run detail…</p>;
+  if (error) return <p className="danger-text">{error}</p>;
+  if (!payload) return <p className="muted">Run not found.</p>;
+
+  return (
+    <div className="ems-panel-body">
+      <p className="muted">
+        {payload.id} · {payload.status}
+      </p>
+      <p className="muted small">
+        {payload.entity_type} · {payload.entity_id}
+      </p>
+      {payload.summary ? <p>{payload.summary}</p> : null}
+      <pre className="code-block">{JSON.stringify(payload, null, 2)}</pre>
+    </div>
+  );
+}
+
+function PlatformSettingsPanel({ workspaceId }: { workspaceId: string }) {
+  const [workspace, setWorkspace] = useState<WorkspaceSummary | null>(null);
+  const [artifacts, setArtifacts] = useState<Array<{ name?: string; slug?: string; installed_state?: string }>>([]);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
+
+  useEffect(() => {
+    let active = true;
+    (async () => {
+      try {
+        setLoading(true);
+        setError(null);
+        const workspaceResponse = await listWorkspacesCanvasApi();
+        if (!active) return;
+        const found = (workspaceResponse.workspaces || []).find((entry) => String(entry.id) === workspaceId) || null;
+        setWorkspace(found);
+        if (workspaceId) {
+          const installed = await listWorkspaceArtifacts(workspaceId);
+          if (!active) return;
+          setArtifacts((installed.artifacts || []).map((entry) => ({ name: entry.title || entry.name, slug: entry.slug, installed_state: entry.installed_state })));
+        } else {
+          setArtifacts([]);
+        }
+      } catch (err) {
+        if (!active) return;
+        setError(err instanceof Error ? err.message : "Failed to load platform settings");
+      } finally {
+        if (active) setLoading(false);
+      }
+    })();
+    return () => {
+      active = false;
+    };
+  }, [workspaceId]);
+
+  if (loading) return <p className="muted">Loading platform settings…</p>;
+  if (error) return <p className="danger-text">{error}</p>;
+
+  return (
+    <div className="ems-panel-body">
+      <h4>Platform Settings</h4>
+      <p className="muted small">Workspace info, installed artifacts, and environment summary.</p>
+      <div className="card">
+        <p className="muted small">Workspace</p>
+        <pre className="code-block">
+          {JSON.stringify(
+            workspace
+              ? {
+                  id: workspace.id,
+                  slug: workspace.slug,
+                  name: workspace.name,
+                  org_name: workspace.org_name || workspace.name,
+                  kind: workspace.kind,
+                  lifecycle_stage: workspace.lifecycle_stage,
+                  auth_mode: workspace.auth_mode,
+                }
+              : { id: workspaceId || "", status: "not found or inaccessible" },
+            null,
+            2
+          )}
+        </pre>
+      </div>
+      <div className="card">
+        <p className="muted small">Installed artifacts</p>
+        <pre className="code-block">{JSON.stringify(artifacts, null, 2)}</pre>
+      </div>
+      <div className="card">
+        <p className="muted small">Environment</p>
+        <pre className="code-block">
+          {JSON.stringify(
+            {
+              api_base_url: resolveApiBaseUrl(),
+              app_origin: typeof window !== "undefined" ? window.location.origin : "",
+              path: typeof window !== "undefined" ? window.location.pathname : "",
+              time_utc: new Date().toISOString(),
+              auth_mode: import.meta.env.VITE_AUTH_MODE || "unknown",
+            },
+            null,
+            2
+          )}
+        </pre>
+      </div>
+    </div>
+  );
 }
 
 function ArtifactListPanel({
@@ -537,6 +1054,10 @@ function GenericRecordDetailPanel({
 }
 
 const PANEL_TITLES: Record<ConsolePanelKey, string> = {
+  platform_settings: "Platform Settings",
+  workspaces: "Workspaces",
+  runs: "Runs",
+  run_detail: "Run Detail",
   artifact_list: "Artifact List",
   artifact_detail: "Artifact Detail",
   artifact_raw_json: "Artifact Raw JSON",
@@ -572,6 +1093,50 @@ export default function WorkbenchPanelHost({
   const content = useMemo(() => {
     if (!panel) return null;
     const openPanel = (panelKey: ConsolePanelKey, params?: Record<string, unknown>) => onOpenPanel({ key: panelKey, params: params || {} });
+
+    if (panel.key === "platform_settings") {
+      return <PlatformSettingsPanel workspaceId={String(panel.params?.workspace_id || workspaceId || "")} />;
+    }
+
+    if (panel.key === "workspaces") {
+      return (
+        <WorkspacesPanel
+          query={(panel.params?.query as CanvasQuery | undefined) || undefined}
+          queryError={String(panel.params?.query_error || "")}
+          panel={panel}
+          onContextChange={onContextChange}
+          onOpenDetail={(target) => {
+            if (target.entity_type === "workspace") {
+              openPanel("platform_settings", { workspace_id: target.entity_id });
+              return;
+            }
+            openPanel("record_detail", { ...target });
+          }}
+        />
+      );
+    }
+
+    if (panel.key === "runs") {
+      return (
+        <RunsPanel
+          query={(panel.params?.query as CanvasQuery | undefined) || undefined}
+          queryError={String(panel.params?.query_error || "")}
+          panel={panel}
+          onContextChange={onContextChange}
+          onOpenDetail={(target, row) => {
+            if (target.entity_type === "run") {
+              openPanel("run_detail", { run_id: target.entity_id });
+              return;
+            }
+            openPanel("record_detail", { ...target, row });
+          }}
+        />
+      );
+    }
+
+    if (panel.key === "run_detail") {
+      return <RunDetailPanel runId={String(panel.params?.run_id || "")} panel={panel} onContextChange={onContextChange} />;
+    }
 
     if (panel.key === "artifact_list") {
       return (
@@ -709,6 +1274,9 @@ export default function WorkbenchPanelHost({
         <h3>Panels</h3>
         <p className="muted">Ask the console to open a panel, for example:</p>
         <ul className="muted">
+          <li>Open platform settings</li>
+          <li>List workspaces</li>
+          <li>Show runs</li>
           <li>Show unregistered devices</li>
           <li>Show registrations in the past 24 hours</li>
           <li>Show device statuses</li>

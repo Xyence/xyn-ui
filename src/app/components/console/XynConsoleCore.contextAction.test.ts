@@ -66,6 +66,13 @@ describe("buildUiActionFromPrompt", () => {
     expect(action?.action.params.dataset).toBe("ems_registrations");
   });
 
+  it("opens runs dataset for platform command", () => {
+    const action = buildUiActionFromPrompt("show runs", artifactsTableContext());
+    expect(action?.type).toBe("ui.action");
+    expect(action?.action.name).toBe("canvas.open_table");
+    expect(action?.action.params.dataset).toBe("runs");
+  });
+
   it("opens detail tab action when current context is detail", () => {
     const action = buildUiActionFromPrompt("show raw", artifactDetailContext());
     expect(action).toEqual({
@@ -91,6 +98,7 @@ describe("buildUiActionFromPrompt", () => {
           open_detail: true,
           entity_type: "artifact",
           entity_id: "core.authn-jwt",
+          dataset: "artifacts",
         },
       },
     });

@@ -615,6 +615,12 @@ export async function listWorkspaces(): Promise<WorkspaceListResponse> {
   return handle<WorkspaceListResponse>(response);
 }
 
+export async function listWorkspacesCanvasApi(): Promise<WorkspaceListResponse> {
+  const apiBaseUrl = resolveApiBaseUrl();
+  const response = await apiFetch(`${apiBaseUrl}/api/workspaces`, { credentials: "include" });
+  return handle<WorkspaceListResponse>(response);
+}
+
 export async function createWorkspace(payload: {
   name: string;
   slug?: string;
@@ -3645,6 +3651,32 @@ export async function listRuns(
   return handle<RunListResponse>(response);
 }
 
+export async function listRunsCanvasApi(
+  entity?: string,
+  status?: string,
+  query?: string,
+  page?: number,
+  pageSize?: number
+): Promise<RunListResponse> {
+  const apiBaseUrl = resolveApiBaseUrl();
+  const url = new URL(`${apiBaseUrl}/api/runs`);
+  url.searchParams.set("page_size", String(pageSize ?? 50));
+  if (page) {
+    url.searchParams.set("page", String(page));
+  }
+  if (entity) {
+    url.searchParams.set("entity", entity);
+  }
+  if (status) {
+    url.searchParams.set("status", status);
+  }
+  if (query) {
+    url.searchParams.set("q", query);
+  }
+  const response = await apiFetch(url.toString(), { credentials: "include" });
+  return handle<RunListResponse>(response);
+}
+
 export async function listReleases(
   blueprintId?: string,
   status?: string,
@@ -3782,6 +3814,14 @@ export async function updateRelease(id: string, payload: Partial<ReleaseSummary>
 export async function getRun(id: string): Promise<RunDetail> {
   const apiBaseUrl = resolveApiBaseUrl();
   const response = await apiFetch(`${apiBaseUrl}/xyn/api/runs/${id}`, {
+    credentials: "include",
+  });
+  return handle<RunDetail>(response);
+}
+
+export async function getRunCanvasApi(id: string): Promise<RunDetail> {
+  const apiBaseUrl = resolveApiBaseUrl();
+  const response = await apiFetch(`${apiBaseUrl}/api/runs/${id}`, {
     credentials: "include",
   });
   return handle<RunDetail>(response);

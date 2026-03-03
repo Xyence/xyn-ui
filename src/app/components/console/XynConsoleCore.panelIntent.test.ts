@@ -3,6 +3,63 @@ import { resolvePanelCommand } from "./XynConsoleCore";
 
 describe("resolvePanelCommand", () => {
   it("parses list namespace artifacts", () => {
+    expect(resolvePanelCommand("open platform settings")).toEqual({
+      panelKey: "platform_settings",
+      params: {},
+    });
+    expect(resolvePanelCommand("list workspaces")).toEqual({
+      panelKey: "workspaces",
+      params: {
+        query: {
+          entity: "workspaces",
+          filters: [],
+          sort: [{ field: "name", dir: "asc" }],
+          limit: 50,
+          offset: 0,
+        },
+      },
+    });
+    expect(resolvePanelCommand("show runs")).toEqual({
+      panelKey: "runs",
+      params: {
+        query: {
+          entity: "runs",
+          filters: [],
+          sort: [{ field: "created_at", dir: "desc" }],
+          limit: 50,
+          offset: 0,
+        },
+      },
+    });
+    expect(resolvePanelCommand("show recent runs")).toEqual({
+      panelKey: "runs",
+      params: {
+        query: {
+          entity: "runs",
+          filters: [{ field: "created_at", op: "gte", value: "now-24h" }],
+          sort: [{ field: "created_at", dir: "desc" }],
+          limit: 50,
+          offset: 0,
+        },
+      },
+    });
+    expect(resolvePanelCommand("show failed runs")).toEqual({
+      panelKey: "runs",
+      params: {
+        query: {
+          entity: "runs",
+          filters: [{ field: "status", op: "eq", value: "failed" }],
+          sort: [{ field: "created_at", dir: "desc" }],
+          limit: 50,
+          offset: 0,
+        },
+      },
+    });
+    expect(resolvePanelCommand("describe run 123e4567-e89b-12d3-a456-426614174000")).toEqual({
+      panelKey: "run_detail",
+      params: { run_id: "123e4567-e89b-12d3-a456-426614174000" },
+    });
+
     expect(resolvePanelCommand("list core artifacts")).toEqual({
       panelKey: "artifact_list",
       params: { namespace: "core" },

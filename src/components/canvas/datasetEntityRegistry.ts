@@ -8,6 +8,7 @@ const DATASET_ENTITY_MAP: Record<string, string> = {
   artifacts: "artifact",
   ems_devices: "device",
   ems_registrations: "registration",
+  runs: "run",
   workspaces: "workspace",
 };
 

@@ -31,6 +31,10 @@ export default function WorkbenchPage() {
 
   const suggestions = [
     "List core artifacts",
+    "Open platform settings",
+    "List workspaces",
+    "Show runs",
+    "Show failed runs",
     "Show installed artifacts",
     "Open artifact core.authn-jwt",
     "Edit artifact core.authn-jwt raw",

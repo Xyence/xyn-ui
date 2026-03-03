@@ -6,6 +6,7 @@ describe("datasetEntityRegistry", () => {
     expect(getEntityTypeForDataset("artifacts")).toBe("artifact");
     expect(getEntityTypeForDataset("ems_devices")).toBe("device");
     expect(getEntityTypeForDataset("ems_registrations")).toBe("registration");
+    expect(getEntityTypeForDataset("runs")).toBe("run");
     expect(getEntityTypeForDataset("workspaces")).toBe("workspace");
   });
 

@@ -3,6 +3,7 @@ import { useLocation, useNavigate } from "react-router-dom";
 import { AlertTriangle, CheckCircle2, CircleHelp, Wrench } from "lucide-react";
 import { getRecentArtifacts } from "../../../api/xyn";
 import type { RecentArtifactItem, XynIntentResolutionResult } from "../../../api/types";
+import { getEntityTypeForDataset } from "../../../components/canvas/datasetEntityRegistry";
 import { toWorkspacePath } from "../../routing/workspaceRouting";
 import { useXynConsole } from "../../state/xynConsoleStore";
 import RecentArtifactsMiniTable from "./RecentArtifactsMiniTable";
@@ -28,6 +29,10 @@ type ArtifactStructuredQuery = {
 
 type ResolvedPanelCommand =
   | { panelKey: "artifact_list"; params: { namespace?: string; query?: ArtifactStructuredQuery; query_error?: string } }
+  | { panelKey: "workspaces"; params: { query?: Record<string, unknown>; query_error?: string } }
+  | { panelKey: "runs"; params: { query?: Record<string, unknown>; query_error?: string } }
+  | { panelKey: "run_detail"; params: { run_id: string } }
+  | { panelKey: "platform_settings"; params: { workspace_id?: string } }
   | { panelKey: "artifact_detail"; params: { slug: string } }
   | { panelKey: "artifact_raw_json"; params: { slug: string } }
   | { panelKey: "artifact_files"; params: { slug: string } }
@@ -104,6 +109,69 @@ export function resolvePanelCommand(input: string): ResolvedPanelCommand | null 
   }
   if (/^list\s+artifacts$/.test(normalized) || /^show\s+artifacts$/.test(normalized)) {
     return { panelKey: "artifact_list", params: {} };
+  }
+  if (/^open\s+platform\s+settings$/.test(normalized)) {
+    return { panelKey: "platform_settings", params: {} };
+  }
+  if (/^list\s+workspaces$/.test(normalized)) {
+    return {
+      panelKey: "workspaces",
+      params: {
+        query: {
+          entity: "workspaces",
+          filters: [],
+          sort: [{ field: "name", dir: "asc" }],
+          limit: 50,
+          offset: 0,
+        },
+      },
+    };
+  }
+  if (/^show\s+runs$/.test(normalized)) {
+    return {
+      panelKey: "runs",
+      params: {
+        query: {
+          entity: "runs",
+          filters: [],
+          sort: [{ field: "created_at", dir: "desc" }],
+          limit: 50,
+          offset: 0,
+        },
+      },
+    };
+  }
+  if (/^show\s+recent\s+runs$/.test(normalized)) {
+    return {
+      panelKey: "runs",
+      params: {
+        query: {
+          entity: "runs",
+          filters: [{ field: "created_at", op: "gte", value: "now-24h" }],
+          sort: [{ field: "created_at", dir: "desc" }],
+          limit: 50,
+          offset: 0,
+        },
+      },
+    };
+  }
+  if (/^show\s+failed\s+runs$/.test(normalized)) {
+    return {
+      panelKey: "runs",
+      params: {
+        query: {
+          entity: "runs",
+          filters: [{ field: "status", op: "eq", value: "failed" }],
+          sort: [{ field: "created_at", dir: "desc" }],
+          limit: 50,
+          offset: 0,
+        },
+      },
+    };
+  }
+  match = normalized.match(/^describe\s+run\s+([a-z0-9-]+)$/);
+  if (match && match[1]) {
+    return { panelKey: "run_detail", params: { run_id: match[1] } };
   }
   if (/^show\s+installed\s+artifacts$/.test(normalized)) {
     return {
@@ -303,6 +371,8 @@ function inferSearchField(context: ConsoleCanvasContext): string {
 }
 
 function panelKeyForDataset(dataset: string): ResolvedPanelCommand["panelKey"] {
+  if (dataset === "workspaces") return "workspaces";
+  if (dataset === "runs") return "runs";
   if (dataset === "artifacts") return "artifact_list";
   if (dataset === "ems_devices") return "ems_devices";
   if (dataset === "ems_registrations") return "ems_registrations";
@@ -312,6 +382,12 @@ function panelKeyForDataset(dataset: string): ResolvedPanelCommand["panelKey"] {
 }
 
 function defaultQueryForDataset(dataset: string): Record<string, unknown> {
+  if (dataset === "workspaces") {
+    return { entity: "workspaces", filters: [], sort: [{ field: "name", dir: "asc" }], limit: 50, offset: 0 };
+  }
+  if (dataset === "runs") {
+    return { entity: "runs", filters: [], sort: [{ field: "created_at", dir: "desc" }], limit: 50, offset: 0 };
+  }
   if (dataset === "ems_devices") {
     return { entity: "ems_devices", filters: [], sort: [{ field: "updated_at", dir: "desc" }], limit: 50, offset: 0 };
   }
@@ -337,7 +413,12 @@ export function buildUiActionFromPrompt(rawPrompt: string, canvasContext: Consol
 
   const directPanel = resolvePanelCommand(prompt);
   if (directPanel) {
-    const dataset =
+      const dataset =
+      directPanel.panelKey === "workspaces"
+        ? "workspaces"
+        : directPanel.panelKey === "runs"
+          ? "runs"
+          :
       directPanel.panelKey === "artifact_list"
         ? "artifacts"
         : directPanel.panelKey === "ems_devices"
@@ -379,6 +460,34 @@ export function buildUiActionFromPrompt(rawPrompt: string, canvasContext: Consol
             entity_id: directPanel.params.slug,
             open_in: "new_panel",
             placement: "right",
+          },
+        },
+      };
+    }
+    if (directPanel.panelKey === "run_detail" && directPanel.params.run_id) {
+      return {
+        type: "ui.action",
+        action: {
+          name: "canvas.open_detail",
+          params: {
+            entity_type: "run",
+            entity_id: directPanel.params.run_id,
+            open_in: "new_panel",
+            placement: "right",
+          },
+        },
+      };
+    }
+    if (directPanel.panelKey === "platform_settings") {
+      return {
+        type: "ui.action",
+        action: {
+          name: "canvas.open_detail",
+          params: {
+            entity_type: "platform_settings",
+            entity_id: "current",
+            open_in: "current_panel",
+            placement: "center",
           },
         },
       };
@@ -573,11 +682,12 @@ export function buildUiActionFromPrompt(rawPrompt: string, canvasContext: Consol
   }
 
   match = normalized.match(/^open\s+row\s+(\d+)$/);
-  if (match && match[1] && activeDataset === "artifacts") {
+  if (match && match[1]) {
     const idx = Math.max(1, Number(match[1])) - 1;
     const rowOrder = canvasContext?.selection?.row_order_ids || [];
     const rowId = rowOrder[idx];
     if (!rowId) return null;
+    const entityType = getEntityTypeForDataset(activeDataset) || "record";
     return {
       type: "ui.action",
       action: {
@@ -587,23 +697,26 @@ export function buildUiActionFromPrompt(rawPrompt: string, canvasContext: Consol
           row_ids: [rowId],
           focused_row_id: rowId,
           open_detail: true,
-          entity_type: "artifact",
+          entity_type: entityType,
           entity_id: rowId,
+          dataset: activeDataset,
         },
       },
     };
   }
 
   match = rawPrompt.match(/^open\s+([a-z0-9_.:-]+)$/i);
-  if (match && match[1] && activeDataset === "artifacts") {
+  if (match && match[1]) {
     const id = String(match[1]).trim();
+    const entityType = getEntityTypeForDataset(activeDataset) || "record";
     return {
       type: "ui.action",
       action: {
         name: "canvas.open_detail",
         params: {
-          entity_type: "artifact",
+          entity_type: entityType,
           entity_id: id,
+          dataset: activeDataset,
           open_in: "new_panel",
           placement: "right",
         },
@@ -818,7 +931,7 @@ function ResolutionCard({
             type="button"
             className="ghost sm"
             onClick={() =>
-              navigate(workspaceId ? toWorkspacePath(workspaceId, `build/artifacts/${resolution.artifact_id}`) : `/app/artifacts/${resolution.artifact_id}`)
+              navigate(workspaceId ? toWorkspacePath(workspaceId, `build/artifacts/${resolution.artifact_id}`) : "/")
             }
           >
             Open in editor
@@ -1011,12 +1124,63 @@ export default function XynConsoleCore({ mode, onRequestClose, onOpenPanel }: Pr
         return;
       }
       if (action.name === "canvas.open_detail") {
+        if (String(action.params.entity_type || "") === "platform_settings") {
+          openPanel({
+            key: "platform_settings",
+            params: { workspace_id: String(location.pathname.match(/^\/w\/([^/]+)(?:\/|$)/)?.[1] || "") },
+            open_in: (action.params.open_in as "current_panel" | "new_panel" | "side_by_side" | undefined) || "current_panel",
+          });
+          clearSessionResolution();
+          if (isOverlay) setOpen(false);
+          return;
+        }
+        if (String(action.params.entity_type || "") === "run") {
+          const runId = String(action.params.entity_id || "").trim();
+          if (runId) {
+            openPanel({
+              key: "run_detail",
+              params: { run_id: runId },
+              open_in: (action.params.open_in as "current_panel" | "new_panel" | "side_by_side" | undefined) || "new_panel",
+            });
+            clearSessionResolution();
+            if (isOverlay) setOpen(false);
+            return;
+          }
+        }
         if (String(action.params.entity_type || "") === "artifact") {
           const slug = String(action.params.entity_id || "").trim();
           if (slug) {
             openPanel({
               key: "artifact_detail",
               params: { slug, tab: String(action.params.tab || "overview") },
+              open_in: (action.params.open_in as "current_panel" | "new_panel" | "side_by_side" | undefined) || "new_panel",
+            });
+            clearSessionResolution();
+            if (isOverlay) setOpen(false);
+            return;
+          }
+        }
+        if (String(action.params.entity_type || "") === "workspace") {
+          const workspaceId = String(action.params.entity_id || "").trim();
+          openPanel({
+            key: "platform_settings",
+            params: { workspace_id: workspaceId },
+            open_in: (action.params.open_in as "current_panel" | "new_panel" | "side_by_side" | undefined) || "new_panel",
+          });
+          clearSessionResolution();
+          if (isOverlay) setOpen(false);
+          return;
+        }
+        if (String(action.params.entity_type || "") === "record") {
+          const entityId = String(action.params.entity_id || "").trim();
+          if (entityId) {
+            openPanel({
+              key: "record_detail",
+              params: {
+                entity_type: "record",
+                entity_id: entityId,
+                dataset: String(action.params.dataset || ""),
+              },
               open_in: (action.params.open_in as "current_panel" | "new_panel" | "side_by_side" | undefined) || "new_panel",
             });
             clearSessionResolution();
@@ -1040,10 +1204,28 @@ export default function XynConsoleCore({ mode, onRequestClose, onOpenPanel }: Pr
           selected_row_ids: rowIds,
           focused_row_id: action.params.focused_row_id || null,
         });
-        if (action.params.open_detail && String(action.params.entity_type || "") === "artifact") {
+        if (action.params.open_detail) {
           const entityId = String(action.params.entity_id || "").trim();
-          if (entityId) {
+          const entityType = String(action.params.entity_type || "").trim();
+          if (entityId && entityType === "artifact") {
             openPanel({ key: "artifact_detail", params: { slug: entityId }, open_in: "new_panel" });
+          }
+          if (entityId && entityType === "run") {
+            openPanel({ key: "run_detail", params: { run_id: entityId }, open_in: "new_panel" });
+          }
+          if (entityId && entityType === "workspace") {
+            openPanel({ key: "platform_settings", params: { workspace_id: entityId }, open_in: "new_panel" });
+          }
+          if (entityId && entityType === "record") {
+            openPanel({
+              key: "record_detail",
+              params: {
+                entity_type: "record",
+                entity_id: entityId,
+                dataset: String(action.params.dataset || ""),
+              },
+              open_in: "new_panel",
+            });
           }
         }
         clearSessionResolution();
