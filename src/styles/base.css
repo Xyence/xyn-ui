@@ -3372,6 +3372,31 @@ button.sm {
   grid-template-columns: minmax(0, 1fr);
 }
 
+.workbench-start-card {
+  min-height: 220px;
+  justify-content: center;
+  align-items: center;
+  text-align: center;
+}
+
+.workbench-suggestion-grid {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: center;
+  gap: 10px;
+  max-width: 980px;
+}
+
+.workbench-suggestion-chip {
+  white-space: nowrap;
+}
+
+.workbench-canvas {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
 .app-breadcrumbs {
   display: inline-flex;
   align-items: center;

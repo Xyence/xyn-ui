@@ -1,47 +1,75 @@
-import { useEffect, useState } from "react";
+import { useEffect } from "react";
 import { Link, useParams } from "react-router-dom";
 import EmsPanelHost, { type ConsolePanelKey, type ConsolePanelSpec } from "../components/console/EmsPanelHost";
-import XynConsoleCore from "../components/console/XynConsoleCore";
 import { useXynConsole } from "../state/xynConsoleStore";
 import { toWorkspacePath } from "../routing/workspaceRouting";
 
 export default function WorkbenchPage() {
-  const { setContext } = useXynConsole();
+  const { setContext, setOpen, setInputText, activePanel, setActivePanel } = useXynConsole();
   const params = useParams();
   const workspaceId = String(params.workspaceId || "").trim();
-  const [panel, setPanel] = useState<ConsolePanelSpec | null>(null);
+  const panel = (activePanel ? { key: activePanel.key as ConsolePanelKey, params: activePanel.params || {} } : null) as ConsolePanelSpec | null;
 
   useEffect(() => {
     setContext({ artifact_id: null, artifact_type: null });
   }, [setContext]);
+
+  const suggestions = [
+    "List core artifacts",
+    "Show installed artifacts",
+    "Open artifact core.authn-jwt",
+    "Edit artifact core.authn-jwt raw",
+    "Create EMS instance for ACME Co. FQDN ems.xyence.io",
+    "Show unregistered devices",
+  ];
+
+  const handleSuggestion = (prompt: string) => {
+    setInputText(prompt);
+    setOpen(true);
+  };
 
   return (
     <>
       <div className="page-header">
         <div>
           <h2>Workbench</h2>
-          <p className="muted">Console-first workspace runtime with panel outputs.</p>
+          <p className="muted">Panel-based runtime canvas. Use the Xyn button (top-right) or Cmd/Ctrl+K.</p>
         </div>
         <div className="inline-actions">
+          <button type="button" className="primary" onClick={() => setOpen(true)}>
+            Open prompt
+          </button>
           <Link className="ghost" to={toWorkspacePath(workspaceId, "console")}>
             Open legacy console
           </Link>
         </div>
       </div>
 
-      <section className="xyn-initiate-split">
-        <div className="card xyn-initiate-console">
-          <XynConsoleCore
-            mode="page"
-            onOpenPanel={(panelKey, nextParams) =>
-              setPanel({
-                key: panelKey as ConsolePanelKey,
-                params: nextParams || {},
-              })
-            }
-          />
+      {!panel ? (
+        <section className="card workbench-start-card">
+          <h3>Start</h3>
+          <p className="muted">Pick a suggested command or open the prompt overlay to run anything.</p>
+          <div className="workbench-suggestion-grid">
+            {suggestions.map((entry) => (
+              <button key={entry} type="button" className="ghost workbench-suggestion-chip" onClick={() => handleSuggestion(entry)}>
+                {entry}
+              </button>
+            ))}
+          </div>
+        </section>
+      ) : null}
+
+      <section className="workbench-canvas">
+        <div className="inline-actions" style={{ justifyContent: "flex-end" }}>
+          <button type="button" className="ghost" onClick={() => setActivePanel(null)}>
+            Clear panel
+          </button>
         </div>
-        <EmsPanelHost panel={panel} workspaceId={workspaceId} onOpenPanel={setPanel} />
+        <EmsPanelHost
+          panel={panel}
+          workspaceId={workspaceId}
+          onOpenPanel={(next) => setActivePanel({ key: next.key, params: next.params || {} })}
+        />
       </section>
     </>
   );

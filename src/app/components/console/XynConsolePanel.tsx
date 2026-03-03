@@ -3,7 +3,7 @@ import { useXynConsole } from "../../state/xynConsoleStore";
 import XynConsoleCore from "./XynConsoleCore";
 
 export default function XynConsolePanel() {
-  const { open, setOpen, pendingCloseBlock } = useXynConsole();
+  const { open, setOpen, pendingCloseBlock, setActivePanel } = useXynConsole();
   const panelRef = useRef<HTMLElement | null>(null);
 
   useEffect(() => {
@@ -22,7 +22,14 @@ export default function XynConsolePanel() {
 
   return (
     <section className="xyn-console-panel" ref={panelRef} role="dialog" aria-label="Xyn Console">
-      <XynConsoleCore mode="overlay" onRequestClose={() => setOpen(false)} />
+      <XynConsoleCore
+        mode="overlay"
+        onRequestClose={() => setOpen(false)}
+        onOpenPanel={(panelKey, params) => {
+          setActivePanel({ key: panelKey, params: params || {} });
+          setOpen(false);
+        }}
+      />
     </section>
   );
 }

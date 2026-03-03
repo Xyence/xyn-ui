@@ -11,6 +11,10 @@ describe("resolvePanelCommand", () => {
       panelKey: "artifact_list",
       params: { namespace: "ore" },
     });
+    expect(resolvePanelCommand("show installed artifacts")).toEqual({
+      panelKey: "artifact_list",
+      params: {},
+    });
   });
 
   it("parses artifact detail/raw/files commands", () => {

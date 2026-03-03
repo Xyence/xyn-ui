@@ -33,6 +33,11 @@ type PersistedSessions = Record<string, ConsoleSessionState>;
 
 type ProcessingStep = "resolving" | "classifying" | "validating";
 
+type ActivePanelState = {
+  key: string;
+  params?: Record<string, unknown>;
+} | null;
+
 export type ConsoleArtifactHint = {
   artifact_id: string;
   artifact_type: string;
@@ -179,6 +184,8 @@ type XynConsoleContextValue = {
   handleRouteChange: (pathname: string) => void;
   lastArtifactHint: ConsoleArtifactHint | null;
   setLastArtifactHint: (hint: ConsoleArtifactHint | null) => void;
+  activePanel: ActivePanelState;
+  setActivePanel: (panel: ActivePanelState) => void;
 };
 
 const XynConsoleContext = createContext<XynConsoleContextValue | null>(null);
@@ -197,6 +204,7 @@ export function XynConsoleProvider({ children }: { children: ReactNode }) {
   const [processingStep, setProcessingStep] = useState<ProcessingStep | null>(null);
   const [pendingCloseBlock, setPendingCloseBlock] = useState(false);
   const [lastArtifactHint, setLastArtifactHintState] = useState<ConsoleArtifactHint | null>(() => readArtifactHint());
+  const [activePanel, setActivePanel] = useState<ActivePanelState>(null);
   const editorBridgesRef = useRef<Record<string, ConsoleEditorBridge>>({});
 
   const contextKey = useMemo(() => toContextKey(context), [context]);
@@ -615,6 +623,8 @@ export function XynConsoleProvider({ children }: { children: ReactNode }) {
       handleRouteChange,
       lastArtifactHint,
       setLastArtifactHint,
+      activePanel,
+      setActivePanel,
     }),
     [
       open,
@@ -645,6 +655,8 @@ export function XynConsoleProvider({ children }: { children: ReactNode }) {
       handleRouteChange,
       lastArtifactHint,
       setLastArtifactHint,
+      activePanel,
+      setActivePanel,
     ]
   );
 

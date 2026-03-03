@@ -188,8 +188,7 @@ export default function AppShell() {
   const { runningAiCount } = useOperations();
   const { preview, disablePreviewMode } = usePreview();
   const { handleRouteChange } = useXynConsole();
-  const hideFloatingConsoleNode =
-    location.pathname === "/app/console" || location.pathname.includes("/console") || location.pathname.includes("/workbench");
+  const hideFloatingConsoleNode = location.pathname === "/app/console" || location.pathname.includes("/console");
   const workspaceRoute = useWorkspaceFromRoute(workspaces);
   const workspaceIdFromRoute = workspaceRoute.workspaceId;
   const activeWorkspaceId = workspaceIdFromRoute || preferredWorkspaceId;

@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useRef, useState, type KeyboardEvent as ReactKeyboardEvent } from "react";
-import { useNavigate } from "react-router-dom";
+import { useLocation, useNavigate } from "react-router-dom";
 import { AlertTriangle, CheckCircle2, CircleHelp, Wrench } from "lucide-react";
 import { getRecentArtifacts } from "../../../api/xyn";
 import type { RecentArtifactItem, XynIntentResolutionResult } from "../../../api/types";
@@ -36,6 +36,9 @@ export function resolvePanelCommand(input: string): ResolvedPanelCommand | null 
     return { panelKey: "artifact_list", params: { namespace: match[1] } };
   }
   if (/^list\s+artifacts$/.test(normalized)) {
+    return { panelKey: "artifact_list", params: {} };
+  }
+  if (/^show\s+installed\s+artifacts$/.test(normalized)) {
     return { panelKey: "artifact_list", params: {} };
   }
   match = normalized.match(/^open\s+artifact\s+([a-z0-9_.-]+)$/);
@@ -281,6 +284,7 @@ function ResolutionCard({
 
 export default function XynConsoleCore({ mode, onRequestClose, onOpenPanel }: Props) {
   const navigate = useNavigate();
+  const location = useLocation();
   const {
     open,
     setOpen,
@@ -309,6 +313,7 @@ export default function XynConsoleCore({ mode, onRequestClose, onOpenPanel }: Pr
 
   const isOverlay = mode === "overlay";
   const isSurfaceVisible = isOverlay ? open : true;
+  const isWorkbenchPath = /\/(?:w\/[^/]+\/)?workbench\/?$/.test(location.pathname);
   const hasContextArtifact = Boolean(context.artifact_id && context.artifact_type);
   const isGlobalContext = !hasContextArtifact;
 
@@ -343,6 +348,7 @@ export default function XynConsoleCore({ mode, onRequestClose, onOpenPanel }: Pr
 
   const shouldShowRecent =
     isSurfaceVisible &&
+    !isWorkbenchPath &&
     isGlobalContext &&
     !session.pendingProposal;
 
