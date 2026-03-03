@@ -69,9 +69,13 @@ export default function PublicShell() {
                 );
               })}
             </nav>
-            {!authenticated && (
-              <a className="primary" href={`/auth/login?appId=xyn-ui&returnTo=${encodeURIComponent("/app")}`}>
-                Login
+            {authenticated ? (
+              <Link className="primary" to="/open-console">
+                Open Console
+              </Link>
+            ) : (
+              <a className="primary" href={`/auth/login?appId=xyn-ui&returnTo=${encodeURIComponent("/open-console")}`}>
+                Sign in
               </a>
             )}
           </div>

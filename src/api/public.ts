@@ -73,9 +73,13 @@ export async function fetchPublicArticle(slug: string, surfacePath = "/articles"
 
 export async function checkAuthenticated(): Promise<boolean> {
   const apiBaseUrl = resolveApiBaseUrl();
-  const response = await fetch(`${apiBaseUrl}/xyn/api/provision/instances`, {
+  const response = await fetch(`${apiBaseUrl}/xyn/api/auth/session-check`, {
     credentials: "include",
     headers: { ...authHeaders() },
+    redirect: "manual",
   });
+  if (response.status === 0 || response.status === 302 || response.status === 307 || response.status === 308) {
+    return false;
+  }
   return response.ok;
 }

@@ -7,6 +7,7 @@ import PublicShell from "./public/PublicShell";
 import PageRoute from "./public/pages/PageRoute";
 import ArticlesIndex from "./public/pages/ArticlesIndex";
 import ArticleDetail from "./public/pages/ArticleDetail";
+import HomePage from "./public/pages/HomePage";
 import { resolveApiBaseUrl } from "./api/client";
 
 function WorkspaceAuthLoginBridge() {
@@ -43,17 +44,21 @@ function WorkspacesEntry() {
   return <AppShell />;
 }
 
+function OpenConsoleBridge() {
+  return <RootRedirect />;
+}
+
 export default function App() {
   return (
     <Routes>
-      <Route path="/" element={<RootRedirect />} />
       <Route path="/w/:workspaceId/auth/login" element={<WorkspaceAuthLoginBridge />} />
       <Route path="/w/:workspaceId/auth/callback" element={<WorkspaceAuthCallbackBridge />} />
       <Route path="/w/:workspaceId/*" element={<AppShell />} />
       <Route path="/workspaces" element={<WorkspacesEntry />} />
+      <Route path="/open-console" element={<OpenConsoleBridge />} />
       <Route path="/app/*" element={<LegacyAppRedirect />} />
       <Route path="/*" element={<PublicShell />}>
-        <Route index element={<RootRedirect />} />
+        <Route index element={<HomePage />} />
         <Route path="articles" element={<ArticlesIndex />} />
         <Route path="articles/:slug" element={<ArticleDetail />} />
         <Route path=":category/:slug" element={<ArticleDetail />} />
