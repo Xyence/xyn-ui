@@ -104,8 +104,6 @@ export default function CanvasTable({ payload, query, onSort, onRowActivate, onO
                   onClick={() => {
                     setSelectedRowId(rowId);
                     onRowActivate?.(rowId, row.original);
-                  }}
-                  onDoubleClick={() => {
                     if (onOpenDetail) openDetailForRow(row.original);
                   }}
                 >

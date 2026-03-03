@@ -4,6 +4,9 @@
     "name": "xyn-ui",
     "version": "phase1"
   },
+  "capability": {
+    "visibility": "hidden"
+  },
   "roles": [
     {
       "role": "ui_mount",

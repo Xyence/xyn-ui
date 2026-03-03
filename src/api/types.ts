@@ -938,9 +938,18 @@ export type ArtifactManifestSurfaceEntry = {
   group?: string;
 };
 
+export type ArtifactCapability = {
+  visibility: "capabilities" | "platform" | "hidden" | string;
+  label?: string;
+  category?: "application" | "integration" | "platform" | "library" | string;
+  order?: number;
+  icon?: string;
+};
+
 export type ArtifactManifestSummary = {
   roles: string[];
   ui_mount_scope?: "global" | "workspace" | string;
+  capability?: ArtifactCapability;
   surfaces: {
     nav: ArtifactManifestSurfaceEntry[];
     manage: ArtifactManifestSurfaceEntry[];
@@ -960,6 +969,7 @@ export type WorkspaceInstalledArtifactSummary = {
   version?: number;
   slug?: string;
   manifest_summary?: ArtifactManifestSummary;
+  capability?: ArtifactCapability;
   updated_at?: string;
 };
 
@@ -972,6 +982,7 @@ export type CatalogArtifactSummary = {
   version?: number | string | null;
   updated_at?: string;
   manifest_summary: ArtifactManifestSummary;
+  capability?: ArtifactCapability;
 };
 
 export type ArtifactSummary = {

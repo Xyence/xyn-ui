@@ -4,6 +4,9 @@
     "name": "Hello App",
     "version": "phase1c"
   },
+  "capability": {
+    "visibility": "hidden"
+  },
   "surfaces": {
     "nav": [
       {
