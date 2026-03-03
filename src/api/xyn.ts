@@ -148,6 +148,7 @@ import type {
   EmsStatusCountsResponse,
   ArtifactStructuredQuery,
   ArtifactCanvasTableResponse,
+  CanvasTableResponse,
   ArtifactConsoleListResponse,
   ArtifactConsoleDetailResponse,
   ArtifactConsoleFilesResponse,
@@ -306,6 +307,80 @@ export async function getEmsStatusCounts(): Promise<EmsStatusCountsResponse> {
     headers: buildHeaders(),
   });
   return handle<EmsStatusCountsResponse>(response);
+}
+
+export async function queryEmsDevicesCanvasTable(params: {
+  query: {
+    entity: "ems_devices";
+    filters: Array<{ field: string; op: string; value: unknown }>;
+    sort: Array<{ field: string; dir: "asc" | "desc" }>;
+    limit: number;
+    offset: number;
+  };
+}): Promise<CanvasTableResponse> {
+  const apiBaseUrl = resolveApiBaseUrl();
+  const url = new URL(`${apiBaseUrl}/api/ems/devices`);
+  url.searchParams.set("filters", JSON.stringify(params.query.filters || []));
+  url.searchParams.set("sort", JSON.stringify(params.query.sort || []));
+  url.searchParams.set("limit", String(params.query.limit || 50));
+  url.searchParams.set("offset", String(params.query.offset || 0));
+  const response = await apiFetch(url.toString(), {
+    credentials: "include",
+    headers: buildHeaders(),
+  });
+  return handle<CanvasTableResponse>(response);
+}
+
+export async function queryEmsRegistrationsCanvasTable(params: {
+  query: {
+    entity: "ems_registrations";
+    filters: Array<{ field: string; op: string; value: unknown }>;
+    sort: Array<{ field: string; dir: "asc" | "desc" }>;
+    limit: number;
+    offset: number;
+  };
+}): Promise<CanvasTableResponse> {
+  const apiBaseUrl = resolveApiBaseUrl();
+  const url = new URL(`${apiBaseUrl}/api/ems/registrations`);
+  url.searchParams.set("filters", JSON.stringify(params.query.filters || []));
+  url.searchParams.set("sort", JSON.stringify(params.query.sort || []));
+  url.searchParams.set("limit", String(params.query.limit || 50));
+  url.searchParams.set("offset", String(params.query.offset || 0));
+  const response = await apiFetch(url.toString(), {
+    credentials: "include",
+    headers: buildHeaders(),
+  });
+  return handle<CanvasTableResponse>(response);
+}
+
+export async function getEmsStatusRollupCanvasTable(): Promise<CanvasTableResponse> {
+  const apiBaseUrl = resolveApiBaseUrl();
+  const response = await apiFetch(`${apiBaseUrl}/api/ems/reports/device-status-rollup`, {
+    credentials: "include",
+    headers: buildHeaders(),
+  });
+  return handle<CanvasTableResponse>(response);
+}
+
+export async function getEmsRegistrationsTimeseriesCanvasTable(params?: { range?: string; bucket?: string }): Promise<CanvasTableResponse> {
+  const apiBaseUrl = resolveApiBaseUrl();
+  const url = new URL(`${apiBaseUrl}/api/ems/reports/registrations-timeseries`);
+  if (params?.range) url.searchParams.set("range", params.range);
+  if (params?.bucket) url.searchParams.set("bucket", params.bucket);
+  const response = await apiFetch(url.toString(), {
+    credentials: "include",
+    headers: buildHeaders(),
+  });
+  return handle<CanvasTableResponse>(response);
+}
+
+export async function getEmsDatasetSchemaTable(dataset: string): Promise<CanvasTableResponse> {
+  const apiBaseUrl = resolveApiBaseUrl();
+  const response = await apiFetch(`${apiBaseUrl}/api/ems/datasets/${encodeURIComponent(dataset)}/schema`, {
+    credentials: "include",
+    headers: buildHeaders(),
+  });
+  return handle<CanvasTableResponse>(response);
 }
 
 export async function listArtifactConsole(params?: {

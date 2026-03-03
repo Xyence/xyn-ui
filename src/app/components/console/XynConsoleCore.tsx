@@ -31,9 +31,11 @@ type ResolvedPanelCommand =
   | { panelKey: "artifact_detail"; params: { slug: string } }
   | { panelKey: "artifact_raw_json"; params: { slug: string } }
   | { panelKey: "artifact_files"; params: { slug: string } }
-  | { panelKey: "ems_unregistered_devices"; params: Record<string, never> }
-  | { panelKey: "ems_registrations_time"; params: { hours: number } }
-  | { panelKey: "ems_device_statuses"; params: Record<string, never> };
+  | { panelKey: "ems_devices"; params: { query?: Record<string, unknown>; query_error?: string } }
+  | { panelKey: "ems_registrations"; params: { query?: Record<string, unknown>; query_error?: string } }
+  | { panelKey: "ems_device_status_rollup"; params: Record<string, never> }
+  | { panelKey: "ems_registrations_timeseries"; params: { hours: number } }
+  | { panelKey: "ems_dataset_schema"; params: { dataset: string } };
 
 function defaultArtifactStructuredQuery(): ArtifactStructuredQuery {
   return {
@@ -125,15 +127,86 @@ export function resolvePanelCommand(input: string): ResolvedPanelCommand | null 
     return { panelKey: "artifact_files", params: { slug: match[1] } };
   }
   if (/^show\s+unregistered\s+devices$/.test(normalized)) {
-    return { panelKey: "ems_unregistered_devices", params: {} };
+    return {
+      panelKey: "ems_devices",
+      params: {
+        query: {
+          entity: "ems_devices",
+          filters: [{ field: "state", op: "eq", value: "unregistered" }],
+          sort: [{ field: "created_at", dir: "desc" }],
+          limit: 50,
+          offset: 0,
+        },
+      },
+    };
+  }
+  match = normalized.match(/^show\s+devices\s+with\s+state\s+([a-z0-9_-]+)$/);
+  if (match && match[1]) {
+    return {
+      panelKey: "ems_devices",
+      params: {
+        query: {
+          entity: "ems_devices",
+          filters: [{ field: "state", op: "eq", value: match[1] }],
+          sort: [{ field: "created_at", dir: "desc" }],
+          limit: 50,
+          offset: 0,
+        },
+      },
+    };
+  }
+  match = raw.match(/^show\s+devices\s+for\s+customer\s+(.+)$/i);
+  if (match && match[1]) {
+    const customer = String(match[1]).trim();
+    return {
+      panelKey: "ems_devices",
+      params: {
+        query: {
+          entity: "ems_devices",
+          filters: [{ field: "customer", op: "contains", value: customer }],
+          sort: [{ field: "updated_at", dir: "desc" }],
+          limit: 50,
+          offset: 0,
+        },
+      },
+    };
+  }
+  match = normalized.match(/^show\s+devices\s+with\s+([a-z0-9_-]+)\s+(.+)$/);
+  if (match && match[1]) {
+    return {
+      panelKey: "ems_devices",
+      params: {
+        query_error: "Unknown devices field. Valid fields: state, customer, workspace, model, serial, mac.",
+      },
+    };
   }
   match = normalized.match(/^show\s+registrations\s+in\s+the\s+past\s+(\d+)\s+hours?$/);
   if (match && match[1]) {
     const hours = Math.max(1, Math.min(Number(match[1]) || 24, 168));
-    return { panelKey: "ems_registrations_time", params: { hours } };
+    return {
+      panelKey: "ems_registrations",
+      params: {
+        query: {
+          entity: "ems_registrations",
+          filters: [{ field: "registered_at", op: "gte", value: `now-${hours}h` }],
+          sort: [{ field: "registered_at", dir: "desc" }],
+          limit: 50,
+          offset: 0,
+        },
+      },
+    };
   }
   if (/^show\s+device\s+statuses$/.test(normalized)) {
-    return { panelKey: "ems_device_statuses", params: {} };
+    return { panelKey: "ems_device_status_rollup", params: {} };
+  }
+  match = normalized.match(/^show\s+registrations\s+timeseries\s+last\s+(\d+)\s+hours?$/);
+  if (match && match[1]) {
+    const hours = Math.max(1, Math.min(Number(match[1]) || 24, 168));
+    return { panelKey: "ems_registrations_timeseries", params: { hours } };
+  }
+  match = normalized.match(/^describe\s+dataset\s+([a-z0-9_-]+)$/);
+  if (match && match[1]) {
+    return { panelKey: "ems_dataset_schema", params: { dataset: match[1] } };
   }
   return null;
 }

@@ -2569,6 +2569,37 @@ export type ArtifactCanvasTableResponse = {
   query: ArtifactStructuredQuery;
 };
 
+export type CanvasTableColumn = {
+  key: string;
+  label: string;
+  type: "string" | "string[]" | "integer" | "boolean" | "datetime";
+  filterable?: boolean;
+  sortable?: boolean;
+  searchable?: boolean;
+  enum?: string[];
+};
+
+export type CanvasTableQuery = {
+  entity: string;
+  filters: Array<{ field: string; op: string; value: unknown }>;
+  sort: Array<{ field: string; dir: "asc" | "desc" }>;
+  limit: number;
+  offset: number;
+};
+
+export type CanvasTableResponse = {
+  type: "canvas.table";
+  title: string;
+  dataset: {
+    name: string;
+    primary_key: string;
+    columns: CanvasTableColumn[];
+    rows: Array<Record<string, unknown>>;
+    total_count: number;
+  };
+  query: CanvasTableQuery;
+};
+
 export type ArtifactConsoleListItem = {
   id: string;
   slug: string;

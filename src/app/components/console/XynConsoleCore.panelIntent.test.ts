@@ -78,16 +78,64 @@ describe("resolvePanelCommand", () => {
 
   it("parses ems panel commands", () => {
     expect(resolvePanelCommand("show unregistered devices")).toEqual({
-      panelKey: "ems_unregistered_devices",
-      params: {},
+      panelKey: "ems_devices",
+      params: {
+        query: {
+          entity: "ems_devices",
+          filters: [{ field: "state", op: "eq", value: "unregistered" }],
+          sort: [{ field: "created_at", dir: "desc" }],
+          limit: 50,
+          offset: 0,
+        },
+      },
     });
     expect(resolvePanelCommand("show registrations in the past 24 hours")).toEqual({
-      panelKey: "ems_registrations_time",
-      params: { hours: 24 },
+      panelKey: "ems_registrations",
+      params: {
+        query: {
+          entity: "ems_registrations",
+          filters: [{ field: "registered_at", op: "gte", value: "now-24h" }],
+          sort: [{ field: "registered_at", dir: "desc" }],
+          limit: 50,
+          offset: 0,
+        },
+      },
     });
     expect(resolvePanelCommand("show device statuses")).toEqual({
-      panelKey: "ems_device_statuses",
+      panelKey: "ems_device_status_rollup",
       params: {},
+    });
+    expect(resolvePanelCommand("show devices with state offline")).toEqual({
+      panelKey: "ems_devices",
+      params: {
+        query: {
+          entity: "ems_devices",
+          filters: [{ field: "state", op: "eq", value: "offline" }],
+          sort: [{ field: "created_at", dir: "desc" }],
+          limit: 50,
+          offset: 0,
+        },
+      },
+    });
+    expect(resolvePanelCommand("show devices for customer ACME")).toEqual({
+      panelKey: "ems_devices",
+      params: {
+        query: {
+          entity: "ems_devices",
+          filters: [{ field: "customer", op: "contains", value: "ACME" }],
+          sort: [{ field: "updated_at", dir: "desc" }],
+          limit: 50,
+          offset: 0,
+        },
+      },
+    });
+    expect(resolvePanelCommand("show registrations timeseries last 12 hours")).toEqual({
+      panelKey: "ems_registrations_timeseries",
+      params: { hours: 12 },
+    });
+    expect(resolvePanelCommand("describe dataset ems_devices")).toEqual({
+      panelKey: "ems_dataset_schema",
+      params: { dataset: "ems_devices" },
     });
   });
 });
