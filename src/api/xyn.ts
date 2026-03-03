@@ -146,6 +146,8 @@ import type {
   EmsDeviceListResponse,
   EmsRegistrationsResponse,
   EmsStatusCountsResponse,
+  ArtifactStructuredQuery,
+  ArtifactCanvasTableResponse,
   ArtifactConsoleListResponse,
   ArtifactConsoleDetailResponse,
   ArtifactConsoleFilesResponse,
@@ -321,6 +323,25 @@ export async function listArtifactConsole(params?: {
     headers: buildHeaders(),
   });
   return handle<ArtifactConsoleListResponse>(response);
+}
+
+export async function queryArtifactCanvasTable(params: {
+  query: ArtifactStructuredQuery;
+  workspaceId?: string;
+}): Promise<ArtifactCanvasTableResponse> {
+  const apiBaseUrl = resolveApiBaseUrl();
+  const url = new URL(`${apiBaseUrl}/xyn/api/artifacts`);
+  url.searchParams.set("entity", "artifacts");
+  url.searchParams.set("filters", JSON.stringify(params.query.filters || []));
+  url.searchParams.set("sort", JSON.stringify(params.query.sort || []));
+  url.searchParams.set("limit", String(params.query.limit || 50));
+  url.searchParams.set("offset", String(params.query.offset || 0));
+  if (params.workspaceId) url.searchParams.set("workspace_id", params.workspaceId);
+  const response = await apiFetch(url.toString(), {
+    credentials: "include",
+    headers: buildHeaders(),
+  });
+  return handle<ArtifactCanvasTableResponse>(response);
 }
 
 export async function getArtifactConsoleDetailBySlug(

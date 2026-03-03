@@ -5,13 +5,15 @@ import {
   getArtifactConsoleFilesBySlug,
   getEmsRegistrations,
   getEmsStatusCounts,
-  listArtifactConsole,
+  queryArtifactCanvasTable,
   listEmsDevices,
 } from "../../../api/xyn";
 import type {
   ArtifactConsoleDetailResponse,
   ArtifactConsoleFileRow,
-  ArtifactConsoleListItem,
+  ArtifactStructuredQuery,
+  ArtifactCanvasTableResponse,
+  CanvasDatasetColumn,
   EmsDeviceRow,
   EmsRegistrationsResponse,
   EmsStatusCountsResponse,
@@ -36,6 +38,16 @@ type PanelProps = {
   onOpenPanel: (panelKey: ConsolePanelKey, params?: Record<string, unknown>) => void;
 };
 
+function baseArtifactQuery(): ArtifactStructuredQuery {
+  return {
+    entity: "artifacts",
+    filters: [],
+    sort: [{ field: "updated_at", dir: "desc" }],
+    limit: 50,
+    offset: 0,
+  };
+}
+
 function formatDate(value?: string): string {
   if (!value) return "-";
   const parsed = new Date(value);
@@ -43,19 +55,50 @@ function formatDate(value?: string): string {
   return parsed.toLocaleString();
 }
 
-function ArtifactListPanel({ namespace, onOpenPanel }: { namespace?: string } & PanelProps) {
-  const [rows, setRows] = useState<ArtifactConsoleListItem[]>([]);
+function renderCanvasCell(value: unknown, column: CanvasDatasetColumn): string {
+  if (column.type === "boolean") return value ? "Yes" : "No";
+  if (column.type === "datetime") return formatDate(String(value || ""));
+  if (column.type === "string[]" && Array.isArray(value)) return value.join(", ");
+  if (value == null) return "-";
+  return String(value);
+}
+
+function ArtifactListPanel({
+  namespace,
+  workspaceId,
+  query,
+  queryError,
+  onOpenPanel,
+}: { namespace?: string; workspaceId?: string; query?: ArtifactStructuredQuery; queryError?: string } & PanelProps) {
+  const [payload, setPayload] = useState<ArtifactCanvasTableResponse | null>(null);
+  const [activeQuery, setActiveQuery] = useState<ArtifactStructuredQuery>(baseArtifactQuery());
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+
+  useEffect(() => {
+    if (query) {
+      setActiveQuery(query);
+      return;
+    }
+    if (namespace) {
+      setActiveQuery({
+        ...baseArtifactQuery(),
+        filters: [{ field: "namespace", op: "eq", value: namespace }],
+      });
+      return;
+    }
+    setActiveQuery(baseArtifactQuery());
+  }, [namespace, query]);
+
   useEffect(() => {
     let active = true;
     (async () => {
       try {
         setLoading(true);
         setError(null);
-        const payload = await listArtifactConsole({ namespace: namespace || undefined });
+        const next = await queryArtifactCanvasTable({ workspaceId: workspaceId || undefined, query: activeQuery });
         if (!active) return;
-        setRows(payload.artifacts || []);
+        setPayload(next);
       } catch (err) {
         if (!active) return;
         setError(err instanceof Error ? err.message : "Failed to load artifacts");
@@ -66,36 +109,62 @@ function ArtifactListPanel({ namespace, onOpenPanel }: { namespace?: string } & 
     return () => {
       active = false;
     };
-  }, [namespace]);
+  }, [activeQuery, workspaceId]);
   if (loading) return <p className="muted">Loading artifacts…</p>;
+  if (queryError) return <p className="muted">{queryError}</p>;
   if (error) return <p className="danger-text">{error}</p>;
+  const columns = payload?.dataset?.columns || [];
+  const rows = payload?.dataset?.rows || [];
+  const currentSort = activeQuery.sort?.[0];
+  const applySort = (column: CanvasDatasetColumn) => {
+    if (!column.sortable) return;
+    const same = currentSort?.field === column.key;
+    const dir = same && currentSort?.dir === "asc" ? "desc" : "asc";
+    setActiveQuery((current) => ({ ...current, sort: [{ field: column.key, dir }] }));
+  };
   return (
     <div className="ems-panel-body">
-      <p className="muted">Count: {rows.length}</p>
+      <p className="muted">
+        Rows: {rows.length} / Total: {payload?.dataset?.total_count || 0}
+      </p>
       <table className="table">
         <thead>
           <tr>
-            <th>Slug</th>
-            <th>Title</th>
-            <th>Kind</th>
-            <th>Updated</th>
+            {columns.map((column) => (
+              <th key={column.key}>
+                <button type="button" className="ghost sm" onClick={() => applySort(column)} disabled={!column.sortable}>
+                  {column.label}
+                  {currentSort?.field === column.key ? (currentSort?.dir === "asc" ? " ↑" : " ↓") : ""}
+                </button>
+              </th>
+            ))}
           </tr>
         </thead>
         <tbody>
-          {rows.map((row) => (
-            <tr key={row.id}>
-              <td>
-                <button type="button" className="ghost sm artifact-list-slug-button" onClick={() => onOpenPanel("artifact_detail", { slug: row.slug })}>
-                  {row.slug}
-                </button>
-              </td>
-              <td>{row.title}</td>
-              <td>{row.kind || "-"}</td>
-              <td>{formatDate(row.updated_at)}</td>
-            </tr>
-          ))}
+          {rows.map((row) => {
+            const key = String(row[payload?.dataset?.primary_key || "slug"] || "");
+            return (
+              <tr key={key}>
+                {columns.map((column) => (
+                  <td key={`${key}:${column.key}`}>
+                    {column.key === "slug" ? (
+                      <button type="button" className="ghost sm artifact-list-slug-button" onClick={() => onOpenPanel("artifact_detail", { slug: String(row.slug || "") })}>
+                        {renderCanvasCell(row[column.key], column)}
+                      </button>
+                    ) : (
+                      renderCanvasCell(row[column.key], column)
+                    )}
+                  </td>
+                ))}
+              </tr>
+            );
+          })}
         </tbody>
       </table>
+      <details>
+        <summary className="muted small">Query metadata</summary>
+        <pre className="code-block">{JSON.stringify(payload?.query || activeQuery, null, 2)}</pre>
+      </details>
     </div>
   );
 }
@@ -460,7 +529,17 @@ export default function EmsPanelHost({ panel, workspaceId, onOpenPanel }: { pane
     if (panel.key === "ems_unregistered_devices") return <UnregisteredDevicesPanel />;
     if (panel.key === "ems_registrations_time") return <RegistrationsChartPanel hours={Number(panel.params?.hours || 24)} />;
     if (panel.key === "ems_device_statuses") return <DeviceStatusesPanel />;
-    if (panel.key === "artifact_list") return <ArtifactListPanel namespace={String(panel.params?.namespace || "")} onOpenPanel={openPanel} />;
+    if (panel.key === "artifact_list") {
+      return (
+        <ArtifactListPanel
+          namespace={String(panel.params?.namespace || "")}
+          workspaceId={workspaceId}
+          query={(panel.params?.query as ArtifactStructuredQuery | undefined) || undefined}
+          queryError={String(panel.params?.query_error || "")}
+          onOpenPanel={openPanel}
+        />
+      );
+    }
     if (panel.key === "artifact_detail") return <ArtifactDetailPanel slug={String(panel.params?.slug || "")} onOpenPanel={openPanel} />;
     if (panel.key === "artifact_raw_json") return <ArtifactRawJsonPanel slug={String(panel.params?.slug || "")} />;
     if (panel.key === "artifact_files") return <ArtifactFilesPanel slug={String(panel.params?.slug || "")} />;

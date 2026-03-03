@@ -13,7 +13,51 @@ describe("resolvePanelCommand", () => {
     });
     expect(resolvePanelCommand("show installed artifacts")).toEqual({
       panelKey: "artifact_list",
-      params: {},
+      params: {
+        query: {
+          entity: "artifacts",
+          filters: [{ field: "installed", op: "eq", value: true }],
+          sort: [{ field: "updated_at", dir: "desc" }],
+          limit: 50,
+          offset: 0,
+        },
+      },
+    });
+    expect(resolvePanelCommand("show artifacts updated in the last hour")).toEqual({
+      panelKey: "artifact_list",
+      params: {
+        query: {
+          entity: "artifacts",
+          filters: [{ field: "updated_at", op: "gte", value: "now-1h" }],
+          sort: [{ field: "updated_at", dir: "desc" }],
+          limit: 50,
+          offset: 0,
+        },
+      },
+    });
+    expect(resolvePanelCommand("show artifacts of kind module")).toEqual({
+      panelKey: "artifact_list",
+      params: {
+        query: {
+          entity: "artifacts",
+          filters: [{ field: "kind", op: "eq", value: "module" }],
+          sort: [{ field: "updated_at", dir: "desc" }],
+          limit: 50,
+          offset: 0,
+        },
+      },
+    });
+    expect(resolvePanelCommand("show artifacts in namespace core")).toEqual({
+      panelKey: "artifact_list",
+      params: {
+        query: {
+          entity: "artifacts",
+          filters: [{ field: "namespace", op: "eq", value: "core" }],
+          sort: [{ field: "updated_at", dir: "desc" }],
+          limit: 50,
+          offset: 0,
+        },
+      },
     });
   });
 

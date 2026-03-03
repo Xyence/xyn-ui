@@ -2527,6 +2527,48 @@ export type EmsStatusCountsResponse = {
   total: number;
 };
 
+export type ArtifactStructuredFilter = {
+  field: string;
+  op: "eq" | "neq" | "contains" | "in" | "gte" | "lte" | "gt" | "lt";
+  value: unknown;
+};
+
+export type ArtifactStructuredSort = {
+  field: string;
+  dir: "asc" | "desc";
+};
+
+export type ArtifactStructuredQuery = {
+  entity: "artifacts";
+  filters: ArtifactStructuredFilter[];
+  sort: ArtifactStructuredSort[];
+  limit: number;
+  offset: number;
+};
+
+export type CanvasDatasetColumn = {
+  key: string;
+  label: string;
+  type: "string" | "string[]" | "integer" | "boolean" | "datetime";
+  filterable?: boolean;
+  sortable?: boolean;
+  searchable?: boolean;
+  enum?: string[];
+};
+
+export type ArtifactCanvasTableResponse = {
+  type: "canvas.table";
+  title: string;
+  dataset: {
+    name: "artifacts";
+    primary_key: "slug";
+    columns: CanvasDatasetColumn[];
+    rows: Array<Record<string, unknown>>;
+    total_count: number;
+  };
+  query: ArtifactStructuredQuery;
+};
+
 export type ArtifactConsoleListItem = {
   id: string;
   slug: string;

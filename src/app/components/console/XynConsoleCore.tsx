@@ -18,14 +18,32 @@ type Props = {
   onOpenPanel?: (panelKey: string, params?: Record<string, unknown>) => void;
 };
 
+type ArtifactStructuredQuery = {
+  entity: "artifacts";
+  filters: Array<{ field: string; op: "eq" | "neq" | "contains" | "in" | "gte" | "lte" | "gt" | "lt"; value: unknown }>;
+  sort: Array<{ field: string; dir: "asc" | "desc" }>;
+  limit: number;
+  offset: number;
+};
+
 type ResolvedPanelCommand =
-  | { panelKey: "artifact_list"; params: { namespace?: string } }
+  | { panelKey: "artifact_list"; params: { namespace?: string; query?: ArtifactStructuredQuery; query_error?: string } }
   | { panelKey: "artifact_detail"; params: { slug: string } }
   | { panelKey: "artifact_raw_json"; params: { slug: string } }
   | { panelKey: "artifact_files"; params: { slug: string } }
   | { panelKey: "ems_unregistered_devices"; params: Record<string, never> }
   | { panelKey: "ems_registrations_time"; params: { hours: number } }
   | { panelKey: "ems_device_statuses"; params: Record<string, never> };
+
+function defaultArtifactStructuredQuery(): ArtifactStructuredQuery {
+  return {
+    entity: "artifacts",
+    filters: [],
+    sort: [{ field: "updated_at", dir: "desc" }],
+    limit: 50,
+    offset: 0,
+  };
+}
 
 export function resolvePanelCommand(input: string): ResolvedPanelCommand | null {
   const raw = String(input || "").trim();
@@ -40,7 +58,59 @@ export function resolvePanelCommand(input: string): ResolvedPanelCommand | null 
     return { panelKey: "artifact_list", params: {} };
   }
   if (/^show\s+installed\s+artifacts$/.test(normalized)) {
-    return { panelKey: "artifact_list", params: {} };
+    return {
+      panelKey: "artifact_list",
+      params: {
+        query: {
+          ...defaultArtifactStructuredQuery(),
+          filters: [{ field: "installed", op: "eq", value: true }],
+        },
+      },
+    };
+  }
+  if (/^show\s+artifacts\s+updated\s+in\s+the\s+last\s+hour$/.test(normalized)) {
+    return {
+      panelKey: "artifact_list",
+      params: {
+        query: {
+          ...defaultArtifactStructuredQuery(),
+          filters: [{ field: "updated_at", op: "gte", value: "now-1h" }],
+          sort: [{ field: "updated_at", dir: "desc" }],
+        },
+      },
+    };
+  }
+  match = normalized.match(/^show\s+artifacts\s+of\s+kind\s+([a-z0-9_.-]+)$/);
+  if (match && match[1]) {
+    return {
+      panelKey: "artifact_list",
+      params: {
+        query: {
+          ...defaultArtifactStructuredQuery(),
+          filters: [{ field: "kind", op: "eq", value: match[1] }],
+        },
+      },
+    };
+  }
+  match = normalized.match(/^show\s+artifacts\s+in\s+namespace\s+([a-z0-9_.-]+)$/);
+  if (match && match[1]) {
+    return {
+      panelKey: "artifact_list",
+      params: {
+        query: {
+          ...defaultArtifactStructuredQuery(),
+          filters: [{ field: "namespace", op: "eq", value: match[1] }],
+        },
+      },
+    };
+  }
+  if (/^show\s+artifacts\b/.test(normalized) && !/^show\s+artifacts$/.test(normalized)) {
+    return {
+      panelKey: "artifact_list",
+      params: {
+        query_error: "Unsupported filter field. Try: namespace, kind, updated_at, installed.",
+      },
+    };
   }
   match = normalized.match(/^open\s+artifact\s+([a-z0-9_.-]+)$/);
   if (match && match[1]) {
