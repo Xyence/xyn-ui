@@ -1,6 +1,6 @@
 import { useEffect, useState } from "react";
 import { useParams } from "react-router-dom";
-import EmsPanelHost, { type ConsolePanelSpec, type ConsolePanelKey } from "../components/console/EmsPanelHost";
+import WorkbenchPanelHost, { type ConsolePanelSpec, type ConsolePanelKey } from "../components/console/WorkbenchPanelHost";
 import XynConsoleCore from "../components/console/XynConsoleCore";
 import { useXynConsole } from "../state/xynConsoleStore";
 
@@ -35,7 +35,7 @@ export default function InitiatePage() {
             }
           />
         </div>
-        <EmsPanelHost panel={panel} workspaceId={workspaceId} onOpenPanel={setPanel} />
+        <WorkbenchPanelHost panel={panel} workspaceId={workspaceId} onOpenPanel={setPanel} />
       </section>
     </>
   );

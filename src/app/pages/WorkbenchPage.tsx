@@ -1,6 +1,6 @@
 import { useEffect } from "react";
 import { Link, useParams } from "react-router-dom";
-import EmsPanelHost, { type ConsolePanelKey, type ConsolePanelSpec } from "../components/console/EmsPanelHost";
+import WorkbenchPanelHost, { type ConsolePanelKey, type ConsolePanelSpec } from "../components/console/WorkbenchPanelHost";
 import { useXynConsole } from "../state/xynConsoleStore";
 import { toWorkspacePath } from "../routing/workspaceRouting";
 
@@ -84,7 +84,7 @@ export default function WorkbenchPage() {
             Clear panel
           </button>
         </div>
-        <EmsPanelHost
+        <WorkbenchPanelHost
           panel={panel}
           workspaceId={workspaceId}
           onOpenPanel={(next) => openPanel({ key: next.key, params: next.params || {}, open_in: "current_panel" })}
