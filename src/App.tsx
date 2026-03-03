@@ -35,6 +35,14 @@ function WorkspaceAuthCallbackBridge() {
   return <div style={{ padding: 24 }}>Completing workspace sign-in…</div>;
 }
 
+function WorkspacesEntry() {
+  const workspaceId = String(window.localStorage.getItem("xyn.activeWorkspaceId") || "").trim();
+  if (workspaceId) {
+    return <RootRedirect />;
+  }
+  return <AppShell />;
+}
+
 export default function App() {
   return (
     <Routes>
@@ -42,7 +50,7 @@ export default function App() {
       <Route path="/w/:workspaceId/auth/login" element={<WorkspaceAuthLoginBridge />} />
       <Route path="/w/:workspaceId/auth/callback" element={<WorkspaceAuthCallbackBridge />} />
       <Route path="/w/:workspaceId/*" element={<AppShell />} />
-      <Route path="/workspaces" element={<AppShell />} />
+      <Route path="/workspaces" element={<WorkspacesEntry />} />
       <Route path="/app/*" element={<LegacyAppRedirect />} />
       <Route path="/*" element={<PublicShell />}>
         <Route index element={<RootRedirect />} />

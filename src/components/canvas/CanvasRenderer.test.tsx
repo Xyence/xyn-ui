@@ -97,7 +97,7 @@ describe("CanvasRenderer", () => {
     expect(onRowActivate).toHaveBeenCalledWith("ems", expect.objectContaining({ slug: "ems" }));
   });
 
-  it("opens mapped artifact detail target on row double-click", () => {
+  it("opens mapped artifact detail target on row click", () => {
     const onOpenDetail = vi.fn();
 
     renderWithNotifications(
@@ -119,14 +119,14 @@ describe("CanvasRenderer", () => {
       />
     );
 
-    fireEvent.doubleClick(screen.getByText("core.authn-jwt"));
+    fireEvent.click(screen.getByText("core.authn-jwt"));
     expect(onOpenDetail).toHaveBeenCalledWith(
       { entity_type: "artifact", entity_id: "core.authn-jwt" },
       expect.objectContaining({ slug: "core.authn-jwt" })
     );
   });
 
-  it("opens mapped device detail for EMS devices on row double-click", () => {
+  it("opens mapped device detail for EMS devices on row click", () => {
     const onOpenDetail = vi.fn();
 
     renderWithNotifications(
@@ -148,14 +148,14 @@ describe("CanvasRenderer", () => {
       />
     );
 
-    fireEvent.doubleClick(screen.getByText("dev-01"));
+    fireEvent.click(screen.getByText("dev-01"));
     expect(onOpenDetail).toHaveBeenCalledWith(
       { entity_type: "device", entity_id: "dev-01" },
       expect.objectContaining({ device_id: "dev-01" })
     );
   });
 
-  it("falls back to generic record detail for unknown dataset on double-click", () => {
+  it("falls back to generic record detail for unknown dataset on row click", () => {
     const onOpenDetail = vi.fn();
 
     renderWithNotifications(
@@ -177,7 +177,7 @@ describe("CanvasRenderer", () => {
       />
     );
 
-    fireEvent.doubleClick(screen.getByText("rec-1"));
+    fireEvent.click(screen.getByText("rec-1"));
     expect(onOpenDetail).toHaveBeenCalledWith(
       { entity_type: "record", entity_id: "rec-1", dataset: "unknown_records" },
       expect.objectContaining({ id: "rec-1" })

@@ -36,6 +36,18 @@ export default function CanvasTable({ payload, query, onSort, onRowActivate, onO
   const rows = payload.dataset.rows || [];
   const primaryKey = payload.dataset.primary_key;
   const currentSort = query.sort?.[0];
+  const openDetailForRow = (row: Record<string, unknown>) => {
+    const target = getOpenDetailTarget(payload.dataset.name, row, primaryKey);
+    if (!target) {
+      push({
+        level: "warning",
+        title: "Detail unavailable",
+        message: `Cannot open detail: missing primary key '${primaryKey}'.`,
+      });
+      return;
+    }
+    onOpenDetail?.(target, row);
+  };
 
   const defs = useMemo<ColumnDef<Record<string, unknown>>[]>(() => {
     const helper = createColumnHelper<Record<string, unknown>>();
@@ -86,18 +98,12 @@ export default function CanvasTable({ payload, query, onSort, onRowActivate, onO
             return (
               <tr
                 key={row.id}
-                onClick={() => onRowActivate?.(rowId, row.original)}
+                onClick={() => {
+                  onRowActivate?.(rowId, row.original);
+                  if (onOpenDetail) openDetailForRow(row.original);
+                }}
                 onDoubleClick={() => {
-                  const target = getOpenDetailTarget(payload.dataset.name, row.original, primaryKey);
-                  if (!target) {
-                    push({
-                      level: "warning",
-                      title: "Detail unavailable",
-                      message: `Cannot open detail: missing primary key '${primaryKey}'.`,
-                    });
-                    return;
-                  }
-                  onOpenDetail?.(target, row.original);
+                  if (onOpenDetail) openDetailForRow(row.original);
                 }}
               >
                 {row.getVisibleCells().map((cell) => (
