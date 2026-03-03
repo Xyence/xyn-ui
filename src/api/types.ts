@@ -2486,13 +2486,45 @@ export type XynIntentResolutionResult = {
   };
   draft_payload?: Record<string, unknown>;
   validation_errors?: string[];
-  next_actions?: Array<{ label: string; action: string; field?: string; path?: string }>;
+  next_actions?: Array<{ label: string; action: string; field?: string; path?: string; panel_key?: string; params?: Record<string, unknown> }>;
   audit?: {
     request_id?: string;
     confidence?: number;
     llm_model?: string;
     timestamp?: string;
   };
+};
+
+export type EmsDeviceRow = {
+  id: string;
+  mac: string;
+  serial: string;
+  model: string;
+  state: string;
+  last_seen: string;
+  created_at: string;
+};
+
+export type EmsDeviceListResponse = {
+  items: EmsDeviceRow[];
+};
+
+export type EmsRegistrationsResponse = {
+  hours: number;
+  summary_count: number;
+  points: Array<{ bucket: string; count: number }>;
+  items: Array<{
+    id: string;
+    device_id: string;
+    workspace_id: string;
+    registered_at: string;
+    registered_by: string;
+  }>;
+};
+
+export type EmsStatusCountsResponse = {
+  items: Array<{ state: string; count: number }>;
+  total: number;
 };
 
 export type XynIntentOptionsResponse = {

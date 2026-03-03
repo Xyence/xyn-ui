@@ -14,6 +14,7 @@ type ConsoleMode = "overlay" | "page";
 type Props = {
   mode: ConsoleMode;
   onRequestClose?: () => void;
+  onOpenPanel?: (panelKey: string, params?: Record<string, unknown>) => void;
 };
 
 function stringifyValue(value: unknown): string {
@@ -150,7 +151,15 @@ function ProposedPatchCard() {
   );
 }
 
-function ResolutionCard({ resolution, onRevise }: { resolution: XynIntentResolutionResult; onRevise: () => void }) {
+function ResolutionCard({
+  resolution,
+  onRevise,
+  onOpenPanel,
+}: {
+  resolution: XynIntentResolutionResult;
+  onRevise: () => void;
+  onOpenPanel?: (panelKey: string, params?: Record<string, unknown>) => void;
+}) {
   const { applyDraftPayload, setInputText, session } = useXynConsole();
   const navigate = useNavigate();
   const canCreate = resolution.status === "DraftReady" && resolution.action_type === "CreateDraft" && !!resolution.draft_payload;
@@ -158,6 +167,9 @@ function ResolutionCard({ resolution, onRevise }: { resolution: XynIntentResolut
   const showRevise = resolution.status !== "UnsupportedIntent";
   const deepLinks = (resolution.next_actions || []).filter(
     (item) => item.action === "OpenPath" && typeof item.path === "string" && item.path.startsWith("/")
+  );
+  const panelLinks = (resolution.next_actions || []).filter(
+    (item) => item.action === "OpenPanel" && typeof item.panel_key === "string" && item.panel_key.length > 0
   );
 
   return (
@@ -204,13 +216,23 @@ function ResolutionCard({ resolution, onRevise }: { resolution: XynIntentResolut
             {action.label}
           </button>
         ))}
+        {panelLinks.map((action) => (
+          <button
+            key={`${action.label}:${action.panel_key}`}
+            type="button"
+            className="ghost sm"
+            onClick={() => onOpenPanel?.(String(action.panel_key || ""), action.params || {})}
+          >
+            {action.label}
+          </button>
+        ))}
       </div>
       {session.localMessage ? <p className="muted small">{session.localMessage}</p> : null}
     </section>
   );
 }
 
-export default function XynConsoleCore({ mode, onRequestClose }: Props) {
+export default function XynConsoleCore({ mode, onRequestClose, onOpenPanel }: Props) {
   const navigate = useNavigate();
   const {
     open,
@@ -331,7 +353,7 @@ export default function XynConsoleCore({ mode, onRequestClose }: Props) {
       {pendingCloseBlock ? <div className="xyn-console-warning">You have a pending proposal. Apply or cancel.</div> : null}
       {session.lastResolution ? (
         <>
-          <ResolutionCard resolution={session.lastResolution} onRevise={handleRevise} />
+          <ResolutionCard resolution={session.lastResolution} onRevise={handleRevise} onOpenPanel={onOpenPanel} />
           {isGlobalContext ? (
             <div className="inline-actions">
               <button

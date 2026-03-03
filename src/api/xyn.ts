@@ -143,6 +143,9 @@ import type {
   XynIntentOptionsResponse,
   RecentArtifactItem,
   RecentArtifactListResponse,
+  EmsDeviceListResponse,
+  EmsRegistrationsResponse,
+  EmsStatusCountsResponse,
 } from "./types";
 import { authHeaders, resolveApiBaseUrl } from "./client";
 
@@ -267,6 +270,37 @@ export async function getXynIntentOptions(params: {
     headers: buildHeaders(),
   });
   return handle<XynIntentOptionsResponse>(response);
+}
+
+export async function listEmsDevices(state?: string): Promise<EmsDeviceListResponse> {
+  const apiBaseUrl = resolveApiBaseUrl();
+  const url = new URL(`${apiBaseUrl}/api/apps/ems/devices`);
+  if (state) url.searchParams.set("state", state);
+  const response = await apiFetch(url.toString(), {
+    credentials: "include",
+    headers: buildHeaders(),
+  });
+  return handle<EmsDeviceListResponse>(response);
+}
+
+export async function getEmsRegistrations(hours = 24): Promise<EmsRegistrationsResponse> {
+  const apiBaseUrl = resolveApiBaseUrl();
+  const url = new URL(`${apiBaseUrl}/api/apps/ems/registrations`);
+  url.searchParams.set("hours", String(Math.max(1, Math.min(hours, 168))));
+  const response = await apiFetch(url.toString(), {
+    credentials: "include",
+    headers: buildHeaders(),
+  });
+  return handle<EmsRegistrationsResponse>(response);
+}
+
+export async function getEmsStatusCounts(): Promise<EmsStatusCountsResponse> {
+  const apiBaseUrl = resolveApiBaseUrl();
+  const response = await apiFetch(`${apiBaseUrl}/api/apps/ems/status-counts`, {
+    credentials: "include",
+    headers: buildHeaders(),
+  });
+  return handle<EmsStatusCountsResponse>(response);
 }
 
 export async function getRecentArtifacts(limit = 6): Promise<RecentArtifactListResponse> {
