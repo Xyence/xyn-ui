@@ -34,6 +34,11 @@ export type ConsolePanelKey =
   | "ems_device_statuses";
 
 export type ConsolePanelSpec = {
+  panel_id?: string;
+  panel_type?: "table" | "detail" | "report";
+  instance_key?: string;
+  title?: string;
+  active_group_id?: string | null;
   key: ConsolePanelKey;
   params?: Record<string, unknown>;
 };
@@ -42,10 +47,6 @@ type PanelProps = {
   onOpenPanel: (panelKey: ConsolePanelKey, params?: Record<string, unknown>) => void;
 };
 
-function baseArtifactQuery(): ArtifactStructuredQuery {
-  return { entity: "artifacts", filters: [], sort: [{ field: "updated_at", dir: "desc" }], limit: 50, offset: 0 };
-}
-
 type CanvasQuery = {
   entity: string;
   filters: Array<{ field: string; op: string; value: unknown }>;
@@ -53,6 +54,12 @@ type CanvasQuery = {
   limit: number;
   offset: number;
 };
+
+type ContextEmitter = (context: Record<string, unknown> | null) => void;
+
+function baseArtifactQuery(): ArtifactStructuredQuery {
+  return { entity: "artifacts", filters: [], sort: [{ field: "updated_at", dir: "desc" }], limit: 50, offset: 0 };
+}
 
 function formatDate(value?: string): string {
   if (!value) return "-";
@@ -69,16 +76,65 @@ function renderCell(value: unknown, type: string): string {
   return String(value);
 }
 
+function emitTableContext({
+  onContextChange,
+  panel,
+  payload,
+  query,
+  selectedRowIds,
+  focusedRowId,
+  rowOrderIds,
+}: {
+  onContextChange?: ContextEmitter;
+  panel: ConsolePanelSpec | null;
+  payload: CanvasTableResponse | ArtifactCanvasTableResponse | null;
+  query: CanvasQuery | ArtifactStructuredQuery;
+  selectedRowIds: string[];
+  focusedRowId: string | null;
+  rowOrderIds: string[];
+}) {
+  if (!onContextChange || !panel?.panel_id || !payload) return;
+  onContextChange({
+    view_type: "table",
+    dataset: {
+      name: payload.dataset.name,
+      primary_key: payload.dataset.primary_key,
+      columns: payload.dataset.columns,
+    },
+    query,
+    selection: {
+      selected_row_ids: selectedRowIds,
+      focused_row_id: focusedRowId,
+      row_order_ids: rowOrderIds,
+    },
+    pagination: {
+      limit: Number(query.limit || 50),
+      offset: Number(query.offset || 0),
+      total_count: Number(payload.dataset.total_count || 0),
+    },
+    ui: {
+      active_panel_id: panel.panel_id,
+      panel_id: panel.panel_id,
+      panel_type: panel.panel_type || "table",
+      instance_key: panel.instance_key || payload.dataset.name,
+      active_group_id: panel.active_group_id || null,
+      layout_engine: "simple",
+    },
+  });
+}
+
 function CanvasTable({
   payload,
   query,
   onSort,
   onSlugClick,
+  onRowActivate,
 }: {
   payload: CanvasTableResponse | ArtifactCanvasTableResponse;
-  query: CanvasQuery;
+  query: CanvasQuery | ArtifactStructuredQuery;
   onSort: (field: string, sortable: boolean) => void;
   onSlugClick?: (slug: string) => void;
+  onRowActivate?: (rowId: string) => void;
 }) {
   const columns = payload.dataset.columns || [];
   const rows = payload.dataset.rows || [];
@@ -88,12 +144,17 @@ function CanvasTable({
       <p className="muted">
         Rows: {rows.length} / Total: {payload.dataset.total_count || 0}
       </p>
-      <table className="table">
+      <table className="canvas-table" role="grid">
         <thead>
           <tr>
             {columns.map((column) => (
               <th key={column.key}>
-                <button type="button" className="ghost sm" onClick={() => onSort(column.key, Boolean(column.sortable))} disabled={!column.sortable}>
+                <button
+                  type="button"
+                  className="ghost sm"
+                  onClick={() => onSort(column.key, Boolean(column.sortable))}
+                  disabled={!column.sortable}
+                >
                   {column.label}
                   {currentSort?.field === column.key ? (currentSort?.dir === "asc" ? " ↑" : " ↓") : ""}
                 </button>
@@ -102,17 +163,24 @@ function CanvasTable({
           </tr>
         </thead>
         <tbody>
-          {rows.map((row) => {
-            const key = String(row[payload.dataset.primary_key] || Math.random());
+          {rows.map((row, index) => {
+            const key = String(row[payload.dataset.primary_key] || `${payload.dataset.name}-${index}`);
             return (
-              <tr key={key}>
+              <tr key={key} onClick={() => onRowActivate?.(key)}>
                 {columns.map((column) => {
                   const text = renderCell(row[column.key], column.type);
                   const isSlug = column.key === "slug" && onSlugClick;
                   return (
                     <td key={`${key}:${column.key}`}>
                       {isSlug ? (
-                        <button type="button" className="ghost sm artifact-list-slug-button" onClick={() => onSlugClick?.(String(row.slug || ""))}>
+                        <button
+                          type="button"
+                          className="ghost sm artifact-list-slug-button"
+                          onClick={(event) => {
+                            event.stopPropagation();
+                            onSlugClick?.(String(row.slug || ""));
+                          }}
+                        >
                           {text}
                         </button>
                       ) : (
@@ -140,19 +208,35 @@ function ArtifactListPanel({
   query,
   queryError,
   onOpenPanel,
-}: { namespace?: string; workspaceId?: string; query?: ArtifactStructuredQuery; queryError?: string } & PanelProps) {
+  panel,
+  onContextChange,
+}: {
+  namespace?: string;
+  workspaceId?: string;
+  query?: ArtifactStructuredQuery;
+  queryError?: string;
+  panel: ConsolePanelSpec | null;
+  onContextChange?: ContextEmitter;
+} & PanelProps) {
   const [payload, setPayload] = useState<ArtifactCanvasTableResponse | null>(null);
   const [activeQuery, setActiveQuery] = useState<ArtifactStructuredQuery>(baseArtifactQuery());
+  const [selectedRowIds, setSelectedRowIds] = useState<string[]>([]);
+  const [focusedRowId, setFocusedRowId] = useState<string | null>(null);
+  const [rowOrderIds, setRowOrderIds] = useState<string[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
 
   useEffect(() => {
-    if (query) return setActiveQuery(query);
+    if (query) {
+      setActiveQuery(query);
+      return;
+    }
     if (namespace) {
-      return setActiveQuery({
+      setActiveQuery({
         ...baseArtifactQuery(),
         filters: [{ field: "namespace", op: "eq", value: namespace }],
       });
+      return;
     }
     setActiveQuery(baseArtifactQuery());
   }, [namespace, query]);
@@ -166,6 +250,7 @@ function ArtifactListPanel({
         const next = await queryArtifactCanvasTable({ workspaceId: workspaceId || undefined, query: activeQuery });
         if (!active) return;
         setPayload(next);
+        setRowOrderIds((next.dataset.rows || []).map((row, index) => String(row[next.dataset.primary_key] || index)));
       } catch (err) {
         if (!active) return;
         setError(err instanceof Error ? err.message : "Failed to load artifacts");
@@ -177,10 +262,16 @@ function ArtifactListPanel({
       active = false;
     };
   }, [activeQuery, workspaceId]);
+
+  useEffect(() => {
+    emitTableContext({ onContextChange, panel, payload, query: activeQuery, selectedRowIds, focusedRowId, rowOrderIds });
+  }, [activeQuery, focusedRowId, onContextChange, panel, payload, rowOrderIds, selectedRowIds]);
+
   if (loading) return <p className="muted">Loading artifacts…</p>;
   if (queryError) return <p className="muted">{queryError}</p>;
   if (error) return <p className="danger-text">{error}</p>;
   if (!payload) return <p className="muted">No artifacts found.</p>;
+
   return (
     <CanvasTable
       payload={payload}
@@ -192,6 +283,10 @@ function ArtifactListPanel({
         setActiveQuery((current) => ({ ...current, sort: [{ field, dir }] }));
       }}
       onSlugClick={(slug) => onOpenPanel("artifact_detail", { slug })}
+      onRowActivate={(rowId) => {
+        setSelectedRowIds([rowId]);
+        setFocusedRowId(rowId);
+      }}
     />
   );
 }
@@ -200,13 +295,20 @@ function EmsCanvasPanel({
   fetcher,
   initialQuery,
   queryError,
+  panel,
+  onContextChange,
 }: {
   fetcher: (query: CanvasQuery) => Promise<CanvasTableResponse>;
   initialQuery: CanvasQuery;
   queryError?: string;
+  panel: ConsolePanelSpec | null;
+  onContextChange?: ContextEmitter;
 }) {
   const [payload, setPayload] = useState<CanvasTableResponse | null>(null);
   const [query, setQuery] = useState<CanvasQuery>(initialQuery);
+  const [selectedRowIds, setSelectedRowIds] = useState<string[]>([]);
+  const [focusedRowId, setFocusedRowId] = useState<string | null>(null);
+  const [rowOrderIds, setRowOrderIds] = useState<string[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
 
@@ -221,6 +323,7 @@ function EmsCanvasPanel({
         const next = await fetcher(query);
         if (!active) return;
         setPayload(next);
+        setRowOrderIds((next.dataset.rows || []).map((row, index) => String(row[next.dataset.primary_key] || index)));
       } catch (err) {
         if (!active) return;
         setError(err instanceof Error ? err.message : "Failed to load panel");
@@ -232,10 +335,16 @@ function EmsCanvasPanel({
       active = false;
     };
   }, [fetcher, query]);
+
+  useEffect(() => {
+    emitTableContext({ onContextChange, panel, payload, query, selectedRowIds, focusedRowId, rowOrderIds });
+  }, [focusedRowId, onContextChange, panel, payload, query, rowOrderIds, selectedRowIds]);
+
   if (loading) return <p className="muted">Loading…</p>;
   if (queryError) return <p className="muted">{queryError}</p>;
   if (error) return <p className="danger-text">{error}</p>;
   if (!payload) return <p className="muted">No rows.</p>;
+
   return (
     <CanvasTable
       payload={payload}
@@ -246,17 +355,27 @@ function EmsCanvasPanel({
         const dir = same && query.sort?.[0]?.dir === "asc" ? "desc" : "asc";
         setQuery((current) => ({ ...current, sort: [{ field, dir }] }));
       }}
+      onRowActivate={(rowId) => {
+        setSelectedRowIds([rowId]);
+        setFocusedRowId(rowId);
+      }}
     />
   );
 }
 
-function ArtifactDetailPanel({ slug, onOpenPanel }: { slug: string } & PanelProps) {
+function ArtifactDetailPanel({
+  slug,
+  onOpenPanel,
+  panel,
+  onContextChange,
+}: { slug: string; panel: ConsolePanelSpec | null; onContextChange?: ContextEmitter } & PanelProps) {
   const params = useParams();
   const navigate = useNavigate();
   const workspaceId = String(params.workspaceId || "").trim();
   const [payload, setPayload] = useState<ArtifactConsoleDetailResponse | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+
   useEffect(() => {
     let active = true;
     (async () => {
@@ -278,11 +397,32 @@ function ArtifactDetailPanel({ slug, onOpenPanel }: { slug: string } & PanelProp
     };
   }, [slug, workspaceId]);
 
+  useEffect(() => {
+    if (!onContextChange || !panel?.panel_id || !payload) return;
+    onContextChange({
+      view_type: "detail",
+      entity_type: "artifact",
+      entity_id: payload.artifact.slug,
+      available_tabs: ["overview", "raw", "files", "manage", "docs"],
+      active_tab: String(panel.params?.tab || "overview"),
+      ui: {
+        active_panel_id: panel.panel_id,
+        panel_id: panel.panel_id,
+        panel_type: panel.panel_type || "detail",
+        instance_key: panel.instance_key || `artifact:${payload.artifact.slug}`,
+        active_group_id: panel.active_group_id || null,
+        layout_engine: "simple",
+      },
+    });
+  }, [onContextChange, panel, payload]);
+
   if (loading) return <p className="muted">Loading artifact detail…</p>;
   if (error) return <p className="danger-text">{error}</p>;
   if (!payload) return <p className="muted">Artifact not found.</p>;
+
   const manage = payload.manifest_summary?.surfaces?.manage || [];
   const docs = payload.manifest_summary?.surfaces?.docs || [];
+
   const resolveSurfacePath = (path: string) => {
     const normalized = String(path || "").trim();
     if (!normalized) return "";
@@ -291,12 +431,17 @@ function ArtifactDetailPanel({ slug, onOpenPanel }: { slug: string } & PanelProp
     if (normalized.startsWith("/")) return workspaceId ? toWorkspacePath(workspaceId, normalized.replace(/^\/+/, "")) : normalized;
     return workspaceId ? toWorkspacePath(workspaceId, normalized) : `/${normalized}`;
   };
+
   const openSurfacePath = (path: string) => {
     const target = resolveSurfacePath(path);
     if (!target) return;
-    if (/^https?:\/\//i.test(target)) return (window.location.href = target);
+    if (/^https?:\/\//i.test(target)) {
+      window.location.href = target;
+      return;
+    }
     navigate(target);
   };
+
   return (
     <div className="ems-panel-body">
       <p className="muted">
@@ -349,6 +494,7 @@ function ArtifactRawJsonPanel({ slug }: { slug: string }) {
   const [payload, setPayload] = useState<ArtifactConsoleDetailResponse | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+
   useEffect(() => {
     let active = true;
     (async () => {
@@ -369,6 +515,7 @@ function ArtifactRawJsonPanel({ slug }: { slug: string }) {
       active = false;
     };
   }, [slug, workspaceId]);
+
   if (loading) return <p className="muted">Loading raw JSON…</p>;
   if (error) return <p className="danger-text">{error}</p>;
   return <pre className="code-block">{JSON.stringify(payload?.raw_artifact_json || {}, null, 2)}</pre>;
@@ -378,6 +525,7 @@ function ArtifactFilesPanel({ slug }: { slug: string }) {
   const [rows, setRows] = useState<ArtifactConsoleFileRow[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+
   useEffect(() => {
     let active = true;
     (async () => {
@@ -398,11 +546,13 @@ function ArtifactFilesPanel({ slug }: { slug: string }) {
       active = false;
     };
   }, [slug]);
+
   if (loading) return <p className="muted">Loading files…</p>;
   if (error) return <p className="danger-text">{error}</p>;
+
   return (
     <div className="ems-panel-body">
-      <table className="table">
+      <table className="canvas-table">
         <thead>
           <tr>
             <th>Path</th>
@@ -443,21 +593,40 @@ export function panelTitleFor(key: ConsolePanelKey): string {
   return PANEL_TITLES[key];
 }
 
-export default function EmsPanelHost({ panel, workspaceId, onOpenPanel }: { panel: ConsolePanelSpec | null; workspaceId: string; onOpenPanel: (panel: ConsolePanelSpec) => void }) {
+export default function EmsPanelHost({
+  panel,
+  workspaceId,
+  onOpenPanel,
+  onClosePanel,
+  onContextChange,
+}: {
+  panel: ConsolePanelSpec | null;
+  workspaceId: string;
+  onOpenPanel: (panel: ConsolePanelSpec) => void;
+  onClosePanel?: () => void;
+  onContextChange?: ContextEmitter;
+}) {
   const content = useMemo(() => {
     if (!panel) return null;
     const openPanel = (panelKey: ConsolePanelKey, params?: Record<string, unknown>) => onOpenPanel({ key: panelKey, params: params || {} });
-    if (panel.key === "artifact_list")
+
+    if (panel.key === "artifact_list") {
       return (
         <ArtifactListPanel
           namespace={String(panel.params?.namespace || "")}
           workspaceId={workspaceId}
           query={(panel.params?.query as ArtifactStructuredQuery | undefined) || undefined}
           queryError={String(panel.params?.query_error || "")}
+          panel={panel}
+          onContextChange={onContextChange}
           onOpenPanel={openPanel}
         />
       );
-    if (panel.key === "artifact_detail") return <ArtifactDetailPanel slug={String(panel.params?.slug || "")} onOpenPanel={openPanel} />;
+    }
+
+    if (panel.key === "artifact_detail") {
+      return <ArtifactDetailPanel slug={String(panel.params?.slug || "")} panel={panel} onContextChange={onContextChange} onOpenPanel={openPanel} />;
+    }
     if (panel.key === "artifact_raw_json") return <ArtifactRawJsonPanel slug={String(panel.params?.slug || "")} />;
     if (panel.key === "artifact_files") return <ArtifactFilesPanel slug={String(panel.params?.slug || "")} />;
 
@@ -471,12 +640,15 @@ export default function EmsPanelHost({ panel, workspaceId, onOpenPanel }: { pane
       };
       return (
         <EmsCanvasPanel
-          fetcher={(nextQuery) => queryEmsDevicesCanvasTable({ query: nextQuery as any })}
+          fetcher={(nextQuery) => queryEmsDevicesCanvasTable({ query: nextQuery as never })}
           initialQuery={query}
           queryError={String(panel.params?.query_error || "")}
+          panel={panel}
+          onContextChange={onContextChange}
         />
       );
     }
+
     if (panel.key === "ems_registrations" || panel.key === "ems_registrations_time") {
       const hours = Number(panel.params?.hours || 24);
       const query = (panel.params?.query as CanvasQuery) || {
@@ -488,20 +660,26 @@ export default function EmsPanelHost({ panel, workspaceId, onOpenPanel }: { pane
       };
       return (
         <EmsCanvasPanel
-          fetcher={(nextQuery) => queryEmsRegistrationsCanvasTable({ query: nextQuery as any })}
+          fetcher={(nextQuery) => queryEmsRegistrationsCanvasTable({ query: nextQuery as never })}
           initialQuery={query}
           queryError={String(panel.params?.query_error || "")}
+          panel={panel}
+          onContextChange={onContextChange}
         />
       );
     }
+
     if (panel.key === "ems_device_status_rollup" || panel.key === "ems_device_statuses") {
       return (
         <EmsCanvasPanel
           fetcher={() => getEmsStatusRollupCanvasTable()}
           initialQuery={{ entity: "ems_device_status_rollup", filters: [], sort: [{ field: "bucket", dir: "asc" }], limit: 50, offset: 0 }}
+          panel={panel}
+          onContextChange={onContextChange}
         />
       );
     }
+
     if (panel.key === "ems_registrations_timeseries") {
       const hours = Number(panel.params?.hours || 24);
       return (
@@ -514,20 +692,26 @@ export default function EmsPanelHost({ panel, workspaceId, onOpenPanel }: { pane
             limit: 50,
             offset: 0,
           }}
+          panel={panel}
+          onContextChange={onContextChange}
         />
       );
     }
+
     if (panel.key === "ems_dataset_schema") {
       const dataset = String(panel.params?.dataset || "ems_devices");
       return (
         <EmsCanvasPanel
           fetcher={() => getEmsDatasetSchemaTable(dataset)}
           initialQuery={{ entity: "dataset_schema", filters: [], sort: [{ field: "key", dir: "asc" }], limit: 200, offset: 0 }}
+          panel={panel}
+          onContextChange={onContextChange}
         />
       );
     }
+
     return null;
-  }, [panel, onOpenPanel, workspaceId]);
+  }, [onContextChange, onOpenPanel, panel, workspaceId]);
 
   if (!panel) {
     return (
@@ -547,7 +731,12 @@ export default function EmsPanelHost({ panel, workspaceId, onOpenPanel }: { pane
   return (
     <div className="card ems-panel-host">
       <div className="ems-panel-head">
-        <h3>{panelTitleFor(panel.key)}</h3>
+        <h3>{panel.title || panelTitleFor(panel.key)}</h3>
+        {onClosePanel ? (
+          <button type="button" className="ghost sm" onClick={onClosePanel}>
+            Close
+          </button>
+        ) : null}
       </div>
       {content || <p className="muted">Unknown panel.</p>}
     </div>

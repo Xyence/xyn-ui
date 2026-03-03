@@ -33,10 +33,59 @@ type PersistedSessions = Record<string, ConsoleSessionState>;
 
 type ProcessingStep = "resolving" | "classifying" | "validating";
 
-type ActivePanelState = {
+export type ConsolePanelType = "table" | "detail" | "report";
+
+export type ConsolePanelState = {
+  panel_id: string;
+  panel_type: ConsolePanelType;
+  instance_key: string;
+  title: string;
   key: string;
   params?: Record<string, unknown>;
-} | null;
+  active_group_id?: string | null;
+};
+
+type ActivePanelState = ConsolePanelState | null;
+
+type CanvasContext = {
+  view_type: "table" | "detail";
+  dataset?: {
+    name: string;
+    primary_key: string;
+    columns: Array<Record<string, unknown>>;
+  };
+  query?: Record<string, unknown>;
+  selection?: {
+    selected_row_ids: string[];
+    focused_row_id: string | null;
+    row_order_ids?: string[];
+  };
+  pagination?: {
+    limit: number;
+    offset: number;
+    total_count: number;
+  };
+  entity_type?: string;
+  entity_id?: string;
+  available_tabs?: string[];
+  active_tab?: string;
+  ui: {
+    active_panel_id: string;
+    panel_id: string;
+    panel_type: "table" | "detail" | "report";
+    instance_key: string;
+    active_group_id: string | null;
+    layout_engine: "simple" | "dockview";
+  };
+};
+
+type NavigationEntry = {
+  panel_id: string;
+  view_type: "table" | "detail";
+  instance_key: string;
+  query?: Record<string, unknown>;
+  selection?: { selected_row_ids: string[]; focused_row_id: string | null };
+};
 
 export type ConsoleArtifactHint = {
   artifact_id: string;
@@ -184,8 +233,18 @@ type XynConsoleContextValue = {
   handleRouteChange: (pathname: string) => void;
   lastArtifactHint: ConsoleArtifactHint | null;
   setLastArtifactHint: (hint: ConsoleArtifactHint | null) => void;
+  panels: ConsolePanelState[];
+  activePanelId: string | null;
   activePanel: ActivePanelState;
   setActivePanel: (panel: ActivePanelState) => void;
+  openPanel: (panel: { key: string; params?: Record<string, unknown>; open_in?: "current_panel" | "new_panel" | "side_by_side" }) => void;
+  closePanel: (panelId: string) => void;
+  setActivePanelId: (panelId: string | null) => void;
+  updateActivePanelParams: (params: Record<string, unknown>) => void;
+  canvasContext: CanvasContext | null;
+  setCanvasContext: (context: CanvasContext | null) => void;
+  navigateBack: () => void;
+  navigateForward: () => void;
 };
 
 const XynConsoleContext = createContext<XynConsoleContextValue | null>(null);
@@ -204,8 +263,13 @@ export function XynConsoleProvider({ children }: { children: ReactNode }) {
   const [processingStep, setProcessingStep] = useState<ProcessingStep | null>(null);
   const [pendingCloseBlock, setPendingCloseBlock] = useState(false);
   const [lastArtifactHint, setLastArtifactHintState] = useState<ConsoleArtifactHint | null>(() => readArtifactHint());
-  const [activePanel, setActivePanel] = useState<ActivePanelState>(null);
+  const [panels, setPanels] = useState<ConsolePanelState[]>([]);
+  const [activePanelId, setActivePanelIdState] = useState<string | null>(null);
+  const [canvasContext, setCanvasContextState] = useState<CanvasContext | null>(null);
+  const [navBack, setNavBack] = useState<NavigationEntry[]>([]);
+  const [navForward, setNavForward] = useState<NavigationEntry[]>([]);
   const editorBridgesRef = useRef<Record<string, ConsoleEditorBridge>>({});
+  const navigationGuardRef = useRef(false);
 
   const contextKey = useMemo(() => toContextKey(context), [context]);
   const session = useMemo(() => sessions[contextKey] || DEFAULT_SESSION, [sessions, contextKey]);
@@ -591,6 +655,178 @@ export function XynConsoleProvider({ children }: { children: ReactNode }) {
     return resolutionNeedsBadge(session.lastResolution?.status);
   }, [session.pendingProposal, session.lastResolution?.status]);
 
+  const activePanel = useMemo<ActivePanelState>(() => {
+    if (!activePanelId) return null;
+    return panels.find((item) => item.panel_id === activePanelId) || null;
+  }, [activePanelId, panels]);
+
+  const inferPanelType = useCallback((key: string): ConsolePanelType => {
+    if (key.includes("detail") || key.includes("raw_json") || key.includes("files")) return "detail";
+    if (key.includes("rollup") || key.includes("timeseries") || key.includes("status")) return "report";
+    return "table";
+  }, []);
+
+  const inferInstanceKey = useCallback((key: string, params?: Record<string, unknown>): string => {
+    if (key === "artifact_detail" || key === "artifact_raw_json" || key === "artifact_files") {
+      return `artifact:${String(params?.slug || "")}`;
+    }
+    if (key === "artifact_list") return "artifacts";
+    if (key.startsWith("ems_")) {
+      if (key === "ems_dataset_schema") return `dataset_schema:${String(params?.dataset || "ems_devices")}`;
+      if (key === "ems_registrations_timeseries") return "ems_registrations_timeseries";
+      if (key === "ems_device_status_rollup" || key === "ems_device_statuses") return "ems_device_status_rollup";
+      if (key === "ems_registrations" || key === "ems_registrations_time") return "ems_registrations";
+      return "ems_devices";
+    }
+    return key;
+  }, []);
+
+  const openPanel = useCallback(
+    (input: { key: string; params?: Record<string, unknown>; open_in?: "current_panel" | "new_panel" | "side_by_side" }) => {
+      const panelType = inferPanelType(input.key);
+      const instanceKey = inferInstanceKey(input.key, input.params);
+      const openIn = input.open_in || "current_panel";
+      setPanels((current) => {
+        const existing = current.find((item) => item.panel_type === panelType && item.instance_key === instanceKey);
+        if (existing) {
+          setActivePanelIdState(existing.panel_id);
+          return current.map((item) =>
+            item.panel_id === existing.panel_id ? { ...item, key: input.key, params: input.params || {}, title: item.title || input.key } : item
+          );
+        }
+        const next: ConsolePanelState = {
+          panel_id: `${Date.now()}-${Math.random().toString(36).slice(2, 8)}`,
+          panel_type: panelType,
+          instance_key: instanceKey,
+          title: input.key,
+          key: input.key,
+          params: input.params || {},
+          active_group_id: null,
+        };
+        if (openIn === "current_panel" && activePanelId) {
+          const replaced = current.map((item) => (item.panel_id === activePanelId ? next : item));
+          setActivePanelIdState(next.panel_id);
+          return replaced;
+        }
+        setActivePanelIdState(next.panel_id);
+        return [...current, next];
+      });
+    },
+    [activePanelId, inferInstanceKey, inferPanelType]
+  );
+
+  const closePanel = useCallback(
+    (panelId: string) => {
+      setPanels((current) => {
+        const next = current.filter((item) => item.panel_id !== panelId);
+        if (activePanelId === panelId) {
+          setActivePanelIdState(next.length ? next[next.length - 1].panel_id : null);
+        }
+        return next;
+      });
+    },
+    [activePanelId]
+  );
+
+  const setActivePanelId = useCallback((panelId: string | null) => {
+    setActivePanelIdState(panelId);
+  }, []);
+
+  const setActivePanel = useCallback(
+    (panel: ActivePanelState) => {
+      if (!panel) {
+        if (activePanelId) closePanel(activePanelId);
+        return;
+      }
+      if (panel.panel_id) {
+        setPanels((current) => {
+          const exists = current.some((item) => item.panel_id === panel.panel_id);
+          if (!exists) return [...current, panel];
+          return current.map((item) => (item.panel_id === panel.panel_id ? panel : item));
+        });
+        setActivePanelIdState(panel.panel_id);
+        return;
+      }
+      openPanel({ key: panel.key, params: panel.params || {} });
+    },
+    [activePanelId, closePanel, openPanel]
+  );
+
+  const updateActivePanelParams = useCallback(
+    (params: Record<string, unknown>) => {
+      if (!activePanelId) return;
+      setPanels((current) => current.map((item) => (item.panel_id === activePanelId ? { ...item, params: { ...(item.params || {}), ...params } } : item)));
+    },
+    [activePanelId]
+  );
+
+  const setCanvasContext = useCallback((context: CanvasContext | null) => {
+    setCanvasContextState(context);
+  }, []);
+
+  const toNavEntry = useCallback((context: CanvasContext): NavigationEntry => {
+    return {
+      panel_id: context.ui.panel_id,
+      view_type: context.view_type,
+      instance_key: context.ui.instance_key,
+      query: (context.query || undefined) as Record<string, unknown> | undefined,
+      selection: context.selection || undefined,
+    };
+  }, []);
+
+  useEffect(() => {
+    if (!canvasContext?.ui?.panel_id) return;
+    if (navigationGuardRef.current) return;
+    setNavBack((current) => {
+      const next = [...current];
+      const entry = toNavEntry(canvasContext);
+      const last = next[next.length - 1];
+      if (!last || last.panel_id !== entry.panel_id || JSON.stringify(last.query || {}) !== JSON.stringify(entry.query || {})) {
+        next.push(entry);
+      }
+      return next.slice(-30);
+    });
+    setNavForward([]);
+  }, [canvasContext, toNavEntry]);
+
+  const navigateBack = useCallback(() => {
+    setNavBack((current) => {
+      if (current.length <= 1) return current;
+      const next = [...current];
+      const currentEntry = next.pop();
+      const prev = next[next.length - 1];
+      if (currentEntry) setNavForward((forward) => [currentEntry, ...forward].slice(0, 30));
+      if (prev) {
+        navigationGuardRef.current = true;
+        setActivePanelIdState(prev.panel_id);
+        setPanels((items) =>
+          items.map((panel) => (panel.panel_id === prev.panel_id ? { ...panel, params: { ...(panel.params || {}), query: prev.query || panel.params?.query } } : panel))
+        );
+        setTimeout(() => {
+          navigationGuardRef.current = false;
+        }, 0);
+      }
+      return next;
+    });
+  }, []);
+
+  const navigateForward = useCallback(() => {
+    setNavForward((current) => {
+      if (!current.length) return current;
+      const [next, ...rest] = current;
+      navigationGuardRef.current = true;
+      setActivePanelIdState(next.panel_id);
+      setPanels((items) =>
+        items.map((panel) => (panel.panel_id === next.panel_id ? { ...panel, params: { ...(panel.params || {}), query: next.query || panel.params?.query } } : panel))
+      );
+      setNavBack((back) => [...back, next].slice(-30));
+      setTimeout(() => {
+        navigationGuardRef.current = false;
+      }, 0);
+      return rest;
+    });
+  }, []);
+
   const value = useMemo<XynConsoleContextValue>(
     () => ({
       open,
@@ -623,8 +859,18 @@ export function XynConsoleProvider({ children }: { children: ReactNode }) {
       handleRouteChange,
       lastArtifactHint,
       setLastArtifactHint,
+      panels,
+      activePanelId,
       activePanel,
       setActivePanel,
+      openPanel,
+      closePanel,
+      setActivePanelId,
+      updateActivePanelParams,
+      canvasContext,
+      setCanvasContext,
+      navigateBack,
+      navigateForward,
     }),
     [
       open,
@@ -655,8 +901,18 @@ export function XynConsoleProvider({ children }: { children: ReactNode }) {
       handleRouteChange,
       lastArtifactHint,
       setLastArtifactHint,
+      panels,
+      activePanelId,
       activePanel,
       setActivePanel,
+      openPanel,
+      closePanel,
+      setActivePanelId,
+      updateActivePanelParams,
+      canvasContext,
+      setCanvasContext,
+      navigateBack,
+      navigateForward,
     ]
   );
 

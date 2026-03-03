@@ -37,6 +37,52 @@ type ResolvedPanelCommand =
   | { panelKey: "ems_registrations_timeseries"; params: { hours: number } }
   | { panelKey: "ems_dataset_schema"; params: { dataset: string } };
 
+type UiActionEnvelope = {
+  type: "ui.action";
+  action: {
+    name:
+      | "canvas.open_table"
+      | "canvas.update_table_query"
+      | "canvas.open_detail"
+      | "canvas.select_rows"
+      | "canvas.set_active_panel"
+      | "canvas.close_panel";
+    target?: {
+      panel_id?: string;
+      instance_key?: string;
+    };
+    params: Record<string, unknown>;
+  };
+};
+
+type ConsoleCanvasContext = {
+  view_type?: "table" | "detail";
+  dataset?: {
+    name?: string;
+    primary_key?: string;
+    columns?: Array<Record<string, unknown>>;
+  };
+  query?: Record<string, unknown>;
+  selection?: {
+    selected_row_ids?: string[];
+    focused_row_id?: string | null;
+    row_order_ids?: string[];
+  };
+  pagination?: {
+    limit?: number;
+    offset?: number;
+    total_count?: number;
+  };
+  entity_type?: string;
+  entity_id?: string;
+  available_tabs?: string[];
+  active_tab?: string;
+  ui?: {
+    active_panel_id?: string;
+    panel_id?: string;
+  };
+};
+
 function defaultArtifactStructuredQuery(): ArtifactStructuredQuery {
   return {
     entity: "artifacts",
@@ -56,7 +102,7 @@ export function resolvePanelCommand(input: string): ResolvedPanelCommand | null 
   if (match && match[1]) {
     return { panelKey: "artifact_list", params: { namespace: match[1] } };
   }
-  if (/^list\s+artifacts$/.test(normalized)) {
+  if (/^list\s+artifacts$/.test(normalized) || /^show\s+artifacts$/.test(normalized)) {
     return { panelKey: "artifact_list", params: {} };
   }
   if (/^show\s+installed\s+artifacts$/.test(normalized)) {
@@ -224,6 +270,384 @@ function stringifyValue(value: unknown): string {
 function shortArtifactId(id: string): string {
   if (!id) return "";
   return id.length > 12 ? id.slice(0, 12) : id;
+}
+
+function parseDurationToRelativeHours(input: string): number | null {
+  const match = String(input || "")
+    .trim()
+    .toLowerCase()
+    .match(/^(\d+)\s*(h|hr|hrs|hour|hours|d|day|days)$/);
+  if (!match || !match[1] || !match[2]) return null;
+  const amount = Number(match[1]);
+  if (!Number.isFinite(amount) || amount <= 0) return null;
+  if (match[2].startsWith("d")) return amount * 24;
+  return amount;
+}
+
+function toLowerColumns(context: ConsoleCanvasContext): string[] {
+  return (context.dataset?.columns || [])
+    .map((column) => String(column.key || "").trim().toLowerCase())
+    .filter(Boolean);
+}
+
+function inferSearchField(context: ConsoleCanvasContext): string {
+  const cols = context.dataset?.columns || [];
+  const preferred = ["name", "slug", "serial", "customer", "workspace", "model", "mac"];
+  for (const key of preferred) {
+    const hit = cols.find((entry) => String(entry.key || "").toLowerCase() === key && Boolean(entry.searchable));
+    if (hit?.key) return String(hit.key);
+  }
+  const anySearchable = cols.find((entry) => Boolean(entry.searchable));
+  if (anySearchable?.key) return String(anySearchable.key);
+  return String(context.dataset?.primary_key || "slug");
+}
+
+function panelKeyForDataset(dataset: string): ResolvedPanelCommand["panelKey"] {
+  if (dataset === "artifacts") return "artifact_list";
+  if (dataset === "ems_devices") return "ems_devices";
+  if (dataset === "ems_registrations") return "ems_registrations";
+  if (dataset === "ems_device_status_rollup") return "ems_device_status_rollup";
+  if (dataset === "ems_registrations_timeseries") return "ems_registrations_timeseries";
+  return "artifact_list";
+}
+
+function defaultQueryForDataset(dataset: string): Record<string, unknown> {
+  if (dataset === "ems_devices") {
+    return { entity: "ems_devices", filters: [], sort: [{ field: "updated_at", dir: "desc" }], limit: 50, offset: 0 };
+  }
+  if (dataset === "ems_registrations") {
+    return { entity: "ems_registrations", filters: [], sort: [{ field: "registered_at", dir: "desc" }], limit: 50, offset: 0 };
+  }
+  if (dataset === "ems_device_status_rollup") {
+    return { entity: "ems_device_status_rollup", filters: [], sort: [{ field: "bucket", dir: "asc" }], limit: 50, offset: 0 };
+  }
+  if (dataset === "ems_registrations_timeseries") {
+    return { entity: "ems_registrations_timeseries", filters: [], sort: [{ field: "bucket_start", dir: "asc" }], limit: 50, offset: 0 };
+  }
+  return defaultArtifactStructuredQuery();
+}
+
+function buildUiActionFromPrompt(rawPrompt: string, canvasContext: ConsoleCanvasContext | null): UiActionEnvelope | null {
+  const prompt = String(rawPrompt || "").trim();
+  if (!prompt) return null;
+  const normalized = prompt.toLowerCase();
+  const activePanelId = canvasContext?.ui?.active_panel_id || canvasContext?.ui?.panel_id;
+  const activeDataset = String(canvasContext?.dataset?.name || "").trim();
+  const viewType = canvasContext?.view_type;
+
+  const directPanel = resolvePanelCommand(prompt);
+  if (directPanel) {
+    const dataset =
+      directPanel.panelKey === "artifact_list"
+        ? "artifacts"
+        : directPanel.panelKey === "ems_devices"
+          ? "ems_devices"
+          : directPanel.panelKey === "ems_registrations"
+            ? "ems_registrations"
+            : directPanel.panelKey === "ems_device_status_rollup"
+              ? "ems_device_status_rollup"
+              : directPanel.panelKey === "ems_registrations_timeseries"
+                ? "ems_registrations_timeseries"
+                : "";
+    if (dataset) {
+      const paramsWithQuery =
+        directPanel.params && typeof directPanel.params === "object" && "query" in directPanel.params
+          ? (directPanel.params as { query?: Record<string, unknown> })
+          : null;
+      const nextQuery = paramsWithQuery?.query || defaultQueryForDataset(dataset);
+      return {
+        type: "ui.action",
+        action: {
+          name: "canvas.open_table",
+          params: {
+            dataset,
+            query: nextQuery,
+            title: dataset,
+            open_in: "current_panel",
+            placement: "center",
+          },
+        },
+      };
+    }
+    if (directPanel.panelKey === "artifact_detail" && directPanel.params.slug) {
+      return {
+        type: "ui.action",
+        action: {
+          name: "canvas.open_detail",
+          params: {
+            entity_type: "artifact",
+            entity_id: directPanel.params.slug,
+            open_in: "new_panel",
+            placement: "right",
+          },
+        },
+      };
+    }
+  }
+
+  if (normalized === "back") {
+    return {
+      type: "ui.action",
+      action: {
+        name: "canvas.set_active_panel",
+        params: { direction: "back" },
+      },
+    };
+  }
+  if (normalized === "forward") {
+    return {
+      type: "ui.action",
+      action: {
+        name: "canvas.set_active_panel",
+        params: { direction: "forward" },
+      },
+    };
+  }
+
+  if (viewType === "detail") {
+    if (normalized === "show raw") {
+      return { type: "ui.action", action: { name: "canvas.open_detail", target: { panel_id: activePanelId }, params: { tab: "raw" } } };
+    }
+    if (normalized === "show files") {
+      return { type: "ui.action", action: { name: "canvas.open_detail", target: { panel_id: activePanelId }, params: { tab: "files" } } };
+    }
+    if (normalized === "open manage") {
+      return { type: "ui.action", action: { name: "canvas.open_detail", target: { panel_id: activePanelId }, params: { tab: "manage" } } };
+    }
+    if (normalized === "back to list") {
+      return { type: "ui.action", action: { name: "canvas.set_active_panel", params: { direction: "back" } } };
+    }
+  }
+
+  if (viewType !== "table" || !activePanelId) return null;
+
+  const validColumns = toLowerColumns(canvasContext || {});
+
+  let match = normalized.match(/^filter\s+([a-z0-9_]+)\s*=\s*(.+)$/);
+  if (match && match[1] && match[2]) {
+    const field = String(match[1]).trim();
+    if (!validColumns.includes(field.toLowerCase())) return null;
+    return {
+      type: "ui.action",
+      action: {
+        name: "canvas.update_table_query",
+        target: { panel_id: activePanelId },
+        params: {
+          mode: "patch",
+          query_patch: {
+            filters_add: [{ field, op: "eq", value: String(match[2]).trim() }],
+          },
+        },
+      },
+    };
+  }
+
+  match = normalized.match(/^show\s+updated\s+in\s+the\s+last\s+(.+)$/);
+  if (match && match[1]) {
+    const hours = parseDurationToRelativeHours(match[1]) || 1;
+    const candidate = validColumns.includes("updated_at")
+      ? "updated_at"
+      : validColumns.includes("registered_at")
+        ? "registered_at"
+        : "";
+    if (!candidate) return null;
+    return {
+      type: "ui.action",
+      action: {
+        name: "canvas.update_table_query",
+        target: { panel_id: activePanelId },
+        params: {
+          mode: "patch",
+          query_patch: {
+            filters_add: [{ field: candidate, op: "gte", value: `now-${hours}h` }],
+            sort_replace: [{ field: candidate, dir: "desc" }],
+          },
+        },
+      },
+    };
+  }
+
+  match = normalized.match(/^sort\s+by\s+([a-z0-9_]+)(?:\s+(asc|desc))?$/);
+  if (match && match[1]) {
+    const field = String(match[1]).trim();
+    if (!validColumns.includes(field.toLowerCase())) return null;
+    return {
+      type: "ui.action",
+      action: {
+        name: "canvas.update_table_query",
+        target: { panel_id: activePanelId },
+        params: {
+          mode: "patch",
+          query_patch: {
+            sort_replace: [{ field, dir: match[2] === "asc" ? "asc" : "desc" }],
+          },
+        },
+      },
+    };
+  }
+
+  match = normalized.match(/^limit\s+(\d+)$/);
+  if (match && match[1]) {
+    const limit = Math.max(1, Math.min(Number(match[1]) || 50, 200));
+    return {
+      type: "ui.action",
+      action: {
+        name: "canvas.update_table_query",
+        target: { panel_id: activePanelId },
+        params: {
+          mode: "patch",
+          query_patch: { limit, offset: 0 },
+        },
+      },
+    };
+  }
+
+  if (normalized === "next page") {
+    const limit = Number(canvasContext?.pagination?.limit || 50);
+    const offset = Number(canvasContext?.pagination?.offset || 0);
+    return {
+      type: "ui.action",
+      action: {
+        name: "canvas.update_table_query",
+        target: { panel_id: activePanelId },
+        params: {
+          mode: "patch",
+          query_patch: { offset: offset + limit },
+        },
+      },
+    };
+  }
+
+  if (normalized === "previous page") {
+    const limit = Number(canvasContext?.pagination?.limit || 50);
+    const offset = Number(canvasContext?.pagination?.offset || 0);
+    return {
+      type: "ui.action",
+      action: {
+        name: "canvas.update_table_query",
+        target: { panel_id: activePanelId },
+        params: {
+          mode: "patch",
+          query_patch: { offset: Math.max(0, offset - limit) },
+        },
+      },
+    };
+  }
+
+  if (normalized === "clear filters") {
+    return {
+      type: "ui.action",
+      action: {
+        name: "canvas.update_table_query",
+        target: { panel_id: activePanelId },
+        params: {
+          mode: "replace",
+          query_patch: {
+            filters_add: [],
+            sort_replace: (canvasContext?.query?.sort as Array<{ field: string; dir: "asc" | "desc" }>) || [],
+            limit: Number(canvasContext?.pagination?.limit || 50),
+            offset: 0,
+          },
+        },
+      },
+    };
+  }
+
+  match = rawPrompt.match(/^search\s+(.+)$/i);
+  if (match && match[1]) {
+    const field = inferSearchField(canvasContext || {});
+    return {
+      type: "ui.action",
+      action: {
+        name: "canvas.update_table_query",
+        target: { panel_id: activePanelId },
+        params: {
+          mode: "patch",
+          query_patch: {
+            filters_add: [{ field, op: "contains", value: String(match[1]).trim() }],
+            offset: 0,
+          },
+        },
+      },
+    };
+  }
+
+  match = normalized.match(/^open\s+row\s+(\d+)$/);
+  if (match && match[1] && activeDataset === "artifacts") {
+    const idx = Math.max(1, Number(match[1])) - 1;
+    const rowOrder = canvasContext?.selection?.row_order_ids || [];
+    const rowId = rowOrder[idx];
+    if (!rowId) return null;
+    return {
+      type: "ui.action",
+      action: {
+        name: "canvas.select_rows",
+        target: { panel_id: activePanelId },
+        params: {
+          row_ids: [rowId],
+          focused_row_id: rowId,
+          open_detail: true,
+          entity_type: "artifact",
+          entity_id: rowId,
+        },
+      },
+    };
+  }
+
+  match = rawPrompt.match(/^open\s+([a-z0-9_.:-]+)$/i);
+  if (match && match[1] && activeDataset === "artifacts") {
+    const id = String(match[1]).trim();
+    return {
+      type: "ui.action",
+      action: {
+        name: "canvas.open_detail",
+        params: {
+          entity_type: "artifact",
+          entity_id: id,
+          open_in: "new_panel",
+          placement: "right",
+        },
+      },
+    };
+  }
+
+  return null;
+}
+
+function patchTableQuery(currentQuery: Record<string, unknown>, patch: Record<string, unknown>, mode: "patch" | "replace"): Record<string, unknown> {
+  const currentFilters = (currentQuery.filters as Array<{ field: string; op: string; value: unknown }> | undefined) || [];
+  const nextFiltersAdd = (patch.filters_add as Array<{ field: string; op: string; value: unknown }> | undefined) || [];
+  const nextLimit = Number(patch.limit ?? currentQuery.limit ?? 50);
+  const nextOffset = Number(patch.offset ?? currentQuery.offset ?? 0);
+  const nextSort = (patch.sort_replace as Array<{ field: string; dir: "asc" | "desc" }> | undefined) || (currentQuery.sort as any) || [];
+
+  if (mode === "replace") {
+    return {
+      ...currentQuery,
+      filters: nextFiltersAdd,
+      sort: nextSort,
+      limit: nextLimit,
+      offset: nextOffset,
+    };
+  }
+
+  const dedupeMap = new Map<string, { field: string; op: string; value: unknown }>();
+  for (const item of currentFilters) {
+    const key = `${String(item.field)}::${String(item.op)}`;
+    dedupeMap.set(key, item);
+  }
+  for (const item of nextFiltersAdd) {
+    const key = `${String(item.field)}::${String(item.op)}`;
+    dedupeMap.set(key, item);
+  }
+
+  return {
+    ...currentQuery,
+    filters: Array.from(dedupeMap.values()),
+    sort: nextSort.length ? nextSort : currentQuery.sort || [],
+    limit: nextLimit,
+    offset: nextOffset,
+  };
 }
 
 function humanizeIntentStatus(status?: string): string {
@@ -453,6 +877,14 @@ export default function XynConsoleCore({ mode, onRequestClose, onOpenPanel }: Pr
     lastArtifactHint,
     setLastArtifactHint,
     injectSuggestion,
+    canvasContext,
+    openPanel,
+    updateActivePanelParams,
+    activePanelId,
+    setActivePanelId,
+    closePanel,
+    navigateBack,
+    navigateForward,
   } = useXynConsole();
   const inputRef = useRef<HTMLTextAreaElement | null>(null);
   const [recentItems, setRecentItems] = useState<RecentArtifactItem[]>([]);
@@ -500,8 +932,8 @@ export default function XynConsoleCore({ mode, onRequestClose, onOpenPanel }: Pr
 
   const statusLine = useMemo(() => {
     if (!processingStep) return "";
-    if (processingStep === "resolving") return "Resolving intent...";
-    if (processingStep === "classifying") return "Understanding request...";
+    if (processingStep === "resolving") return "Resolving command...";
+    if (processingStep === "classifying") return "Preparing response...";
     return "Checking requirements...";
   }, [processingStep]);
 
@@ -561,12 +993,93 @@ export default function XynConsoleCore({ mode, onRequestClose, onOpenPanel }: Pr
   };
 
   const submitPrompt = () => {
-    const directPanel = resolvePanelCommand(inputText);
+    const prompt = String(inputText || "").trim();
+    if (!prompt) return;
+    const envelope = buildUiActionFromPrompt(prompt, (canvasContext as ConsoleCanvasContext | null) || null);
+    if (envelope) {
+      const action = envelope.action;
+      if (action.name === "canvas.open_table") {
+        const dataset = String(action.params.dataset || "artifacts");
+        const query = (action.params.query as Record<string, unknown> | undefined) || defaultQueryForDataset(dataset);
+        openPanel({
+          key: panelKeyForDataset(dataset),
+          params: { query },
+          open_in: (action.params.open_in as "current_panel" | "new_panel" | "side_by_side" | undefined) || "current_panel",
+        });
+        clearSessionResolution();
+        if (isOverlay) setOpen(false);
+        return;
+      }
+      if (action.name === "canvas.open_detail") {
+        if (String(action.params.entity_type || "") === "artifact") {
+          const slug = String(action.params.entity_id || "").trim();
+          if (slug) {
+            openPanel({
+              key: "artifact_detail",
+              params: { slug, tab: String(action.params.tab || "overview") },
+              open_in: (action.params.open_in as "current_panel" | "new_panel" | "side_by_side" | undefined) || "new_panel",
+            });
+            clearSessionResolution();
+            if (isOverlay) setOpen(false);
+            return;
+          }
+        }
+      }
+      if (action.name === "canvas.update_table_query") {
+        const mode = (action.params.mode as "patch" | "replace" | undefined) || "patch";
+        const patch = (action.params.query_patch as Record<string, unknown> | undefined) || {};
+        const current = (canvasContext?.query as Record<string, unknown> | undefined) || defaultArtifactStructuredQuery();
+        updateActivePanelParams({ query: patchTableQuery(current, patch, mode) });
+        clearSessionResolution();
+        if (isOverlay) setOpen(false);
+        return;
+      }
+      if (action.name === "canvas.select_rows") {
+        const rowIds = (action.params.row_ids as string[] | undefined) || [];
+        updateActivePanelParams({
+          selected_row_ids: rowIds,
+          focused_row_id: action.params.focused_row_id || null,
+        });
+        if (action.params.open_detail && String(action.params.entity_type || "") === "artifact") {
+          const entityId = String(action.params.entity_id || "").trim();
+          if (entityId) {
+            openPanel({ key: "artifact_detail", params: { slug: entityId }, open_in: "new_panel" });
+          }
+        }
+        clearSessionResolution();
+        if (isOverlay) setOpen(false);
+        return;
+      }
+      if (action.name === "canvas.set_active_panel") {
+        const direction = String(action.params.direction || "").toLowerCase();
+        if (direction === "back") {
+          navigateBack();
+        } else if (direction === "forward") {
+          navigateForward();
+        } else if (action.params.panel_id && typeof action.params.panel_id === "string") {
+          setActivePanelId(action.params.panel_id);
+        }
+        clearSessionResolution();
+        if (isOverlay) setOpen(false);
+        return;
+      }
+      if (action.name === "canvas.close_panel") {
+        const panelId = String(action.params.panel_id || activePanelId || "").trim();
+        if (panelId) closePanel(panelId);
+        clearSessionResolution();
+        if (isOverlay) setOpen(false);
+        return;
+      }
+    }
+
+    const directPanel = resolvePanelCommand(prompt);
     if (directPanel && onOpenPanel) {
       onOpenPanel(directPanel.panelKey, directPanel.params);
       clearSessionResolution();
+      if (isOverlay) setOpen(false);
       return;
     }
+
     void submitResolve();
   };
 

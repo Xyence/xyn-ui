@@ -5,16 +5,30 @@ import { useXynConsole } from "../state/xynConsoleStore";
 import { toWorkspacePath } from "../routing/workspaceRouting";
 
 export default function WorkbenchPage() {
-  const { setContext, setOpen, setInputText, clearSessionResolution, activePanel, setActivePanel } = useXynConsole();
+  const { setContext, setOpen, setInputText, clearSessionResolution, activePanel, closePanel, openPanel, setCanvasContext } = useXynConsole();
   const params = useParams();
   const workspaceId = String(params.workspaceId || "").trim();
-  const panel = (activePanel ? { key: activePanel.key as ConsolePanelKey, params: activePanel.params || {} } : null) as ConsolePanelSpec | null;
+  const panel = (activePanel
+    ? {
+        panel_id: activePanel.panel_id,
+        panel_type: activePanel.panel_type,
+        instance_key: activePanel.instance_key,
+        title: activePanel.title,
+        key: activePanel.key as ConsolePanelKey,
+        params: activePanel.params || {},
+        active_group_id: activePanel.active_group_id,
+      }
+    : null) as ConsolePanelSpec | null;
 
   useEffect(() => {
     setContext({ artifact_id: null, artifact_type: null });
     clearSessionResolution();
     setOpen(true);
   }, [clearSessionResolution, setContext, setOpen]);
+
+  useEffect(() => {
+    if (!panel) setCanvasContext(null);
+  }, [panel, setCanvasContext]);
 
   const suggestions = [
     "List core artifacts",
@@ -60,14 +74,26 @@ export default function WorkbenchPage() {
 
       <section className="workbench-canvas">
         <div className="inline-actions" style={{ justifyContent: "flex-end" }}>
-          <button type="button" className="ghost" onClick={() => setActivePanel(null)}>
+          <button
+            type="button"
+            className="ghost"
+            onClick={() => {
+              if (activePanel?.panel_id) closePanel(activePanel.panel_id);
+            }}
+          >
             Clear panel
           </button>
         </div>
         <EmsPanelHost
           panel={panel}
           workspaceId={workspaceId}
-          onOpenPanel={(next) => setActivePanel({ key: next.key, params: next.params || {} })}
+          onOpenPanel={(next) => openPanel({ key: next.key, params: next.params || {}, open_in: "current_panel" })}
+          onContextChange={(context) => {
+            setCanvasContext((context || null) as never);
+          }}
+          onClosePanel={() => {
+            if (activePanel?.panel_id) closePanel(activePanel.panel_id);
+          }}
         />
       </section>
     </>
