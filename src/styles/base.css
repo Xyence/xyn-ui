@@ -3368,6 +3368,10 @@ button.sm {
   grid-template-columns: 300px minmax(0, 1fr);
 }
 
+.app-body.app-body-workbench {
+  grid-template-columns: minmax(0, 1fr);
+}
+
 .app-breadcrumbs {
   display: inline-flex;
   align-items: center;

@@ -418,6 +418,10 @@ export default function AppShell() {
     () => workspaces.find((workspace) => workspace.id === activeWorkspaceId) || workspaces[0] || null,
     [workspaces, activeWorkspaceId]
   );
+  const isWorkbenchRoute = useMemo(
+    () => /\/w\/[^/]+\/workbench\/?$/.test(location.pathname) || /\/app\/workbench\/?$/.test(location.pathname),
+    [location.pathname]
+  );
   const workspaceRole = activeWorkspace?.role || "reader";
   const canWorkspaceAdmin = workspaceRole === "admin";
   const breadcrumbTrail = useMemo(() => {
@@ -616,15 +620,17 @@ export default function AppShell() {
           )}
         </div>
       </header>
-      <div className={`app-body ${isPreviewReadOnly ? "preview-readonly" : ""}`}>
-        <Sidebar
-          user={navUser}
-          navGroups={navGroups}
-          createActions={createActions}
-          workspaces={workspaces.map((workspace) => ({ id: workspace.id, name: workspace.name }))}
-          activeWorkspaceId={activeWorkspace?.id || ""}
-          onWorkspaceChange={handleWorkspaceChange}
-        />
+      <div className={`app-body ${isPreviewReadOnly ? "preview-readonly" : ""} ${isWorkbenchRoute ? "app-body-workbench" : ""}`}>
+        {!isWorkbenchRoute ? (
+          <Sidebar
+            user={navUser}
+            navGroups={navGroups}
+            createActions={createActions}
+            workspaces={workspaces.map((workspace) => ({ id: workspace.id, name: workspace.name }))}
+            activeWorkspaceId={activeWorkspace?.id || ""}
+            onWorkspaceChange={handleWorkspaceChange}
+          />
+        ) : null}
         <main className="app-content" ref={contentRef}>
           <div className={`preview-banner-slot ${preview.enabled ? "active" : ""}`}>
             <PreviewBanner
@@ -635,7 +641,7 @@ export default function AppShell() {
               }}
             />
           </div>
-          {breadcrumbTrail.length > 0 && (
+          {!isWorkbenchRoute && breadcrumbTrail.length > 0 && (
             <div className="app-breadcrumbs" aria-label="Breadcrumb">
               {breadcrumbTrail.map((crumb) => crumb.label).join(" / ")}
             </div>
