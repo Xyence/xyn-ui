@@ -323,9 +323,14 @@ export async function listArtifactConsole(params?: {
   return handle<ArtifactConsoleListResponse>(response);
 }
 
-export async function getArtifactConsoleDetailBySlug(slug: string): Promise<ArtifactConsoleDetailResponse> {
+export async function getArtifactConsoleDetailBySlug(
+  slug: string,
+  options?: { workspaceId?: string }
+): Promise<ArtifactConsoleDetailResponse> {
   const apiBaseUrl = resolveApiBaseUrl();
-  const response = await apiFetch(`${apiBaseUrl}/xyn/api/artifacts/slug/${encodeURIComponent(slug)}`, {
+  const url = new URL(`${apiBaseUrl}/xyn/api/artifacts/slug/${encodeURIComponent(slug)}`);
+  if (options?.workspaceId) url.searchParams.set("workspace_id", options.workspaceId);
+  const response = await apiFetch(url.toString(), {
     credentials: "include",
     headers: buildHeaders(),
   });
@@ -607,11 +612,14 @@ export async function listWorkspaceArtifacts(
   return handle<{ artifacts: WorkspaceInstalledArtifactSummary[] }>(response);
 }
 
-export async function listArtifactsCatalog(filters?: { query?: string; kind?: string }): Promise<{ artifacts: CatalogArtifactSummary[] }> {
+export async function listArtifactsCatalog(
+  filters?: { query?: string; kind?: string; workspace_id?: string }
+): Promise<{ artifacts: CatalogArtifactSummary[] }> {
   const apiBaseUrl = resolveApiBaseUrl();
   const url = new URL(`${apiBaseUrl}/xyn/api/artifacts/catalog`);
   if (filters?.query) url.searchParams.set("query", filters.query);
   if (filters?.kind) url.searchParams.set("kind", filters.kind);
+  if (filters?.workspace_id) url.searchParams.set("workspace_id", filters.workspace_id);
   const response = await apiFetch(url.toString(), { credentials: "include" });
   return handle<{ artifacts: CatalogArtifactSummary[] }>(response);
 }

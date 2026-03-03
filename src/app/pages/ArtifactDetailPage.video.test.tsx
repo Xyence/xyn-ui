@@ -34,6 +34,7 @@ vi.mock("react-router-dom", async () => {
   return {
     ...actual,
     useParams: () => ({ artifactId: "art-1" }),
+    useLocation: () => ({ pathname: "/w/ws-1/build/artifacts/art-1", search: "" }),
   };
 });
 

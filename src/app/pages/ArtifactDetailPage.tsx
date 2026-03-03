@@ -231,6 +231,13 @@ function lintPolicyRisk(text: string): string[] {
   return hits;
 }
 
+function resolveVariantQueryToFormat(raw: string): ArticleFormat | null {
+  const value = String(raw || "").trim().toLowerCase();
+  if (!value) return null;
+  if (value === "explainer_video" || value === "video_explainer") return "video_explainer";
+  return "standard";
+}
+
 function neutralizePolicyRiskText(text: string): string {
   let next = String(text || "");
   next = next.replace(/\blooks?\s+like\s+[A-Z][a-z]+(?:\s+[A-Z][a-z]+)+/g, "has a generic appearance");
@@ -286,6 +293,10 @@ export default function ArtifactDetailPage({
     const fromSurfaceRoute = location.pathname.match(/^\/app\/a\/(?:articles|workflows)\/([^/?#]+)/i)?.[1];
     return decodeURIComponent(String(fromSurfaceRoute || "").trim());
   }, [location.pathname, params.artifactId]);
+  const surfaceVariantOverride = useMemo(
+    () => resolveVariantQueryToFormat(new URLSearchParams(location.search).get("variant") || ""),
+    [location.search]
+  );
   const [item, setItem] = useState<ArticleDetail | null>(null);
   const [title, setTitle] = useState("");
   const [revisions, setRevisions] = useState<ArticleRevision[]>([]);
@@ -623,7 +634,7 @@ export default function ArtifactDetailPage({
       setBodyMarkdown(initialBody);
       setLegacyBodyHtml(fallbackHtml);
       setSummary(article.summary || "");
-      const nextFormat = (article.format as ArticleFormat) || "standard";
+      const nextFormat = surfaceVariantOverride || (article.format as ArticleFormat) || "standard";
       setArticleFormat(nextFormat);
       if (artifactId && articleEditorCollapseInitializedForRef.current !== artifactId) {
         setArticleEditorCollapsed(nextFormat === "video_explainer");
@@ -679,7 +690,7 @@ export default function ArtifactDetailPage({
     } catch (err) {
       setError((err as Error).message);
     }
-  }, [workspaceId, artifactId, loadVideoContextPacks, loadVideoAiConfig, loadVideoAiConfigOptions]);
+  }, [workspaceId, artifactId, loadVideoContextPacks, loadVideoAiConfig, loadVideoAiConfigOptions, surfaceVariantOverride]);
 
   useEffect(() => {
     void load();

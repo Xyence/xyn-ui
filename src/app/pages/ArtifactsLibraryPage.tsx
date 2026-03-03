@@ -27,7 +27,11 @@ export default function ArtifactsLibraryPage({ workspaceId, workspaceName }: { w
     try {
       setLoading(true);
       setError(null);
-      const payload = await listArtifactsCatalog({ query: query.trim() || undefined, kind: kind || undefined });
+      const payload = await listArtifactsCatalog({
+        query: query.trim() || undefined,
+        kind: kind || undefined,
+        workspace_id: workspaceId || undefined,
+      });
       const artifacts = payload.artifacts || [];
       setRows(artifacts);
       if (!selectedId && artifacts[0]?.id) setSelectedId(artifacts[0].id);
@@ -37,7 +41,7 @@ export default function ArtifactsLibraryPage({ workspaceId, workspaceName }: { w
     } finally {
       setLoading(false);
     }
-  }, [kind, query, selectedId]);
+  }, [kind, query, selectedId, workspaceId]);
 
   useEffect(() => {
     void load();

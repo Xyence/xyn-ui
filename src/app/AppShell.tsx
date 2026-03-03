@@ -29,6 +29,8 @@ import ArtifactsRegistryPage from "./pages/ArtifactsRegistryPage";
 import ArtifactsLibraryPage from "./pages/ArtifactsLibraryPage";
 import ArtifactDetailPage from "./pages/ArtifactDetailPage";
 import ArtifactSurfaceRoutePage from "./pages/ArtifactSurfaceRoutePage";
+import ArticleSurfaceEditorRedirectPage from "./pages/ArticleSurfaceEditorRedirectPage";
+import ArticleSurfaceDocsPage from "./pages/ArticleSurfaceDocsPage";
 import WorkspaceSettingsPage from "./pages/WorkspaceSettingsPage";
 import InitiatePage from "./pages/InitiatePage";
 import { useGlobalHotkeys } from "./hooks/useGlobalHotkeys";
@@ -639,6 +641,8 @@ export default function AppShell() {
           <Routes>
             <Route path="/" element={<Navigate to={inWorkspaceScope ? DEFAULT_WORKSPACE_SUBPATH : "workspaces"} replace />} />
             <Route path="console" element={<InitiatePage />} />
+            <Route path="apps/articles/edit" element={<ArticleSurfaceEditorRedirectPage />} />
+            <Route path="apps/articles/docs" element={<ArticleSurfaceDocsPage />} />
             <Route
               path="a/*"
               element={

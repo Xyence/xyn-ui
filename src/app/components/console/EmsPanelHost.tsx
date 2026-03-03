@@ -1,4 +1,5 @@
 import { useEffect, useMemo, useState } from "react";
+import { useParams } from "react-router-dom";
 import {
   getArtifactConsoleDetailBySlug,
   getArtifactConsoleFilesBySlug,
@@ -99,6 +100,8 @@ function ArtifactListPanel({ namespace, onOpenPanel }: { namespace?: string } & 
 }
 
 function ArtifactDetailPanel({ slug, onOpenPanel }: { slug: string } & PanelProps) {
+  const params = useParams();
+  const workspaceId = String(params.workspaceId || "").trim();
   const [payload, setPayload] = useState<ArtifactConsoleDetailResponse | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -108,7 +111,7 @@ function ArtifactDetailPanel({ slug, onOpenPanel }: { slug: string } & PanelProp
       try {
         setLoading(true);
         setError(null);
-        const next = await getArtifactConsoleDetailBySlug(slug);
+        const next = await getArtifactConsoleDetailBySlug(slug, { workspaceId: workspaceId || undefined });
         if (!active) return;
         setPayload(next);
       } catch (err) {
@@ -121,7 +124,7 @@ function ArtifactDetailPanel({ slug, onOpenPanel }: { slug: string } & PanelProp
     return () => {
       active = false;
     };
-  }, [slug]);
+  }, [slug, workspaceId]);
 
   if (loading) return <p className="muted">Loading artifact detail…</p>;
   if (error) return <p className="danger-text">{error}</p>;
@@ -171,6 +174,8 @@ function ArtifactDetailPanel({ slug, onOpenPanel }: { slug: string } & PanelProp
 }
 
 function ArtifactRawJsonPanel({ slug }: { slug: string }) {
+  const params = useParams();
+  const workspaceId = String(params.workspaceId || "").trim();
   const [payload, setPayload] = useState<ArtifactConsoleDetailResponse | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -180,7 +185,7 @@ function ArtifactRawJsonPanel({ slug }: { slug: string }) {
       try {
         setLoading(true);
         setError(null);
-        const next = await getArtifactConsoleDetailBySlug(slug);
+        const next = await getArtifactConsoleDetailBySlug(slug, { workspaceId: workspaceId || undefined });
         if (!active) return;
         setPayload(next);
       } catch (err) {
@@ -193,7 +198,7 @@ function ArtifactRawJsonPanel({ slug }: { slug: string }) {
     return () => {
       active = false;
     };
-  }, [slug]);
+  }, [slug, workspaceId]);
   if (loading) return <p className="muted">Loading raw JSON…</p>;
   if (error) return <p className="danger-text">{error}</p>;
   return <pre className="code-block">{JSON.stringify(payload?.raw_artifact_json || {}, null, 2)}</pre>;
