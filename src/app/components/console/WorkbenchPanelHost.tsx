@@ -231,12 +231,14 @@ function WorkspacesPanel({
   panel,
   onContextChange,
   onOpenDetail,
+  onTitleChange,
 }: {
   query?: CanvasQuery;
   queryError?: string;
   panel: ConsolePanelSpec | null;
   onContextChange?: ContextEmitter;
   onOpenDetail: (target: OpenDetailTarget, row: Record<string, unknown>) => void;
+  onTitleChange?: (title: string) => void;
 }) {
   const [payload, setPayload] = useState<CanvasTableResponse | null>(null);
   const [activeQuery, setActiveQuery] = useState<CanvasQuery>({
@@ -324,6 +326,12 @@ function WorkspacesPanel({
     emitTableContext({ onContextChange, panel, payload, query: activeQuery, selectedRowIds, focusedRowId, rowOrderIds });
   }, [activeQuery, focusedRowId, onContextChange, panel, payload, rowOrderIds, selectedRowIds]);
 
+  useEffect(() => {
+    if (!onTitleChange) return;
+    if (!payload?.title) return;
+    onTitleChange(String(payload.title));
+  }, [onTitleChange, payload?.title]);
+
   if (loading) return <p className="muted">Loading workspaces…</p>;
   if (queryError) return <p className="muted">{queryError}</p>;
   if (error) return <p className="danger-text">{error}</p>;
@@ -354,12 +362,14 @@ function RunsPanel({
   panel,
   onContextChange,
   onOpenDetail,
+  onTitleChange,
 }: {
   query?: CanvasQuery;
   queryError?: string;
   panel: ConsolePanelSpec | null;
   onContextChange?: ContextEmitter;
   onOpenDetail: (target: OpenDetailTarget, row: Record<string, unknown>) => void;
+  onTitleChange?: (title: string) => void;
 }) {
   const [payload, setPayload] = useState<CanvasTableResponse | null>(null);
   const [activeQuery, setActiveQuery] = useState<CanvasQuery>({
@@ -454,6 +464,12 @@ function RunsPanel({
   useEffect(() => {
     emitTableContext({ onContextChange, panel, payload, query: activeQuery, selectedRowIds, focusedRowId, rowOrderIds });
   }, [activeQuery, focusedRowId, onContextChange, panel, payload, rowOrderIds, selectedRowIds]);
+
+  useEffect(() => {
+    if (!onTitleChange) return;
+    if (!payload?.title) return;
+    onTitleChange(String(payload.title));
+  }, [onTitleChange, payload?.title]);
 
   if (loading) return <p className="muted">Loading runs…</p>;
   if (queryError) return <p className="muted">{queryError}</p>;
@@ -636,6 +652,7 @@ function ArtifactListPanel({
   onOpenArtifactDetail,
   panel,
   onContextChange,
+  onTitleChange,
 }: {
   namespace?: string;
   workspaceId?: string;
@@ -644,6 +661,7 @@ function ArtifactListPanel({
   onOpenArtifactDetail: (slug: string) => void;
   panel: ConsolePanelSpec | null;
   onContextChange?: ContextEmitter;
+  onTitleChange?: (title: string) => void;
 }) {
   const [payload, setPayload] = useState<ArtifactCanvasTableResponse | null>(null);
   const [activeQuery, setActiveQuery] = useState<ArtifactStructuredQuery>(baseArtifactQuery());
@@ -694,6 +712,12 @@ function ArtifactListPanel({
     emitTableContext({ onContextChange, panel, payload, query: activeQuery, selectedRowIds, focusedRowId, rowOrderIds });
   }, [activeQuery, focusedRowId, onContextChange, panel, payload, rowOrderIds, selectedRowIds]);
 
+  useEffect(() => {
+    if (!onTitleChange) return;
+    if (!payload?.title) return;
+    onTitleChange(String(payload.title));
+  }, [onTitleChange, payload?.title]);
+
   if (loading) return <p className="muted">Loading artifacts…</p>;
   if (queryError) return <p className="muted">{queryError}</p>;
   if (error) return <p className="danger-text">{error}</p>;
@@ -729,6 +753,7 @@ function EmsCanvasPanel({
   panel,
   onContextChange,
   onOpenDetail,
+  onTitleChange,
 }: {
   fetcher: (query: CanvasQuery) => Promise<CanvasTableResponse>;
   initialQuery: CanvasQuery;
@@ -736,6 +761,7 @@ function EmsCanvasPanel({
   panel: ConsolePanelSpec | null;
   onContextChange?: ContextEmitter;
   onOpenDetail: (target: OpenDetailTarget, row: Record<string, unknown>) => void;
+  onTitleChange?: (title: string) => void;
 }) {
   const [payload, setPayload] = useState<CanvasTableResponse | null>(null);
   const [query, setQuery] = useState<CanvasQuery>(initialQuery);
@@ -772,6 +798,12 @@ function EmsCanvasPanel({
   useEffect(() => {
     emitTableContext({ onContextChange, panel, payload, query, selectedRowIds, focusedRowId, rowOrderIds });
   }, [focusedRowId, onContextChange, panel, payload, query, rowOrderIds, selectedRowIds]);
+
+  useEffect(() => {
+    if (!onTitleChange) return;
+    if (!payload?.title) return;
+    onTitleChange(String(payload.title));
+  }, [onTitleChange, payload?.title]);
 
   if (loading) return <p className="muted">Loading…</p>;
   if (queryError) return <p className="muted">{queryError}</p>;
@@ -1090,6 +1122,11 @@ export default function WorkbenchPanelHost({
   onClosePanel?: () => void;
   onContextChange?: ContextEmitter;
 }) {
+  const [resolvedTitle, setResolvedTitle] = useState("");
+  useEffect(() => {
+    setResolvedTitle("");
+  }, [panel?.panel_id, panel?.key]);
+
   const content = useMemo(() => {
     if (!panel) return null;
     const openPanel = (panelKey: ConsolePanelKey, params?: Record<string, unknown>) => onOpenPanel({ key: panelKey, params: params || {} });
@@ -1105,6 +1142,7 @@ export default function WorkbenchPanelHost({
           queryError={String(panel.params?.query_error || "")}
           panel={panel}
           onContextChange={onContextChange}
+          onTitleChange={setResolvedTitle}
           onOpenDetail={(target) => {
             if (target.entity_type === "workspace") {
               openPanel("platform_settings", { workspace_id: target.entity_id });
@@ -1123,6 +1161,7 @@ export default function WorkbenchPanelHost({
           queryError={String(panel.params?.query_error || "")}
           panel={panel}
           onContextChange={onContextChange}
+          onTitleChange={setResolvedTitle}
           onOpenDetail={(target, row) => {
             if (target.entity_type === "run") {
               openPanel("run_detail", { run_id: target.entity_id });
@@ -1148,6 +1187,7 @@ export default function WorkbenchPanelHost({
           onOpenArtifactDetail={(slug) => openPanel("artifact_detail", { slug })}
           panel={panel}
           onContextChange={onContextChange}
+          onTitleChange={setResolvedTitle}
         />
       );
     }
@@ -1185,6 +1225,7 @@ export default function WorkbenchPanelHost({
           queryError={String(panel.params?.query_error || "")}
           panel={panel}
           onContextChange={onContextChange}
+          onTitleChange={setResolvedTitle}
           onOpenDetail={(target, row) => {
             openPanel("record_detail", { ...target, row });
           }}
@@ -1208,6 +1249,7 @@ export default function WorkbenchPanelHost({
           queryError={String(panel.params?.query_error || "")}
           panel={panel}
           onContextChange={onContextChange}
+          onTitleChange={setResolvedTitle}
           onOpenDetail={(target, row) => {
             openPanel("record_detail", { ...target, row });
           }}
@@ -1222,6 +1264,7 @@ export default function WorkbenchPanelHost({
           initialQuery={{ entity: "ems_device_status_rollup", filters: [], sort: [{ field: "bucket", dir: "asc" }], limit: 50, offset: 0 }}
           panel={panel}
           onContextChange={onContextChange}
+          onTitleChange={setResolvedTitle}
           onOpenDetail={(target, row) => {
             openPanel("record_detail", { ...target, row });
           }}
@@ -1243,6 +1286,7 @@ export default function WorkbenchPanelHost({
           }}
           panel={panel}
           onContextChange={onContextChange}
+          onTitleChange={setResolvedTitle}
           onOpenDetail={(target, row) => {
             openPanel("record_detail", { ...target, row });
           }}
@@ -1258,6 +1302,7 @@ export default function WorkbenchPanelHost({
           initialQuery={{ entity: "dataset_schema", filters: [], sort: [{ field: "key", dir: "asc" }], limit: 200, offset: 0 }}
           panel={panel}
           onContextChange={onContextChange}
+          onTitleChange={setResolvedTitle}
           onOpenDetail={(target, row) => {
             openPanel("record_detail", { ...target, row });
           }}
@@ -1269,27 +1314,13 @@ export default function WorkbenchPanelHost({
   }, [onContextChange, onOpenPanel, panel, workspaceId]);
 
   if (!panel) {
-    return (
-      <div className="card ems-panel-host">
-        <h3>Panels</h3>
-        <p className="muted">Ask the console to open a panel, for example:</p>
-        <ul className="muted">
-          <li>Open platform settings</li>
-          <li>List workspaces</li>
-          <li>Show runs</li>
-          <li>Show unregistered devices</li>
-          <li>Show registrations in the past 24 hours</li>
-          <li>Show device statuses</li>
-          <li>Describe dataset ems_devices</li>
-        </ul>
-      </div>
-    );
+    return null;
   }
 
   return (
     <div className="card ems-panel-host">
       <div className="ems-panel-head">
-        <h3>{panel.title || panelTitleFor(panel.key)}</h3>
+        <h3>{resolvedTitle || panel.title || panelTitleFor(panel.key)}</h3>
         {onClosePanel ? (
           <button type="button" className="ghost sm" onClick={onClosePanel}>
             Close

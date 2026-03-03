@@ -188,7 +188,7 @@ export default function AppShell() {
   const [authUser, setAuthUser] = useState<Record<string, unknown> | null>(null);
   const [userContext, setUserContext] = useState<{ id?: string; email?: string }>({});
   const [authLoaded, setAuthLoaded] = useState(false);
-  const [brandName, setBrandName] = useState<string>("Xyn Console");
+  const [brandName, setBrandName] = useState<string>("Xyn");
   const [brandLogo, setBrandLogo] = useState<string>("/xyence-logo.png");
   const [reportOpen, setReportOpen] = useState(false);
   const [workspaces, setWorkspaces] = useState<Array<{ id: string; slug: string; name: string; role: string; termination_authority?: boolean }>>([]);
@@ -245,7 +245,8 @@ export default function AppShell() {
             if (membership?.tenant_id) {
               const branding = await getTenantBranding(membership.tenant_id);
               if (!mounted) return;
-              setBrandName(branding.display_name || "Xyn Console");
+              const nextBrandName = String(branding.display_name || "").trim();
+              setBrandName(nextBrandName.toLowerCase() === "xyn console" ? "Xyn" : nextBrandName || "Xyn");
               setBrandLogo(branding.logo_url || "/xyence-logo.png");
               Object.entries(branding.theme || {}).forEach(([key, value]) => {
                 if (key) {

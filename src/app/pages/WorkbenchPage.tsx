@@ -49,39 +49,35 @@ export default function WorkbenchPage() {
 
   return (
     <>
-      <div className="page-header">
-        <div>
-          <h2>Workbench</h2>
-          <p className="muted">Panel-based runtime canvas. Use the Xyn button (top-right) or Cmd/Ctrl+K.</p>
-        </div>
-      </div>
-
       {!panel ? (
-        <section className="card workbench-start-card">
-          <h3>Start</h3>
-          <p className="muted">Pick a suggested command or open the prompt overlay to run anything.</p>
-          <div className="workbench-suggestion-grid">
-            {suggestions.map((entry) => (
-              <button key={entry} type="button" className="ghost workbench-suggestion-chip" onClick={() => handleSuggestion(entry)}>
-                {entry}
-              </button>
-            ))}
-          </div>
-        </section>
+        <div className="workbench-start-shell">
+          <section className="card workbench-start-card">
+            <h3>Start</h3>
+            <div className="workbench-suggestion-grid">
+              {suggestions.map((entry) => (
+                <button key={entry} type="button" className="ghost workbench-suggestion-chip" onClick={() => handleSuggestion(entry)}>
+                  {entry}
+                </button>
+              ))}
+            </div>
+          </section>
+        </div>
       ) : null}
 
       <section className="workbench-canvas">
-        <div className="inline-actions" style={{ justifyContent: "flex-end" }}>
-          <button
-            type="button"
-            className="ghost"
-            onClick={() => {
-              if (activePanel?.panel_id) closePanel(activePanel.panel_id);
-            }}
-          >
-            Clear panel
-          </button>
-        </div>
+        {panel ? (
+          <div className="inline-actions" style={{ justifyContent: "flex-end" }}>
+            <button
+              type="button"
+              className="ghost"
+              onClick={() => {
+                if (activePanel?.panel_id) closePanel(activePanel.panel_id);
+              }}
+            >
+              Clear panel
+            </button>
+          </div>
+        ) : null}
         <WorkbenchPanelHost
           panel={panel}
           workspaceId={workspaceId}
