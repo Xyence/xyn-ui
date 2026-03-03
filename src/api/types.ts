@@ -2527,6 +2527,60 @@ export type EmsStatusCountsResponse = {
   total: number;
 };
 
+export type ArtifactConsoleListItem = {
+  id: string;
+  slug: string;
+  title: string;
+  kind?: string | null;
+  description?: string | null;
+  version?: number | string | null;
+  updated_at?: string;
+  namespace?: string | null;
+  manifest_summary?: ArtifactManifestSummary;
+};
+
+export type ArtifactConsoleListResponse = {
+  artifacts: ArtifactConsoleListItem[];
+  count?: number;
+  limit?: number;
+  offset?: number;
+};
+
+export type ArtifactConsoleFileRow = {
+  path: string;
+  size_bytes: number;
+  sha256: string;
+  mime_guess?: string;
+};
+
+export type ArtifactConsoleDetailResponse = {
+  artifact: {
+    id: string;
+    slug: string;
+    title: string;
+    kind: string;
+    version: number | string;
+    artifact_state?: string;
+    status?: string;
+    updated_at?: string;
+    manifest_ref?: string | null;
+  };
+  manifest: Record<string, unknown>;
+  manifest_summary: ArtifactManifestSummary;
+  raw_artifact_json: Record<string, unknown>;
+  files: ArtifactConsoleFileRow[];
+  surfaces: Array<Record<string, unknown>>;
+  runtime_roles: Array<Record<string, unknown>>;
+};
+
+export type ArtifactConsoleFilesResponse = {
+  artifact: {
+    id: string;
+    slug: string;
+  };
+  files: ArtifactConsoleFileRow[];
+};
+
 export type XynIntentOptionsResponse = {
   artifact_type: "ArticleDraft" | "ContextPack";
   field: "category" | "format" | "duration";

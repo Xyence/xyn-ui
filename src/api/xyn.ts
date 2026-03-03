@@ -146,6 +146,9 @@ import type {
   EmsDeviceListResponse,
   EmsRegistrationsResponse,
   EmsStatusCountsResponse,
+  ArtifactConsoleListResponse,
+  ArtifactConsoleDetailResponse,
+  ArtifactConsoleFilesResponse,
 } from "./types";
 import { authHeaders, resolveApiBaseUrl } from "./client";
 
@@ -301,6 +304,41 @@ export async function getEmsStatusCounts(): Promise<EmsStatusCountsResponse> {
     headers: buildHeaders(),
   });
   return handle<EmsStatusCountsResponse>(response);
+}
+
+export async function listArtifactConsole(params?: {
+  namespace?: string;
+  kind?: string;
+  q?: string;
+}): Promise<ArtifactConsoleListResponse> {
+  const apiBaseUrl = resolveApiBaseUrl();
+  const url = new URL(`${apiBaseUrl}/xyn/api/artifacts`);
+  if (params?.namespace) url.searchParams.set("namespace", params.namespace);
+  if (params?.kind) url.searchParams.set("kind", params.kind);
+  if (params?.q) url.searchParams.set("q", params.q);
+  const response = await apiFetch(url.toString(), {
+    credentials: "include",
+    headers: buildHeaders(),
+  });
+  return handle<ArtifactConsoleListResponse>(response);
+}
+
+export async function getArtifactConsoleDetailBySlug(slug: string): Promise<ArtifactConsoleDetailResponse> {
+  const apiBaseUrl = resolveApiBaseUrl();
+  const response = await apiFetch(`${apiBaseUrl}/xyn/api/artifacts/slug/${encodeURIComponent(slug)}`, {
+    credentials: "include",
+    headers: buildHeaders(),
+  });
+  return handle<ArtifactConsoleDetailResponse>(response);
+}
+
+export async function getArtifactConsoleFilesBySlug(slug: string): Promise<ArtifactConsoleFilesResponse> {
+  const apiBaseUrl = resolveApiBaseUrl();
+  const response = await apiFetch(`${apiBaseUrl}/xyn/api/artifacts/slug/${encodeURIComponent(slug)}/files`, {
+    credentials: "include",
+    headers: buildHeaders(),
+  });
+  return handle<ArtifactConsoleFilesResponse>(response);
 }
 
 export async function getRecentArtifacts(limit = 6): Promise<RecentArtifactListResponse> {

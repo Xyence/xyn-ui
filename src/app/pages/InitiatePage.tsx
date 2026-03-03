@@ -1,6 +1,6 @@
 import { useEffect, useState } from "react";
 import { useParams } from "react-router-dom";
-import EmsPanelHost, { type EmsPanelSpec, type EmsPanelKey } from "../components/console/EmsPanelHost";
+import EmsPanelHost, { type ConsolePanelSpec, type ConsolePanelKey } from "../components/console/EmsPanelHost";
 import XynConsoleCore from "../components/console/XynConsoleCore";
 import { useXynConsole } from "../state/xynConsoleStore";
 
@@ -8,7 +8,7 @@ export default function InitiatePage() {
   const { setContext } = useXynConsole();
   const params = useParams();
   const workspaceId = String(params.workspaceId || "").trim();
-  const [panel, setPanel] = useState<EmsPanelSpec | null>(null);
+  const [panel, setPanel] = useState<ConsolePanelSpec | null>(null);
 
   useEffect(() => {
     setContext({ artifact_id: null, artifact_type: null });
@@ -29,13 +29,13 @@ export default function InitiatePage() {
             mode="page"
             onOpenPanel={(panelKey, params) =>
               setPanel({
-                key: panelKey as EmsPanelKey,
+                key: panelKey as ConsolePanelKey,
                 params: params || {},
               })
             }
           />
         </div>
-        <EmsPanelHost panel={panel} workspaceId={workspaceId} />
+        <EmsPanelHost panel={panel} workspaceId={workspaceId} onOpenPanel={setPanel} />
       </section>
     </>
   );

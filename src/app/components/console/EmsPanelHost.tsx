@@ -1,12 +1,37 @@
 import { useEffect, useMemo, useState } from "react";
-import { getEmsRegistrations, getEmsStatusCounts, listEmsDevices } from "../../../api/xyn";
-import type { EmsDeviceRow, EmsRegistrationsResponse, EmsStatusCountsResponse } from "../../../api/types";
+import {
+  getArtifactConsoleDetailBySlug,
+  getArtifactConsoleFilesBySlug,
+  getEmsRegistrations,
+  getEmsStatusCounts,
+  listArtifactConsole,
+  listEmsDevices,
+} from "../../../api/xyn";
+import type {
+  ArtifactConsoleDetailResponse,
+  ArtifactConsoleFileRow,
+  ArtifactConsoleListItem,
+  EmsDeviceRow,
+  EmsRegistrationsResponse,
+  EmsStatusCountsResponse,
+} from "../../../api/types";
 
-export type EmsPanelKey = "ems_unregistered_devices" | "ems_registrations_time" | "ems_device_statuses";
+export type ConsolePanelKey =
+  | "ems_unregistered_devices"
+  | "ems_registrations_time"
+  | "ems_device_statuses"
+  | "artifact_list"
+  | "artifact_detail"
+  | "artifact_raw_json"
+  | "artifact_files";
 
-export type EmsPanelSpec = {
-  key: EmsPanelKey;
+export type ConsolePanelSpec = {
+  key: ConsolePanelKey;
   params?: Record<string, unknown>;
+};
+
+type PanelProps = {
+  onOpenPanel: (panelKey: ConsolePanelKey, params?: Record<string, unknown>) => void;
 };
 
 function formatDate(value?: string): string {
@@ -14,6 +39,214 @@ function formatDate(value?: string): string {
   const parsed = new Date(value);
   if (Number.isNaN(parsed.getTime())) return value;
   return parsed.toLocaleString();
+}
+
+function ArtifactListPanel({ namespace, onOpenPanel }: { namespace?: string } & PanelProps) {
+  const [rows, setRows] = useState<ArtifactConsoleListItem[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
+  useEffect(() => {
+    let active = true;
+    (async () => {
+      try {
+        setLoading(true);
+        setError(null);
+        const payload = await listArtifactConsole({ namespace: namespace || undefined });
+        if (!active) return;
+        setRows(payload.artifacts || []);
+      } catch (err) {
+        if (!active) return;
+        setError(err instanceof Error ? err.message : "Failed to load artifacts");
+      } finally {
+        if (active) setLoading(false);
+      }
+    })();
+    return () => {
+      active = false;
+    };
+  }, [namespace]);
+  if (loading) return <p className="muted">Loading artifacts…</p>;
+  if (error) return <p className="danger-text">{error}</p>;
+  return (
+    <div className="ems-panel-body">
+      <p className="muted">Count: {rows.length}</p>
+      <table className="table">
+        <thead>
+          <tr>
+            <th>Slug</th>
+            <th>Title</th>
+            <th>Kind</th>
+            <th>Updated</th>
+          </tr>
+        </thead>
+        <tbody>
+          {rows.map((row) => (
+            <tr key={row.id}>
+              <td>
+                <button type="button" className="ghost sm" onClick={() => onOpenPanel("artifact_detail", { slug: row.slug })}>
+                  {row.slug}
+                </button>
+              </td>
+              <td>{row.title}</td>
+              <td>{row.kind || "-"}</td>
+              <td>{formatDate(row.updated_at)}</td>
+            </tr>
+          ))}
+        </tbody>
+      </table>
+    </div>
+  );
+}
+
+function ArtifactDetailPanel({ slug, onOpenPanel }: { slug: string } & PanelProps) {
+  const [payload, setPayload] = useState<ArtifactConsoleDetailResponse | null>(null);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
+  useEffect(() => {
+    let active = true;
+    (async () => {
+      try {
+        setLoading(true);
+        setError(null);
+        const next = await getArtifactConsoleDetailBySlug(slug);
+        if (!active) return;
+        setPayload(next);
+      } catch (err) {
+        if (!active) return;
+        setError(err instanceof Error ? err.message : "Failed to load artifact detail");
+      } finally {
+        if (active) setLoading(false);
+      }
+    })();
+    return () => {
+      active = false;
+    };
+  }, [slug]);
+
+  if (loading) return <p className="muted">Loading artifact detail…</p>;
+  if (error) return <p className="danger-text">{error}</p>;
+  if (!payload) return <p className="muted">Artifact not found.</p>;
+  const manage = payload.manifest_summary?.surfaces?.manage || [];
+  const docs = payload.manifest_summary?.surfaces?.docs || [];
+  return (
+    <div className="ems-panel-body">
+      <p className="muted">
+        {payload.artifact.slug} · {payload.artifact.kind} · v{payload.artifact.version}
+      </p>
+      <p className="muted small">Roles: {(payload.manifest_summary?.roles || []).join(", ") || "none"}</p>
+      <div className="inline-actions">
+        <button type="button" className="ghost sm" onClick={() => onOpenPanel("artifact_raw_json", { slug: payload.artifact.slug })}>
+          Open Raw JSON
+        </button>
+        <button type="button" className="ghost sm" onClick={() => onOpenPanel("artifact_files", { slug: payload.artifact.slug })}>
+          Open Files
+        </button>
+      </div>
+      {manage.length ? (
+        <div>
+          <p className="small muted">Manage surfaces</p>
+          <ul className="muted">
+            {manage.map((entry) => (
+              <li key={`${entry.path}:${entry.label}`}>
+                <a href={entry.path}>{entry.label}</a>
+              </li>
+            ))}
+          </ul>
+        </div>
+      ) : null}
+      {docs.length ? (
+        <div>
+          <p className="small muted">Docs surfaces</p>
+          <ul className="muted">
+            {docs.map((entry) => (
+              <li key={`${entry.path}:${entry.label}`}>
+                <a href={entry.path}>{entry.label}</a>
+              </li>
+            ))}
+          </ul>
+        </div>
+      ) : null}
+    </div>
+  );
+}
+
+function ArtifactRawJsonPanel({ slug }: { slug: string }) {
+  const [payload, setPayload] = useState<ArtifactConsoleDetailResponse | null>(null);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
+  useEffect(() => {
+    let active = true;
+    (async () => {
+      try {
+        setLoading(true);
+        setError(null);
+        const next = await getArtifactConsoleDetailBySlug(slug);
+        if (!active) return;
+        setPayload(next);
+      } catch (err) {
+        if (!active) return;
+        setError(err instanceof Error ? err.message : "Failed to load raw JSON");
+      } finally {
+        if (active) setLoading(false);
+      }
+    })();
+    return () => {
+      active = false;
+    };
+  }, [slug]);
+  if (loading) return <p className="muted">Loading raw JSON…</p>;
+  if (error) return <p className="danger-text">{error}</p>;
+  return <pre className="code-block">{JSON.stringify(payload?.raw_artifact_json || {}, null, 2)}</pre>;
+}
+
+function ArtifactFilesPanel({ slug }: { slug: string }) {
+  const [rows, setRows] = useState<ArtifactConsoleFileRow[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
+  useEffect(() => {
+    let active = true;
+    (async () => {
+      try {
+        setLoading(true);
+        setError(null);
+        const next = await getArtifactConsoleFilesBySlug(slug);
+        if (!active) return;
+        setRows(next.files || []);
+      } catch (err) {
+        if (!active) return;
+        setError(err instanceof Error ? err.message : "Failed to load files");
+      } finally {
+        if (active) setLoading(false);
+      }
+    })();
+    return () => {
+      active = false;
+    };
+  }, [slug]);
+  if (loading) return <p className="muted">Loading files…</p>;
+  if (error) return <p className="danger-text">{error}</p>;
+  return (
+    <div className="ems-panel-body">
+      <table className="table">
+        <thead>
+          <tr>
+            <th>Path</th>
+            <th>Size</th>
+            <th>SHA256</th>
+          </tr>
+        </thead>
+        <tbody>
+          {rows.map((row) => (
+            <tr key={row.path}>
+              <td>{row.path}</td>
+              <td>{row.size_bytes}</td>
+              <td className="muted small">{row.sha256}</td>
+            </tr>
+          ))}
+        </tbody>
+      </table>
+    </div>
+  );
 }
 
 function UnregisteredDevicesPanel() {
@@ -176,24 +409,33 @@ function DeviceStatusesPanel() {
   );
 }
 
-const PANEL_TITLES: Record<EmsPanelKey, string> = {
+const PANEL_TITLES: Record<ConsolePanelKey, string> = {
   ems_unregistered_devices: "Unregistered Devices",
   ems_registrations_time: "Registrations (Past N Hours)",
   ems_device_statuses: "Device Statuses",
+  artifact_list: "Artifact List",
+  artifact_detail: "Artifact Detail",
+  artifact_raw_json: "Artifact Raw JSON",
+  artifact_files: "Artifact Files",
 };
 
-export function panelTitleFor(key: EmsPanelKey): string {
+export function panelTitleFor(key: ConsolePanelKey): string {
   return PANEL_TITLES[key];
 }
 
-export default function EmsPanelHost({ panel, workspaceId }: { panel: EmsPanelSpec | null; workspaceId: string }) {
+export default function EmsPanelHost({ panel, workspaceId, onOpenPanel }: { panel: ConsolePanelSpec | null; workspaceId: string; onOpenPanel: (panel: ConsolePanelSpec) => void }) {
   const content = useMemo(() => {
     if (!panel) return null;
+    const openPanel = (panelKey: ConsolePanelKey, params?: Record<string, unknown>) => onOpenPanel({ key: panelKey, params: params || {} });
     if (panel.key === "ems_unregistered_devices") return <UnregisteredDevicesPanel />;
     if (panel.key === "ems_registrations_time") return <RegistrationsChartPanel hours={Number(panel.params?.hours || 24)} />;
     if (panel.key === "ems_device_statuses") return <DeviceStatusesPanel />;
+    if (panel.key === "artifact_list") return <ArtifactListPanel namespace={String(panel.params?.namespace || "")} onOpenPanel={openPanel} />;
+    if (panel.key === "artifact_detail") return <ArtifactDetailPanel slug={String(panel.params?.slug || "")} onOpenPanel={openPanel} />;
+    if (panel.key === "artifact_raw_json") return <ArtifactRawJsonPanel slug={String(panel.params?.slug || "")} />;
+    if (panel.key === "artifact_files") return <ArtifactFilesPanel slug={String(panel.params?.slug || "")} />;
     return null;
-  }, [panel]);
+  }, [panel, onOpenPanel]);
 
   if (!panel) {
     return (
@@ -201,9 +443,10 @@ export default function EmsPanelHost({ panel, workspaceId }: { panel: EmsPanelSp
         <h3>Panels</h3>
         <p className="muted">Ask the console to open a panel, for example:</p>
         <ul className="muted">
-          <li>Show unregistered devices</li>
-          <li>Show registrations in the past 24 hours</li>
-          <li>Show device statuses</li>
+          <li>List core artifacts</li>
+          <li>Open artifact core.authn-jwt</li>
+          <li>Edit artifact core.authn-jwt raw</li>
+          <li>Edit artifact core.authn-jwt files</li>
         </ul>
       </div>
     );
