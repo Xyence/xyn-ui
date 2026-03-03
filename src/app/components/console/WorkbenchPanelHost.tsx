@@ -1222,7 +1222,7 @@ export default function WorkbenchPanelHost({
           workspaceId={workspaceId}
           query={(panel.params?.query as ArtifactStructuredQuery | undefined) || undefined}
           queryError={String(panel.params?.query_error || "")}
-          onOpenArtifactDetail={(slug) => openPanel("artifact_detail", { slug })}
+          onOpenArtifactDetail={(slug) => openPanel("artifact_detail", { slug }, { open_in: "new_panel", return_to_panel_id: panel.panel_id })}
           panel={panel}
           onContextChange={onContextChange}
           onTitleChange={setResolvedTitle}
