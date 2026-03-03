@@ -327,7 +327,7 @@ function defaultQueryForDataset(dataset: string): Record<string, unknown> {
   return defaultArtifactStructuredQuery();
 }
 
-function buildUiActionFromPrompt(rawPrompt: string, canvasContext: ConsoleCanvasContext | null): UiActionEnvelope | null {
+export function buildUiActionFromPrompt(rawPrompt: string, canvasContext: ConsoleCanvasContext | null): UiActionEnvelope | null {
   const prompt = String(rawPrompt || "").trim();
   if (!prompt) return null;
   const normalized = prompt.toLowerCase();
