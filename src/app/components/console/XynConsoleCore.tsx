@@ -17,6 +17,53 @@ type Props = {
   onOpenPanel?: (panelKey: string, params?: Record<string, unknown>) => void;
 };
 
+type ResolvedPanelCommand =
+  | { panelKey: "artifact_list"; params: { namespace?: string } }
+  | { panelKey: "artifact_detail"; params: { slug: string } }
+  | { panelKey: "artifact_raw_json"; params: { slug: string } }
+  | { panelKey: "artifact_files"; params: { slug: string } }
+  | { panelKey: "ems_unregistered_devices"; params: Record<string, never> }
+  | { panelKey: "ems_registrations_time"; params: { hours: number } }
+  | { panelKey: "ems_device_statuses"; params: Record<string, never> };
+
+export function resolvePanelCommand(input: string): ResolvedPanelCommand | null {
+  const raw = String(input || "").trim();
+  if (!raw) return null;
+  const normalized = raw.toLowerCase();
+
+  let match = normalized.match(/^list\s+([a-z0-9_.-]+)\s+artifacts$/);
+  if (match && match[1]) {
+    return { panelKey: "artifact_list", params: { namespace: match[1] } };
+  }
+  if (/^list\s+artifacts$/.test(normalized)) {
+    return { panelKey: "artifact_list", params: {} };
+  }
+  match = normalized.match(/^open\s+artifact\s+([a-z0-9_.-]+)$/);
+  if (match && match[1]) {
+    return { panelKey: "artifact_detail", params: { slug: match[1] } };
+  }
+  match = normalized.match(/^edit\s+artifact\s+([a-z0-9_.-]+)\s+raw$/);
+  if (match && match[1]) {
+    return { panelKey: "artifact_raw_json", params: { slug: match[1] } };
+  }
+  match = normalized.match(/^edit\s+artifact\s+([a-z0-9_.-]+)\s+files$/);
+  if (match && match[1]) {
+    return { panelKey: "artifact_files", params: { slug: match[1] } };
+  }
+  if (/^show\s+unregistered\s+devices$/.test(normalized)) {
+    return { panelKey: "ems_unregistered_devices", params: {} };
+  }
+  match = normalized.match(/^show\s+registrations\s+in\s+the\s+past\s+(\d+)\s+hours?$/);
+  if (match && match[1]) {
+    const hours = Math.max(1, Math.min(Number(match[1]) || 24, 168));
+    return { panelKey: "ems_registrations_time", params: { hours } };
+  }
+  if (/^show\s+device\s+statuses$/.test(normalized)) {
+    return { panelKey: "ems_device_statuses", params: {} };
+  }
+  return null;
+}
+
 function stringifyValue(value: unknown): string {
   if (value == null) return "";
   if (typeof value === "string") return value;
@@ -348,6 +395,16 @@ export default function XynConsoleCore({ mode, onRequestClose, onOpenPanel }: Pr
     }
   };
 
+  const submitPrompt = () => {
+    const directPanel = resolvePanelCommand(inputText);
+    if (directPanel && onOpenPanel) {
+      onOpenPanel(directPanel.panelKey, directPanel.params);
+      clearSessionResolution();
+      return;
+    }
+    void submitResolve();
+  };
+
   const resolutionStack = (
     <>
       {pendingCloseBlock ? <div className="xyn-console-warning">You have a pending proposal. Apply or cancel.</div> : null}
@@ -390,7 +447,7 @@ export default function XynConsoleCore({ mode, onRequestClose, onOpenPanel }: Pr
       inputText={inputText}
       onInputChange={setInputText}
       onInputKeyDown={handleInputKeyDown}
-      onSubmit={() => void submitResolve()}
+      onSubmit={submitPrompt}
       onClear={() => {
         if (session.lastResolution || session.pendingProposal || session.pendingMissingFields.length) {
           clearSessionResolution();
