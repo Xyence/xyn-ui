@@ -1,4 +1,4 @@
-export const DEFAULT_WORKSPACE_SUBPATH = "build/artifacts";
+export const DEFAULT_WORKSPACE_SUBPATH = "workbench";
 
 const LEGACY_SCOPED_PREFIXES = [
   "/app/artifacts",
@@ -23,6 +23,7 @@ const LEGACY_EXACT_TO_SUBPATH: Record<string, string> = {
   "/app": DEFAULT_WORKSPACE_SUBPATH,
   "/app/": DEFAULT_WORKSPACE_SUBPATH,
   "/app/home": DEFAULT_WORKSPACE_SUBPATH,
+  "/app/workbench": DEFAULT_WORKSPACE_SUBPATH,
   "/app/console": "console",
   "/app/initiate": "console",
   "/app/artifacts/all": "build/artifacts",

@@ -31,6 +31,7 @@ import ArtifactDetailPage from "./pages/ArtifactDetailPage";
 import ArtifactSurfaceRoutePage from "./pages/ArtifactSurfaceRoutePage";
 import ArticleSurfaceEditorRedirectPage from "./pages/ArticleSurfaceEditorRedirectPage";
 import ArticleSurfaceDocsPage from "./pages/ArticleSurfaceDocsPage";
+import WorkbenchPage from "./pages/WorkbenchPage";
 import WorkspaceSettingsPage from "./pages/WorkspaceSettingsPage";
 import InitiatePage from "./pages/InitiatePage";
 import { useGlobalHotkeys } from "./hooks/useGlobalHotkeys";
@@ -187,7 +188,8 @@ export default function AppShell() {
   const { runningAiCount } = useOperations();
   const { preview, disablePreviewMode } = usePreview();
   const { handleRouteChange } = useXynConsole();
-  const hideFloatingConsoleNode = location.pathname === "/app/console" || location.pathname.includes("/console");
+  const hideFloatingConsoleNode =
+    location.pathname === "/app/console" || location.pathname.includes("/console") || location.pathname.includes("/workbench");
   const workspaceRoute = useWorkspaceFromRoute(workspaces);
   const workspaceIdFromRoute = workspaceRoute.workspaceId;
   const activeWorkspaceId = workspaceIdFromRoute || preferredWorkspaceId;
@@ -640,6 +642,7 @@ export default function AppShell() {
           )}
           <Routes>
             <Route path="/" element={<Navigate to={inWorkspaceScope ? DEFAULT_WORKSPACE_SUBPATH : "workspaces"} replace />} />
+            <Route path="workbench" element={<WorkbenchPage />} />
             <Route path="console" element={<InitiatePage />} />
             <Route path="apps/articles/edit" element={<ArticleSurfaceEditorRedirectPage />} />
             <Route path="apps/articles/docs" element={<ArticleSurfaceDocsPage />} />

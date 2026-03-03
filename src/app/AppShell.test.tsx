@@ -85,6 +85,10 @@ vi.mock("./components/console/XynConsoleNode", () => ({
   default: () => <div data-testid="console-node" />,
 }));
 
+vi.mock("./pages/WorkbenchPage", () => ({
+  default: () => <div data-testid="workbench-page" />,
+}));
+
 function LocationProbe() {
   const location = useLocation();
   return <div data-testid="location-probe">{`${location.pathname}${location.search}`}</div>;
@@ -174,6 +178,14 @@ describe("AppShell nav surfaces", () => {
     renderWorkspaceApp("/w/ws-1/run/dev-tasks");
     await waitFor(() =>
       expect(screen.getByTestId("location-probe").textContent).toContain("/w/ws-1/run/runs?filter=dev_task")
+    );
+  });
+
+  it("redirects workspace root to workbench", async () => {
+    apiMocks.listArtifactNavSurfaces.mockResolvedValueOnce({ surfaces: [] });
+    renderWorkspaceApp("/w/ws-1");
+    await waitFor(() =>
+      expect(screen.getByTestId("location-probe").textContent).toContain("/w/ws-1/workbench")
     );
   });
 

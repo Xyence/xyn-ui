@@ -105,7 +105,7 @@ describe("InitiatePage", () => {
     await userEvent.click(screen.getByRole("button", { name: "Open Artifact Raw" }));
 
     await screen.findByRole("heading", { name: "Artifact Raw JSON" });
-    await waitFor(() => expect(getArtifactConsoleDetailBySlugMock).toHaveBeenCalledWith("core.authn-jwt"));
+    await waitFor(() => expect(getArtifactConsoleDetailBySlugMock).toHaveBeenCalledWith("core.authn-jwt", { workspaceId: "ws-123" }));
     expect(screen.getByText(/core\.authn-jwt/i)).toBeInTheDocument();
   });
 });
