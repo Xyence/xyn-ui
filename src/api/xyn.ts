@@ -132,6 +132,7 @@ import type {
   AiCredential,
   AiModelConfig,
   AiAgent,
+  AiBootstrapStatusResponse,
   AiInvokeResponse,
   AiModelConfigCompat,
   AccessRegistryResponse,
@@ -230,6 +231,15 @@ export async function getWhoAmI(): Promise<{ authenticated: boolean; username?: 
     credentials: "include",
   });
   return handle<{ authenticated: boolean; username?: string; email?: string }>(response);
+}
+
+export async function getAiBootstrapStatus(): Promise<AiBootstrapStatusResponse> {
+  const apiBaseUrl = resolveApiBaseUrl();
+  const response = await apiFetch(`${apiBaseUrl}/xyn/api/ai/bootstrap-status`, {
+    credentials: "include",
+    headers: buildHeaders(),
+  });
+  return handle<AiBootstrapStatusResponse>(response);
 }
 
 export async function resolveXynIntent(payload: {

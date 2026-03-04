@@ -1834,6 +1834,19 @@ export type AiModelConfigCompat = {
   warnings: Array<{ param: string; reason: string; detail: string }>;
 };
 
+export type AiBootstrapStatus = {
+  provider: string;
+  model: string;
+  key_present: boolean;
+  default_agent_id?: string | null;
+  default_agent_slug?: string | null;
+  default_agent_updated_at?: string | null;
+};
+
+export type AiBootstrapStatusResponse = {
+  default_agent: AiBootstrapStatus;
+};
+
 export type ArtifactEventSummary = {
   id: string;
   artifact_id: string;

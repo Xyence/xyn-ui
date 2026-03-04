@@ -2,6 +2,7 @@ import { useEffect, useMemo, useState } from "react";
 import { ArrowLeft } from "lucide-react";
 import { useNavigate, useParams } from "react-router-dom";
 import {
+  getAiBootstrapStatus,
   getArtifactConsoleDetailBySlug,
   getArtifactConsoleFilesBySlug,
   getEmsDatasetSchemaTable,
@@ -17,6 +18,7 @@ import {
 } from "../../../api/xyn";
 import { resolveApiBaseUrl } from "../../../api/client";
 import type {
+  AiBootstrapStatus,
   ArtifactCanvasTableResponse,
   ArtifactConsoleDetailResponse,
   ArtifactConsoleFileRow,
@@ -564,6 +566,7 @@ function RunDetailPanel({ runId, panel, onContextChange }: { runId: string; pane
 function PlatformSettingsPanel({ workspaceId }: { workspaceId: string }) {
   const [workspace, setWorkspace] = useState<WorkspaceSummary | null>(null);
   const [artifacts, setArtifacts] = useState<Array<{ name?: string; slug?: string; installed_state?: string }>>([]);
+  const [aiBootstrap, setAiBootstrap] = useState<AiBootstrapStatus | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
 
@@ -577,6 +580,9 @@ function PlatformSettingsPanel({ workspaceId }: { workspaceId: string }) {
         if (!active) return;
         const found = (workspaceResponse.workspaces || []).find((entry) => String(entry.id) === workspaceId) || null;
         setWorkspace(found);
+        const aiStatus = await getAiBootstrapStatus();
+        if (!active) return;
+        setAiBootstrap(aiStatus.default_agent || null);
         if (workspaceId) {
           const installed = await listWorkspaceArtifacts(workspaceId);
           if (!active) return;
@@ -626,6 +632,24 @@ function PlatformSettingsPanel({ workspaceId }: { workspaceId: string }) {
       <div className="card">
         <p className="muted small">Installed artifacts</p>
         <pre className="code-block">{JSON.stringify(artifacts, null, 2)}</pre>
+      </div>
+      <div className="card">
+        <p className="muted small">AI bootstrap</p>
+        <pre className="code-block">
+          {JSON.stringify(
+            aiBootstrap
+              ? {
+                  provider: aiBootstrap.provider,
+                  model: aiBootstrap.model,
+                  key_present: aiBootstrap.key_present,
+                  default_agent_slug: aiBootstrap.default_agent_slug,
+                  last_updated: aiBootstrap.default_agent_updated_at,
+                }
+              : { status: "unavailable" },
+            null,
+            2
+          )}
+        </pre>
       </div>
       <div className="card">
         <p className="muted small">Environment</p>
