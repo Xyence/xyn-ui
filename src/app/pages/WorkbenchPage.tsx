@@ -32,7 +32,16 @@ export default function WorkbenchPage() {
     if (!panel) setCanvasContext(null);
   }, [panel, setCanvasContext]);
 
-  const suggestions = landingSuggestions.slice(0, 6).map((entry) => entry.prompt);
+  const suggestions = (
+    landingSuggestions.length
+      ? landingSuggestions.slice(0, 6).map((entry) => entry.prompt)
+      : [
+          "List artifacts",
+          "Show runs",
+          "Open platform settings",
+          "Provision Xyn instance (remote)",
+        ]
+  ).slice(0, 6);
 
   const handleSuggestion = (prompt: string) => {
     setInputText(prompt);
