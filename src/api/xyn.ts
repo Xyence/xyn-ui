@@ -153,8 +153,9 @@ import type {
   ArtifactConsoleListResponse,
   ArtifactConsoleDetailResponse,
   ArtifactConsoleFilesResponse,
+  LocalProvisionResponse,
 } from "./types";
-import { authHeaders, resolveApiBaseUrl } from "./client";
+import { authHeaders, resolveApiBaseUrl, resolveSeedBaseUrl } from "./client";
 
 const jsonHeaders = {
   "Content-Type": "application/json",
@@ -240,6 +241,19 @@ export async function getAiBootstrapStatus(): Promise<AiBootstrapStatusResponse>
     headers: buildHeaders(),
   });
   return handle<AiBootstrapStatusResponse>(response);
+}
+
+export async function provisionLocalXynInstance(payload: {
+  name?: string;
+  job?: { prompt: string; repo_ref: string };
+}): Promise<LocalProvisionResponse> {
+  const seedBaseUrl = resolveSeedBaseUrl();
+  const response = await apiFetch(`${seedBaseUrl}/api/v1/provision/local-instance`, {
+    method: "POST",
+    headers: buildHeaders(),
+    body: JSON.stringify(payload),
+  });
+  return handle<LocalProvisionResponse>(response);
 }
 
 export async function resolveXynIntent(payload: {

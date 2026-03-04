@@ -17,6 +17,14 @@ export function resolveApiBaseUrl() {
   return "http://localhost:8000";
 }
 
+export function resolveSeedBaseUrl() {
+  const envBase = import.meta.env.VITE_SEED_API_URL as string | undefined;
+  if (envBase && envBase.trim().length > 0) {
+    return envBase.replace(/\/+$/, "");
+  }
+  return "http://localhost:8001";
+}
+
 export const authMode =
   (import.meta.env.VITE_AUTH_MODE as string | undefined) || "token";
 

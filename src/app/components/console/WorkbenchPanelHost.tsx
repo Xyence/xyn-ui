@@ -24,6 +24,7 @@ import type {
   ArtifactConsoleFileRow,
   ArtifactStructuredQuery,
   CanvasTableResponse,
+  LocalProvisionResponse,
   RunDetail,
   RunSummary,
   WorkspaceSummary,
@@ -49,7 +50,8 @@ export type ConsolePanelKey =
   | "ems_unregistered_devices"
   | "ems_registrations_time"
   | "ems_device_statuses"
-  | "record_detail";
+  | "record_detail"
+  | "local_provision_result";
 
 export type ConsolePanelSpec = {
   panel_id?: string;
@@ -1112,6 +1114,30 @@ function GenericRecordDetailPanel({
   );
 }
 
+function LocalProvisionResultPanel({ payload }: { payload?: LocalProvisionResponse | null }) {
+  if (!payload) return <p className="muted">No provisioning result available.</p>;
+  return (
+    <div className="ems-panel-body">
+      <p className="muted">
+        {payload.status} · {payload.compose_project}
+      </p>
+      <div className="inline-actions">
+        {payload.ui_url ? (
+          <a className="ghost sm" href={payload.ui_url} target="_blank" rel="noreferrer">
+            Open UI
+          </a>
+        ) : null}
+        {payload.api_url ? (
+          <a className="ghost sm" href={payload.api_url} target="_blank" rel="noreferrer">
+            Open API
+          </a>
+        ) : null}
+      </div>
+      <pre className="code-block">{JSON.stringify(payload, null, 2)}</pre>
+    </div>
+  );
+}
+
 const PANEL_TITLES: Record<ConsolePanelKey, string> = {
   platform_settings: "Platform Settings",
   workspaces: "Workspaces",
@@ -1130,6 +1156,7 @@ const PANEL_TITLES: Record<ConsolePanelKey, string> = {
   ems_registrations_time: "Registrations (Past N Hours)",
   ems_device_statuses: "Device Statuses",
   record_detail: "Record Detail",
+  local_provision_result: "Local Provision Result",
 };
 
 export function panelTitleFor(key: ConsolePanelKey): string {
@@ -1270,6 +1297,9 @@ export default function WorkbenchPanelHost({
           onContextChange={onContextChange}
         />
       );
+    }
+    if (panel.key === "local_provision_result") {
+      return <LocalProvisionResultPanel payload={(panel.params?.payload as LocalProvisionResponse | undefined) || null} />;
     }
 
     if (panel.key === "ems_devices" || panel.key === "ems_unregistered_devices") {

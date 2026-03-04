@@ -2,6 +2,7 @@ import { useEffect, useMemo, useRef, useState, type KeyboardEvent as ReactKeyboa
 import { useLocation, useNavigate } from "react-router-dom";
 import { AlertTriangle, CheckCircle2, CircleHelp, Wrench } from "lucide-react";
 import { getRecentArtifacts } from "../../../api/xyn";
+import { provisionLocalXynInstance } from "../../../api/xyn";
 import type { RecentArtifactItem, XynIntentResolutionResult } from "../../../api/types";
 import { getEntityTypeForDataset } from "../../../components/canvas/datasetEntityRegistry";
 import { toWorkspacePath } from "../../routing/workspaceRouting";
@@ -379,6 +380,21 @@ function panelKeyForDataset(dataset: string): ResolvedPanelCommand["panelKey"] {
   if (dataset === "ems_device_status_rollup") return "ems_device_status_rollup";
   if (dataset === "ems_registrations_timeseries") return "ems_registrations_timeseries";
   return "artifact_list";
+}
+
+function parseProvisionLocalCommand(input: string): { name?: string; jobPrompt?: string; repoRef?: string } | null {
+  const raw = String(input || "").trim();
+  if (!raw) return null;
+  const lower = raw.toLowerCase();
+  if (!lower.startsWith("provision local xyn instance")) return null;
+  const jobMatch = raw.match(/run\s+dev\.change\s+["']([^"']+)["']/i);
+  const repoMatch = raw.match(/repo(?:_ref)?\s+["']?([^"']+)["']?$/i);
+  const nameMatch = raw.match(/named\s+([a-zA-Z0-9._-]+)/i);
+  return {
+    name: nameMatch?.[1] ? String(nameMatch[1]) : undefined,
+    jobPrompt: jobMatch?.[1] ? String(jobMatch[1]).trim() : undefined,
+    repoRef: repoMatch?.[1] ? String(repoMatch[1]).trim() : undefined,
+  };
 }
 
 function defaultQueryForDataset(dataset: string): Record<string, unknown> {
@@ -1142,6 +1158,49 @@ export default function XynConsoleCore({ mode, onRequestClose, onOpenPanel }: Pr
       openSuggestionSwitcher();
       clearSessionResolution();
       if (isOverlay) setOpen(false);
+      return;
+    }
+    const provisionRequest = parseProvisionLocalCommand(prompt);
+    if (provisionRequest) {
+      void (async () => {
+        try {
+          setOpen(true);
+          const payload = await provisionLocalXynInstance({
+            name: provisionRequest.name,
+            job:
+              provisionRequest.jobPrompt
+                ? {
+                    prompt: provisionRequest.jobPrompt,
+                    repo_ref: provisionRequest.repoRef || String(import.meta.env.VITE_JOB_DEFAULT_REPO || "/home/ubuntu/src/xyn-ui"),
+                  }
+                : undefined,
+          });
+          openPanel({
+            key: "local_provision_result",
+            params: { payload },
+            open_in: "new_panel",
+          });
+          clearSessionResolution();
+          if (isOverlay) setOpen(false);
+        } catch (error) {
+          openPanel({
+            key: "local_provision_result",
+            params: {
+              payload: {
+                status: "failed",
+                compose_project: "n/a",
+                compose_path: "",
+                deployment_id: "",
+                deployment_artifact_id: "",
+                ui_url: "",
+                api_url: "",
+                error: error instanceof Error ? error.message : "Unknown provisioning failure",
+              },
+            },
+            open_in: "new_panel",
+          });
+        }
+      })();
       return;
     }
     const envelope = buildUiActionFromPrompt(prompt, (canvasContext as ConsoleCanvasContext | null) || null);

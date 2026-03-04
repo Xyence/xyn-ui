@@ -1847,6 +1847,28 @@ export type AiBootstrapStatusResponse = {
   default_agent: AiBootstrapStatus;
 };
 
+export type LocalProvisionJobResult = {
+  status: string;
+  job_artifact_id?: string | null;
+  job_run_artifact_id?: string | null;
+  patch_artifact_id?: string | null;
+  logs_artifact_id?: string | null;
+  branch_name?: string | null;
+  commit_sha?: string | null;
+};
+
+export type LocalProvisionResponse = {
+  deployment_id: string;
+  deployment_artifact_id: string;
+  status: string;
+  compose_project: string;
+  compose_path: string;
+  ui_url: string;
+  api_url: string;
+  surfaces?: Record<string, { label?: string; path?: string }>;
+  job?: LocalProvisionJobResult;
+};
+
 export type ArtifactEventSummary = {
   id: string;
   artifact_id: string;
