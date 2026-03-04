@@ -1120,17 +1120,6 @@ export default function XynConsoleCore({ mode, onRequestClose, onOpenPanel }: Pr
   };
 
   const canSubmit = Boolean(inputText.trim()) && !processing;
-  const handleInputKeyDown = (event: ReactKeyboardEvent<HTMLTextAreaElement>) => {
-    if (event.key !== "Enter") return;
-    if (event.altKey) return;
-    if (event.shiftKey) return;
-    const submitByHotkey = event.metaKey || event.ctrlKey || (!event.metaKey && !event.ctrlKey);
-    if (submitByHotkey) {
-      event.preventDefault();
-      if (!canSubmit) return;
-      void submitResolve();
-    }
-  };
 
   const submitPrompt = () => {
     const prompt = String(inputText || "").trim();
@@ -1303,6 +1292,18 @@ export default function XynConsoleCore({ mode, onRequestClose, onOpenPanel }: Pr
     }
 
     void submitResolve();
+  };
+
+  const handleInputKeyDown = (event: ReactKeyboardEvent<HTMLTextAreaElement>) => {
+    if (event.key !== "Enter") return;
+    if (event.altKey) return;
+    if (event.shiftKey) return;
+    const submitByHotkey = event.metaKey || event.ctrlKey || (!event.metaKey && !event.ctrlKey);
+    if (submitByHotkey) {
+      event.preventDefault();
+      if (!canSubmit) return;
+      submitPrompt();
+    }
   };
 
   useEffect(() => {
