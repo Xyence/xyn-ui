@@ -108,4 +108,22 @@ describe("buildUiActionFromPrompt", () => {
     const action = buildUiActionFromPrompt("filter no_such_field=abc", artifactsTableContext());
     expect(action).toBeNull();
   });
+
+  it("falls back to context-aware table search for unmatched follow-up prompts", () => {
+    const action = buildUiActionFromPrompt("show only artifacts related to auth", artifactsTableContext());
+    expect(action).toEqual({
+      type: "ui.action",
+      action: {
+        name: "canvas.update_table_query",
+        target: { panel_id: "p1" },
+        params: {
+          mode: "patch",
+          query_patch: {
+            filters_add: [{ field: "slug", op: "contains", value: "only artifacts related to auth" }],
+            offset: 0,
+          },
+        },
+      },
+    });
+  });
 });

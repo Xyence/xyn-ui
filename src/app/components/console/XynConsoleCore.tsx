@@ -681,6 +681,31 @@ export function buildUiActionFromPrompt(rawPrompt: string, canvasContext: Consol
     };
   }
 
+  // Context-first fallback: keep follow-up prompts in the active table instead of
+  // dropping to backend draft intent resolution.
+  const tableLikePrefix = /^(show|list|find|only show|filter)\s+/i;
+  if (tableLikePrefix.test(prompt)) {
+    const stripped = prompt.replace(tableLikePrefix, "").trim();
+    const value = stripped || prompt;
+    if (value) {
+      const field = inferSearchField(canvasContext || {});
+      return {
+        type: "ui.action",
+        action: {
+          name: "canvas.update_table_query",
+          target: { panel_id: activePanelId },
+          params: {
+            mode: "patch",
+            query_patch: {
+              filters_add: [{ field, op: "contains", value }],
+              offset: 0,
+            },
+          },
+        },
+      };
+    }
+  }
+
   match = normalized.match(/^open\s+row\s+(\d+)$/);
   if (match && match[1]) {
     const idx = Math.max(1, Number(match[1])) - 1;
