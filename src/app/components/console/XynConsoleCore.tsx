@@ -403,6 +403,15 @@ function defaultQueryForDataset(dataset: string): Record<string, unknown> {
   return defaultArtifactStructuredQuery();
 }
 
+function applyArtifactNamespaceFilter(query: Record<string, unknown>, namespace?: string): Record<string, unknown> {
+  const ns = String(namespace || "").trim().toLowerCase();
+  if (!ns) return query;
+  const currentFilters = Array.isArray(query.filters) ? [...(query.filters as Array<{ field: string; op: string; value: unknown }>)] : [];
+  const nextFilters = currentFilters.filter((row) => String(row?.field || "").toLowerCase() !== "namespace");
+  nextFilters.push({ field: "namespace", op: "eq", value: ns });
+  return { ...query, filters: nextFilters, offset: 0 };
+}
+
 export function buildUiActionFromPrompt(rawPrompt: string, canvasContext: ConsoleCanvasContext | null): UiActionEnvelope | null {
   const prompt = String(rawPrompt || "").trim();
   if (!prompt) return null;
@@ -435,7 +444,12 @@ export function buildUiActionFromPrompt(rawPrompt: string, canvasContext: Consol
         directPanel.params && typeof directPanel.params === "object" && "query" in directPanel.params
           ? (directPanel.params as { query?: Record<string, unknown> })
           : null;
-      const nextQuery = paramsWithQuery?.query || defaultQueryForDataset(dataset);
+      const panelNamespace =
+        directPanel.params && typeof directPanel.params === "object" && "namespace" in directPanel.params
+          ? String((directPanel.params as { namespace?: string }).namespace || "")
+          : "";
+      const baseQuery = paramsWithQuery?.query || defaultQueryForDataset(dataset);
+      const nextQuery = dataset === "artifacts" ? applyArtifactNamespaceFilter(baseQuery, panelNamespace) : baseQuery;
       return {
         type: "ui.action",
         action: {

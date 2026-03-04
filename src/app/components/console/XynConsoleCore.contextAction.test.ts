@@ -73,6 +73,29 @@ describe("buildUiActionFromPrompt", () => {
     expect(action?.action.params.dataset).toBe("runs");
   });
 
+  it("applies namespace filter for list namespace artifacts command", () => {
+    const action = buildUiActionFromPrompt("list core artifacts", artifactsTableContext());
+    expect(action).toEqual({
+      type: "ui.action",
+      action: {
+        name: "canvas.open_table",
+        params: {
+          dataset: "artifacts",
+          query: {
+            entity: "artifacts",
+            filters: [{ field: "namespace", op: "eq", value: "core" }],
+            sort: [{ field: "updated_at", dir: "desc" }],
+            limit: 50,
+            offset: 0,
+          },
+          title: "artifacts",
+          open_in: "current_panel",
+          placement: "center",
+        },
+      },
+    });
+  });
+
   it("opens detail tab action when current context is detail", () => {
     const action = buildUiActionFromPrompt("show raw", artifactDetailContext());
     expect(action).toEqual({
